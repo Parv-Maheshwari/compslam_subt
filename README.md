@@ -1,5 +1,11 @@
 # README #
 
+### Modification Info: ###
+This repository builds on top of ROVIO (Robust Visual Inertial Odometry) open-source framework (BSD License), forked at the Commit 473223daa86fd98041515cf090d2a39692156a97.
+The purpose of this fork is to add features to ROVIO and to extend it to work with thermal imagery and is referred to ROTIO (Robust Thermal Inertial Odometry) for identification and operational purposes. The code is open-source (BSD License) as in case of the original work of ROVIO.
+
+### Original ROVIO README and Paper: ###
+
 This repository contains the ROVIO (Robust Visual Inertial Odometry) framework. The code is open-source (BSD License). Please remember that it is strongly coupled to on-going research and thus some parts are not fully mature yet. Furthermore, the code will also be subject to changes in the future which could include greater re-factoring of some parts.
 
 Video: https://youtu.be/ZMAISVy-6ao
@@ -10,11 +16,18 @@ Papers:
 
 Please also have a look at the wiki: https://github.com/ethz-asl/rovio/wiki
 
+### Information regarding modifications incorporated in ROTIO: ###
+
+Video: https://youtu.be/SOJAYlGqYec
+
+Related paper:
+* https://ieeexplore.ieee.org/document/8798279 (ICUAS 2019)
+
 ### Install without opengl scene ###
 Dependencies:
 * ros
 * kindr (https://github.com/ethz-asl/kindr)
-* lightweight_filtering (as submodule, use "git submodule update --init --recursive")
+* **lightweight_filtering (as submodule, use "git submodule update --init --recursive")**
 
 ```
 #!command
