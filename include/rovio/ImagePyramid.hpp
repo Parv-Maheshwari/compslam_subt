@@ -154,7 +154,7 @@ class ImagePyramid {
 
 #if (CV_MAJOR_VERSION < 3)
     cv::FastFeatureDetector feature_detector_fast(detectionThreshold, true);
-    feature_detector_fast.detect(imgs_[l], keypoints);  //CUSTOMIZATION
+    feature_detector_fast.detect(histEqualizedLevelImg, keypoints);  //CUSTOMIZATION
 #else
     auto feature_detector_fast = cv::FastFeatureDetector::create(detectionThreshold, true);
     feature_detector_fast->detect(histEqualizedLevelImg, keypoints);  //CUSTOMIZATION
