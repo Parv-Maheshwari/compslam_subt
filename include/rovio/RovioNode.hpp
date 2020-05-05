@@ -257,17 +257,17 @@ class RovioNode {
 
     //CUSTOMIZATION
     nh_private_.param("imu_offset", imu_offset_, 0.0);
-    if (imu_offset_ > 0.0)
-      ROS_INFO("ROVIO - IMU time offset set to: %f", imu_offset_);
+    if (imu_offset_ != 0.0)
+      ROS_WARN_ONCE("ROVIO - IMU time offset set to: %f", imu_offset_);
     nh_private_.param("cam0_offset", cam0_offset_, 0.0);
-    if (cam0_offset_ > 0.0)
-      ROS_INFO("ROVIO - CAM0 time offset set to: %f", cam0_offset_);
+    if (cam0_offset_ != 0.0)
+      ROS_WARN_ONCE("ROVIO - CAM0 time offset set to: %f", cam0_offset_);
     nh_private_.param("cam1_offset", cam1_offset_, 0.0);
-    if (cam1_offset_ > 0.0)
-      ROS_INFO("ROVIO - CAM1 time offset set to: %f", cam1_offset_);
+    if (cam1_offset_ != 0.0)
+      ROS_WARN_ONCE("ROVIO - CAM1 time offset set to: %f", cam1_offset_);
     nh_private_.param("histogram_equalize_8bit_images", histogram_equalize_8bit_images_, false);
     if (histogram_equalize_8bit_images_)
-      ROS_INFO("ROVIO - Input Grayscale Images are Histrogram Equalized");
+      ROS_WARN_ONCE("ROVIO - Input Grayscale Images are Histrogram Equalized");
     if (histogram_equalize_8bit_images_) {
       nh_private_.param("clahe_clip_limit", clahe_clip_limit_, 2.0);
       nh_private_.param("clahe_grid_size", clahe_grid_size_, 6.0);
@@ -280,7 +280,7 @@ class RovioNode {
     if (resize_factor_ > 1.0)
       resize_factor_ = 1.0;
     if (resize_input_image_)
-      ROS_INFO("ROVIO - Input Images Resized to %d pct of Original Size", static_cast<int>(resize_factor_ * 100));
+      ROS_WARN_ONCE("ROVIO - Input Images Resized to %d pct of Original Size", static_cast<int>(resize_factor_ * 100));
     // Initialize path message
     pathMsg_.header.frame_id = world_frame_;
     pathMsg_.poses.reserve(12000);  //10 minutes path @ 20Hz
