@@ -183,7 +183,7 @@ class ImagePyramid {
   //The useful range is then mapped to 8-bit image range of 0-255(outImg).
   void equalizeHistogram(int lvl, cv::Mat& outImg) const {
     //Set Min and Max range for 16-bit
-    float intensityMin = 0.0, intensityMax = 65535.0;
+    const float intensityMin = 0.0, intensityMax = 65535.0;
     int histSize = intensityMax - intensityMin + 1;
     float range[] = {intensityMin, intensityMax};
     const float* histRange = {range};
@@ -193,7 +193,8 @@ class ImagePyramid {
     cv::calcHist(&imgs_[lvl], 1, 0, cv::noArray(), histogram, 1, &histSize, &histRange, true, false);
 
     //Find clipping range w.r.t minimmum and maximum intensity values (CDF) with atleast N=10000 pixels in bin
-    int cummulativePixels = 10000 * std::pow(0.5, lvl);
+    const int cummulativePixelsAtLvlZero = 10000;
+    int cummulativePixels = cummulativePixelsAtLvlZero * std::pow(0.5, lvl);
     //Min value
     int bin = 1;  //ignoring 0 bin
     for (int sum = 0; sum < cummulativePixels; sum += histogram.at<float>(bin), ++bin)

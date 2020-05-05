@@ -230,6 +230,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   double discriminativeSamplingDistance_;  /**<Sampling distance for checking discriminativity of patch (if <= 0.0 no check is performed).*/
   double discriminativeSamplingGain_;      /**<Gain for threshold above which the samples must lie (if <= 1.0 the patchRejectionTh is used).*/
   double maxAllowedFeatureDistance_;       /**<CUSTOMIZATION: Max allowed estimated feature distance after performing update, remove features with very far away depth and clustered features during backward motion.*/
+  double minTimeBeforeMaxFeaDistCheck_;    /**<CUSTOMIZATION: Min time allowed in secd before maxAllowedFeatureDistance check is applied. Typically 1.0sec for camera at 20Hz i.e. 20 updates have been applied*/
 
   // Temporary
   mutable PixelOutputCT pixelOutputCT_;
@@ -257,17 +258,20 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   mutable MultilevelPatchAlignment<mtState::nLevels_, mtState::patchSize_> alignment_; /**<Patch aligner*/
   mutable cv::Mat drawImg_;                                                            /**<Image currently used for drawing*/
 
+  const float max_8bit_image_val = 255.0; /**<CUSTOMIZATION: max value for 8-bit image in float images. Used for disambiguation between conversion from float to 8-bit or 16-bit images.
+
   /** \brief Constructor.
    *
    *   Loads and sets the needed parameters.
    */
-  ImgUpdate() : transformFeatureOutputCT_(nullptr),
-                pixelOutputCov_((int)(PixelOutput::D_), (int)(PixelOutput::D_)),
-                featureOutputCov_((int)(FeatureOutput::D_), (int)(FeatureOutput::D_)),
-                featureOutputJac_((int)(FeatureOutput::D_), (int)(mtState::D_)),
-                canditateGenerationH_(2, (int)(mtState::D_)),
-                canditateGenerationDifVec_((int)(mtState::D_), 1),
-                canditateGenerationPy_(2, 2) {
+  ImgUpdate()
+      : transformFeatureOutputCT_(nullptr),
+        pixelOutputCov_((int)(PixelOutput::D_), (int)(PixelOutput::D_)),
+        featureOutputCov_((int)(FeatureOutput::D_), (int)(FeatureOutput::D_)),
+        featureOutputJac_((int)(FeatureOutput::D_), (int)(mtState::D_)),
+        canditateGenerationH_(2, (int)(mtState::D_)),
+        canditateGenerationDifVec_((int)(mtState::D_), 1),
+        canditateGenerationPy_(2, 2) {
     mpMultiCamera_ = nullptr;
     initCovFeature_.setIdentity();
     initDepth_ = 0.5;
@@ -309,7 +313,9 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     alignmentGaussianWeightingSigma_ = 2.0;
     discriminativeSamplingDistance_ = 0.0;
     discriminativeSamplingGain_ = 0.0;
-    maxAllowedFeatureDistance_ = 25.0;  //CUTOMIZATION
+    maxAllowedFeatureDistance_ = 25.0;    //CUTOMIZATION
+    minTimeBeforeMaxFeaDistCheck_ = 1.0;  //CUTOMIZATION
+
     doubleRegister_.registerDiagonalMatrix("initCovFeature", initCovFeature_);
     doubleRegister_.registerScalar("initDepth", initDepth_);
     doubleRegister_.registerScalar("startDetectionTh", startDetectionTh_);
@@ -365,7 +371,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     doubleRegister_.registerScalar("alignmentGaussianWeightingSigma", alignmentGaussianWeightingSigma_);
     alignmentGradientExponent_ = static_cast<double>(alignment_.gradientExponent_);
     doubleRegister_.registerScalar("alignmentGradientExponent", alignmentGradientExponent_);
-    doubleRegister_.registerScalar("maxAllowedFeatureDistance", maxAllowedFeatureDistance_);  //CUSTOMIZATION
+    doubleRegister_.registerScalar("maxAllowedFeatureDistance", maxAllowedFeatureDistance_);        //CUSTOMIZATION
+    doubleRegister_.registerScalar("minTimeBeforeMaxFeaDistCheck", minTimeBeforeMaxFeaDistCheck_);  //CUSTOMIZATION
   };
 
   /** \brief Destructor
@@ -591,7 +598,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         double imgMin, imgMax;
         cv::minMaxLoc(meas.aux().pyr_[i].imgs_[startLevel_], &imgMin, &imgMax);  //Check on the highest allowed pyramid level to save time, Equaliztion applied on original image
         cv::Mat tmpImg;
-        if (imgMax > 255.0)
+        if (imgMax > max_8bit_image_val)
           meas.aux().pyr_[i].equalizeHistogram(0, tmpImg);
         else
           meas.aux().pyr_[i].imgs_[0].convertTo(tmpImg, CV_8UC1);
@@ -803,8 +810,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         for (unsigned int i = 0; i < mtState::nMax_; i++) {
           if (filterState.fsm_.isValid_[i]) {
             if (filterState.state_.dep(i).getDistance() < 1e-8 ||
-                ((filterState.fsm_.features_[i].mpStatistics_->currentTime_ - filterState.fsm_.features_[i].mpStatistics_->initTime_) > 1.0 &&
-                 filterState.state_.dep(i).getDistance() > maxAllowedFeatureDistance_))  //CUSTOMIZATION delete feature if it has more than 1sec of updates and converged depth is more than max allowed.)
+                ((filterState.fsm_.features_[i].mpStatistics_->currentTime_ - filterState.fsm_.features_[i].mpStatistics_->initTime_) > minTimeBeforeMaxFeaDistCheck_ &&
+                 filterState.state_.dep(i).getDistance() > maxAllowedFeatureDistance_))  //CUSTOMIZATION delete feature if it has more than minTimeBeforeMaxFeaDistCheck secs of updates and converged depth is more than max allowed.)
             {
               if (verbose_) std::cout << "    \033[33mRemoved feature " << filterState.fsm_.features_[i].idx_ << " with invalid distance parameter " << filterState.state_.dep(i).p_ << "!\033[0m" << std::endl;
               filterState.fsm_.isValid_[i] = false;
@@ -1002,36 +1009,35 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         bool applyHistogramEqualization = false;
         double imgMin, imgMax;
         cv::minMaxLoc(meas.aux().pyr_[camID].imgs_[startLevel_], &imgMin, &imgMax);
-        if (imgMax > 255.0)
+        if (imgMax > max_8bit_image_val)
           applyHistogramEqualization = true;
         if (verbose_)
           std::cout << "Image Min/Max:" << imgMin << "/" << imgMax << "\t applyHistogramEqualization=" << applyHistogramEqualization << std::endl;
 
         //Detect FAST corners, equalize image if 16-bit before application of OpenCV FAST detector
-        for (int l = endLevel_; l <= startLevel_; l++)
-        {
-          meas.aux().pyr_[camID].detectFastCorners(candidates_, 
-                                                   l, 
-                                                   fastDetectionThreshold_, 
-                                                   mpMultiCamera_->cameras_[camID].valid_radius_, 
+        for (int l = endLevel_; l <= startLevel_; l++) {
+          meas.aux().pyr_[camID].detectFastCorners(candidates_,
+                                                   l,
+                                                   fastDetectionThreshold_,
+                                                   mpMultiCamera_->cameras_[camID].valid_radius_,
                                                    applyHistogramEqualization);
         }
         //CUSTOMIZATION
 
         const double t2 = (double)cv::getTickCount();
         if (verbose_) std::cout << "== Detected " << candidates_.size() << " on levels " << endLevel_ << "-" << startLevel_ << " (" << (t2 - t1) / cv::getTickFrequency() * 1000 << " ms)" << std::endl;
-        std::unordered_set<unsigned int> newSet = filterState.fsm_.addBestCandidates(candidates_, 
-                                                                                     meas.aux().pyr_[camID], 
-                                                                                     camID, 
+        std::unordered_set<unsigned int> newSet = filterState.fsm_.addBestCandidates(candidates_,
+                                                                                     meas.aux().pyr_[camID],
+                                                                                     camID,
                                                                                      filterState.t_,
-                                                                                     endLevel_, 
-                                                                                     startLevel_, 
-                                                                                     (mtState::nMax_ - filterState.fsm_.getValidCount()) / (mtState::nCam_ - camID), 
-                                                                                     nDetectionBuckets_, 
+                                                                                     endLevel_,
+                                                                                     startLevel_,
+                                                                                     (mtState::nMax_ - filterState.fsm_.getValidCount()) / (mtState::nCam_ - camID),
+                                                                                     nDetectionBuckets_,
                                                                                      scoreDetectionExponent_,
-                                                                                     penaltyDistance_, 
-                                                                                     zeroDistancePenalty_, 
-                                                                                     false, 
+                                                                                     penaltyDistance_,
+                                                                                     zeroDistancePenalty_,
+                                                                                     false,
                                                                                      minAbsoluteSTScore_);
         const double t3 = (double)cv::getTickCount();
         if (verbose_) std::cout << "== Got " << filterState.fsm_.getValidCount() << " after adding " << newSet.size() << " features in camera " << camID << " (" << (t3 - t2) / cv::getTickFrequency() * 1000 << " ms)" << std::endl;

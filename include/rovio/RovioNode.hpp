@@ -197,6 +197,7 @@ class RovioNode {
   cv::Ptr<cv::CLAHE> clahe;
   double clahe_clip_limit_ = 4.0;  //number of pixels used to clip the CDF for histogram equalization
   double clahe_grid_size_ = 8.0;   //clahe_grid_size_ x clahe_grid_size_ pixel neighborhood used
+  const float max_8bit_image_val = 255.0;
   //CUSTOMIZATION
 
   /** \brief Constructor
@@ -580,7 +581,7 @@ class RovioNode {
       //Check if input image is actually 8-bit
       double imgMin, imgMax;
       cv::minMaxLoc(cv_img, &imgMin, &imgMax);
-      if (imgMax <= 255.0) {
+      if (imgMax <= max_8bit_image_val) {
         cv::Mat inImg, outImg;
         cv_img.convertTo(inImg, CV_8UC1);
         clahe->apply(inImg, outImg);
@@ -886,12 +887,6 @@ class RovioNode {
           poseMsg.pose.orientation.z = imuOutput_.qBW().z();
 
           // Path message
-          /*if (pathMsg_.poses.size() > 20) {
-            geometry_msgs::PoseStamped lastPose = pathMsg_.poses.back();
-            pathMsg_.poses.clear();
-            pathMsg_.poses.reserve(20);
-            pathMsg_.poses.push_back(lastPose);
-          }*/
           pathMsg_.header.seq = msgSeq_;
           pathMsg_.header.stamp = ros::Time(mpFilter_->safe_.t_);
           pathMsg_.poses.push_back(poseMsg);
