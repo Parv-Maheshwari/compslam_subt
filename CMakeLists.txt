@@ -30,6 +30,10 @@ find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc features2d)
 message("OpenCV version: ${OpenCV_VERSION}")
 message("OpenCV path: ${OpenCV_DIR}$")
 
+find_package(PCL REQUIRED)
+message("PCL version: ${PCL_VERSION}")
+message("PCL path: ${PCL_DIR}$")
+
 if(MAKE_SCENE)
 	message(STATUS "Building ROVIO with openGL Scene Visualization")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAKE_SCENE=1")
@@ -74,6 +78,8 @@ find_package(catkin REQUIRED COMPONENTS
 	std_msgs
 	tf
 	rosbag
+	pcl_ros
+  	pcl_conversions
 )
 
 add_service_files(
@@ -102,7 +108,9 @@ catkin_package(
 	std_msgs
 	tf
 	rosbag
-  yaml_cpp_catkin
+  	yaml_cpp_catkin
+	pcl_ros
+  	pcl_conversions
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS} ${YamlCpp_INCLUDE_DIRS})

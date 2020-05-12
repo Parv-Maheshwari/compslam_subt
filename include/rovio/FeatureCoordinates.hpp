@@ -29,32 +29,31 @@
 #ifndef FEATURECOORDINATES_HPP_
 #define FEATURECOORDINATES_HPP_
 
-#include "lightweight_filtering/common.hpp"
-#include "lightweight_filtering/State.hpp"
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include "lightweight_filtering/State.hpp"
+#include "lightweight_filtering/common.hpp"
 #include "rovio/Camera.hpp"
 #include "rovio/FeatureDistance.hpp"
 
-namespace rovio{
+namespace rovio {
 
 /** \brief Helper function for transforming a cv::Point2f to a Eigen::Vector2f
  *
  * @param p - cv::Point2f
  * @return Eigen::Vector2f
  */
-static Eigen::Vector2f pointToVec2f(const cv::Point2f& p){
-  return Eigen::Vector2f(p.x,p.y);
+static Eigen::Vector2f pointToVec2f(const cv::Point2f& p) {
+  return Eigen::Vector2f(p.x, p.y);
 }
-
 
 /** \brief Helper function for transforming a cv::Point2f to a Eigen::Vector2f
  *
  * @param v - Eigen::Vector2f
  * @return cv::Point2f
  */
-static cv::Point2f vecToPoint2f(const Eigen::Vector2f& v){
-  return cv::Point2f(v(0),v(1));
+static cv::Point2f vecToPoint2f(const Eigen::Vector2f& v) {
+  return cv::Point2f(v(0), v(1));
 }
 
 /** \brief FeatureCoordinates class, contains information about the location of the feature.
@@ -63,32 +62,33 @@ static cv::Point2f vecToPoint2f(const Eigen::Vector2f& v){
  * Furthermore it also stores the cam ID, and handles uncertainties associated with the feature location.
  * It also handles local patch warping.
  */
-class FeatureCoordinates{
+class FeatureCoordinates {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  mutable cv::Point2f c_;  /**<Pixel coordinates of the feature.*/
-  mutable bool valid_c_;  /**<Bool, indicating if the current feature pixel coordinates \ref c_ are valid.*/
-  mutable LWF::NormalVectorElement nor_;  /**<Bearing vector, belonging to the feature.*/
-  mutable bool valid_nor_;  /**<Bool, indicating if the current bearing vector \ref nor_ is valid.*/
-  const Camera* mpCamera_;  /**<Pointer to the associated camera object.*/
-  Eigen::Matrix2d pixelCov_;  /**<Estimated covariance of pixel coordinates.*/
-  Eigen::Vector2d eigenVector1_;  /**<Estimated eigenvector of major uncertainty axis.*/
-  Eigen::Vector2d eigenVector2_;  /**<Estimated eigenvector of minor uncertainty axis.*/
-  double sigma1_;  /**<Standard deviation in the direction of the major axis of the uncertainty ellipse belonging to \ref c_.*/
-  double sigma2_;  /**<Standard deviation in the direction of the semi-major axis of the uncertainty ellipse belonging to \ref c_.*/
-  double sigmaAngle_; /**<Angle between the x-axis and the major axis of the uncertainty ellipse belonging to \ref c_.*/
+  mutable cv::Point2f c_;                          /**<Pixel coordinates of the feature.*/
+  mutable bool valid_c_;                           /**<Bool, indicating if the current feature pixel coordinates \ref c_ are valid.*/
+  mutable LWF::NormalVectorElement nor_;           /**<Bearing vector, belonging to the feature.*/
+  mutable bool valid_nor_;                         /**<Bool, indicating if the current bearing vector \ref nor_ is valid.*/
+  const Camera* mpCamera_;                         /**<Pointer to the associated camera object.*/
+  Eigen::Matrix2d pixelCov_;                       /**<Estimated covariance of pixel coordinates.*/
+  Eigen::Vector2d eigenVector1_;                   /**<Estimated eigenvector of major uncertainty axis.*/
+  Eigen::Vector2d eigenVector2_;                   /**<Estimated eigenvector of minor uncertainty axis.*/
+  double sigma1_;                                  /**<Standard deviation in the direction of the major axis of the uncertainty ellipse belonging to \ref c_.*/
+  double sigma2_;                                  /**<Standard deviation in the direction of the semi-major axis of the uncertainty ellipse belonging to \ref c_.*/
+  double sigmaAngle_;                              /**<Angle between the x-axis and the major axis of the uncertainty ellipse belonging to \ref c_.*/
   mutable Eigen::EigenSolver<Eigen::Matrix2d> es_; /**<Solver for computing the geometry of the pixel uncertainty.*/
-  int camID_; /**<Camera ID.*/
+  int camID_;                                      /**<Camera ID.*/
+  bool directDepthInit_ = false;                   /**CUSTOMIZATION - Flag if feature was initialized with direct depth */
 
-  mutable Eigen::Matrix2f warp_c_;  /**<Transformation matrix for pixel coordinates (from current patch to the current frame).*/
-  mutable bool valid_warp_c_;  /**<Specifies if the transformation \ref warp_c_ is valid.*/
-  mutable Eigen::Matrix2d warp_nor_;  /**<Transformation matrix for bearing vector (from current patch to the current frame).*/
-  mutable bool valid_warp_nor_;  /**<Specifies if the transformation \ref warp_nor_ is valid.*/
-  bool isWarpIdentity_; /**<Is the warping equal to identity (on pixel level, warp_c_).*/
-  bool trackWarping_; /**<Should the warping be tracked.*/
-  mutable Eigen::Matrix2d matrix2dTemp_; /**<Temporary Matrix2d.*/
+  mutable Eigen::Matrix2f warp_c_;                        /**<Transformation matrix for pixel coordinates (from current patch to the current frame).*/
+  mutable bool valid_warp_c_;                             /**<Specifies if the transformation \ref warp_c_ is valid.*/
+  mutable Eigen::Matrix2d warp_nor_;                      /**<Transformation matrix for bearing vector (from current patch to the current frame).*/
+  mutable bool valid_warp_nor_;                           /**<Specifies if the transformation \ref warp_nor_ is valid.*/
+  bool isWarpIdentity_;                                   /**<Is the warping equal to identity (on pixel level, warp_c_).*/
+  bool trackWarping_;                                     /**<Should the warping be tracked.*/
+  mutable Eigen::Matrix2d matrix2dTemp_;                  /**<Temporary Matrix2d.*/
   mutable Eigen::FullPivLU<Eigen::Matrix2d> fullPivLU2d_; /**<Full pivot LU decomposition for rank and inverse computation of Matrix2d.*/
-  mutable LWF::NormalVectorElement norTemp_; /**<Temporary normal vector.*/
+  mutable LWF::NormalVectorElement norTemp_;              /**<Temporary normal vector.*/
 
   /** \brief Constructor
    */
@@ -153,7 +153,7 @@ class FeatureCoordinates{
    *  Note: Validity can be checked with \ref com_c
    *  @return The Jacobian of the pixel output w.r.t. the bearing vector
    */
-  Eigen::Matrix<double,2,2> get_J() const;
+  Eigen::Matrix<double, 2, 2> get_J() const;
 
   /** \brief Sets the feature pixel coordinates \ref c_ and declares them valid (\ref valid_c_ = true).
    *
@@ -317,7 +317,6 @@ class FeatureCoordinates{
 // https://eigen.tuxfamily.org/dox-devel/group__TopicStlContainers.html
 using FeatureCoordinatesVec = std::vector<FeatureCoordinates, Eigen::aligned_allocator<FeatureCoordinates>>;
 
-}
-
+}  // namespace rovio
 
 #endif /* FEATURECOORDINATES_HPP_ */

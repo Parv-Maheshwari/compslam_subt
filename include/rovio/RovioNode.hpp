@@ -36,6 +36,7 @@
 #include <geometry_msgs/TwistWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
 #include <rovio/SrvResetToPose.h>
 #include <sensor_msgs/Image.h>
@@ -44,6 +45,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 
 #include <memory>
@@ -185,6 +187,10 @@ class RovioNode {
   std::string imu_frame_;
 
   //CUSTOMIZATION
+  ros::Subscriber subPCL_;
+  tf::TransformListener tfListener_;
+  tf::StampedTransform camera2lidarTF_;
+  std::string camera_frame_name_, lidar_frame_name_;
   ros::Publisher pubPath_;
   nav_msgs::Path pathMsg_;
   double imu_offset_ = 0.0;                      //time offset added to IMU messages to sync with camera images
@@ -226,6 +232,7 @@ class RovioNode {
     subGroundtruth_ = nh_.subscribe("pose", 1000, &RovioNode::groundtruthCallback, this);
     subGroundtruthOdometry_ = nh_.subscribe("odometry", 1000, &RovioNode::groundtruthOdometryCallback, this);
     subVelocity_ = nh_.subscribe("abss/twist", 1000, &RovioNode::velocityCallback, this);
+    subPCL_ = nh_.subscribe("lidar/pcl", 1000, &RovioNode::pclCallback, this);
 
     // Initialize ROS service servers.
     srvResetFilter_ = nh_.advertiseService("rovio/reset", &RovioNode::resetServiceCallback, this);
@@ -257,6 +264,7 @@ class RovioNode {
     nh_private_.param("imu_frame", imu_frame_, imu_frame_);
 
     //CUSTOMIZATION
+    //Time offsets
     nh_private_.param("imu_offset", imu_offset_, 0.0);
     if (imu_offset_ != 0.0)
       ROS_WARN_ONCE("ROVIO - IMU time offset set to: %f", imu_offset_);
@@ -266,6 +274,8 @@ class RovioNode {
     nh_private_.param("cam1_offset", cam1_offset_, 0.0);
     if (cam1_offset_ != 0.0)
       ROS_WARN_ONCE("ROVIO - CAM1 time offset set to: %f", cam1_offset_);
+
+    //CLAHE
     nh_private_.param("histogram_equalize_8bit_images", histogram_equalize_8bit_images_, false);
     if (histogram_equalize_8bit_images_)
       ROS_WARN_ONCE("ROVIO - Input Grayscale Images are Histrogram Equalized");
@@ -278,13 +288,22 @@ class RovioNode {
     }
     nh_private_.param("resize_input_image", resize_input_image_, false);
     nh_private_.param("resize_factor", resize_factor_, 0.5);
+
+    //Image resize
     if (resize_factor_ > 1.0)
       resize_factor_ = 1.0;
     if (resize_input_image_)
       ROS_WARN_ONCE("ROVIO - Input Images Resized to %d pct of Original Size", static_cast<int>(resize_factor_ * 100));
+
     // Initialize path message
     pathMsg_.header.frame_id = world_frame_;
     pathMsg_.poses.reserve(12000);  //10 minutes path @ 20Hz
+
+    //LiDAR depth initialization
+    camera_frame_name_ = "/cam";
+    lidar_frame_name_ = "/lidar";
+    nh_private_.param("camera_frame_name", camera_frame_name_, camera_frame_name_);
+    nh_private_.param("lidar_frame_name", lidar_frame_name_, lidar_frame_name_);
     //CUSTOMIZATION
 
     // Initialize messages
@@ -592,7 +611,8 @@ class RovioNode {
     //CUSTOMIZATION
 
     if (init_state_.isInitialized() && !cv_img.empty()) {
-      double msgTime = img->header.stamp.toSec() + cam_offset;  //Adding offset for appropriate camera
+      imgUpdateMeas_.template get<mtImgMeas::_aux>().setImgHeader(img->header);  //CUSTOMIZATION
+      double msgTime = img->header.stamp.toSec() + cam_offset;                   //CUSTOMIZATION - Adding offset for appropriate camera
       if (msgTime != imgUpdateMeas_.template get<mtImgMeas::_aux>().imgTime_) {
         for (int i = 0; i < mtState::nCam_; i++) {
           if (imgUpdateMeas_.template get<mtImgMeas::_aux>().isValidPyr_[i]) {
@@ -660,6 +680,42 @@ class RovioNode {
       velocityUpdateMeas_.vel() = AvM;
       mpFilter_->template addUpdateMeas<2>(velocityUpdateMeas_, velocity->header.stamp.toSec());
       updateAndPublish();
+    }
+  }
+
+  /** \brief Callback for LiDAR PointCloud - Adds poinclouds for direct depth feature intialization
+   *
+   *  @param transform - Groundtruth message.
+   */
+  void pclCallback(const sensor_msgs::PointCloud2ConstPtr& rosCloud) {
+    //Lookup camera-to-LiDAR calibration
+    static bool camera2lidarTF_init = false;
+    if (init_state_.isInitialized()) {
+      if (!camera2lidarTF_init) {
+        try {
+          tfListener_.waitForTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), ros::Duration(0.1));
+          tfListener_.lookupTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), camera2lidarTF_);
+          camera2lidarTF_init = true;
+          imgUpdateMeas_.template get<mtImgMeas::_aux>().setLidarCameraCalibration(camera2lidarTF_.inverse());
+          ROS_WARN_STREAM("ROVIO - Camera2LiDAR Calibration Initialized - t(x,y,z): " << camera2lidarTF_.getOrigin().x() << ","
+                                                                                      << camera2lidarTF_.getOrigin().y() << ","
+                                                                                      << camera2lidarTF_.getOrigin().z() << ", q(w,x,y,z):"
+                                                                                      << camera2lidarTF_.getRotation().w() << ","
+                                                                                      << camera2lidarTF_.getRotation().x() << ","
+                                                                                      << camera2lidarTF_.getRotation().y() << ","
+                                                                                      << camera2lidarTF_.getRotation().z());
+        } catch (tf::TransformException& ex) {
+          ROS_WARN("%s", ex.what());
+          return;
+        }
+      }
+
+      //set cloud header
+      imgUpdateMeas_.template get<mtImgMeas::_aux>().setCloudHeader(rosCloud->header);
+
+      //set new cloud
+      imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud().clear();
+      pcl::fromROSMsg(*rosCloud, imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud());
     }
   }
 
