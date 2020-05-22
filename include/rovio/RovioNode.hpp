@@ -690,33 +690,31 @@ class RovioNode {
   void pclCallback(const sensor_msgs::PointCloud2ConstPtr& rosCloud) {
     //Lookup camera-to-LiDAR calibration
     static bool camera2lidarTF_init = false;
-    if (init_state_.isInitialized()) {
-      if (!camera2lidarTF_init) {
-        try {
-          tfListener_.waitForTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), ros::Duration(0.1));
-          tfListener_.lookupTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), camera2lidarTF_);
-          camera2lidarTF_init = true;
-          imgUpdateMeas_.template get<mtImgMeas::_aux>().setLidarCameraCalibration(camera2lidarTF_.inverse());
-          ROS_WARN_STREAM("ROVIO - Camera2LiDAR Calibration Initialized - t(x,y,z): " << camera2lidarTF_.getOrigin().x() << ","
-                                                                                      << camera2lidarTF_.getOrigin().y() << ","
-                                                                                      << camera2lidarTF_.getOrigin().z() << ", q(w,x,y,z):"
-                                                                                      << camera2lidarTF_.getRotation().w() << ","
-                                                                                      << camera2lidarTF_.getRotation().x() << ","
-                                                                                      << camera2lidarTF_.getRotation().y() << ","
-                                                                                      << camera2lidarTF_.getRotation().z());
-        } catch (tf::TransformException& ex) {
-          ROS_WARN("%s", ex.what());
-          return;
-        }
+    if (!camera2lidarTF_init) {
+      try {
+        tfListener_.waitForTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), ros::Duration(0.1));
+        tfListener_.lookupTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), camera2lidarTF_);
+        imgUpdateMeas_.template get<mtImgMeas::_aux>().setLidarCameraCalibration(camera2lidarTF_.inverse()); //
+        camera2lidarTF_init = true;
+        ROS_WARN_STREAM_ONCE("ROVIO - Camera2LiDAR Calibration Initialized - t(x,y,z): " << camera2lidarTF_.getOrigin().x() << ","
+                                                                                         << camera2lidarTF_.getOrigin().y() << ","
+                                                                                         << camera2lidarTF_.getOrigin().z() << ", q(x,y,z,w):"
+                                                                                         << camera2lidarTF_.getRotation().x() << ","
+                                                                                         << camera2lidarTF_.getRotation().y() << ","
+                                                                                         << camera2lidarTF_.getRotation().z() << ","
+                                                                                         << camera2lidarTF_.getRotation().w());
+      } catch (tf::TransformException& ex) {
+        ROS_WARN("%s", ex.what());
+        return;
       }
-
-      //set cloud header
-      imgUpdateMeas_.template get<mtImgMeas::_aux>().setCloudHeader(rosCloud->header);
-
-      //set new cloud
-      imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud().clear();
-      pcl::fromROSMsg(*rosCloud, imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud());
     }
+
+    //set cloud header
+    imgUpdateMeas_.template get<mtImgMeas::_aux>().setCloudHeader(rosCloud->header);
+
+    //set new cloud
+    imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud().clear();
+    pcl::fromROSMsg(*rosCloud, imgUpdateMeas_.template get<mtImgMeas::_aux>().pclCloud());
   }
 
   /** \brief ROS service handler for resetting the filter.

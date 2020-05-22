@@ -101,15 +101,11 @@ class ImgUpdateMeasAuxiliary : public LWF::AuxiliaryBase<ImgUpdateMeasAuxiliary<
   std_msgs::Header imgheader_, pclHeader_;
   tf::Transform pcl2imgTF_;
   pcl::PointCloud<pcl::PointXYZI> pclCloud_;
-  void setImgHeader(const std_msgs::Header& h) {
-    imgheader_ = h;
-    // std::cout << "ImgHeader - PCL ts:" << pclHeader_.stamp.sec << "." << pclHeader_.stamp.nsec
-    // << ", Img ts:" << imgheader_.stamp.sec << "." << imgheader_.stamp.nsec << std::endl;
-  }
+  void setImgHeader(const std_msgs::Header& h) { imgheader_ = h; }
   void setCloudHeader(const std_msgs::Header& h) { pclHeader_ = h; }
   void setLidarCameraCalibration(const tf::Transform& lidar2cam) {
     pcl2imgTF_ = lidar2cam;
-    std::cout << "pcl2imgTF_, t(x,y,z):" << pcl2imgTF_.getOrigin().x() << "," << pcl2imgTF_.getOrigin().y() << "," << pcl2imgTF_.getOrigin().z()
+    std::cout << "--- ROVIO: PCL_to_Image transform, t(x,y,z):" << pcl2imgTF_.getOrigin().x() << "," << pcl2imgTF_.getOrigin().y() << "," << pcl2imgTF_.getOrigin().z()
               << ", q(w,x,y,z):" << pcl2imgTF_.getRotation().w() << pcl2imgTF_.getRotation().x() << pcl2imgTF_.getRotation().y() << pcl2imgTF_.getRotation().z()
               << std::endl;
   }
@@ -187,11 +183,19 @@ class ImgOutlierDetection : public LWF::OutlierDetection<LWF::ODEntry<ImgInnovat
 /** \brief Class, holding image update routines for the filter.
  */
 template <typename FILTERSTATE>
-class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState>, FILTERSTATE, ImgUpdateMeas<typename FILTERSTATE::mtState>, ImgUpdateNoise<typename FILTERSTATE::mtState>,
-                                     ImgOutlierDetection<typename FILTERSTATE::mtState>, false> {
+class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState>,
+                                     FILTERSTATE,
+                                     ImgUpdateMeas<typename FILTERSTATE::mtState>,
+                                     ImgUpdateNoise<typename FILTERSTATE::mtState>,
+                                     ImgOutlierDetection<typename FILTERSTATE::mtState>,
+                                     false> {
  public:
-  typedef LWF::Update<ImgInnovation<typename FILTERSTATE::mtState>, FILTERSTATE, ImgUpdateMeas<typename FILTERSTATE::mtState>, ImgUpdateNoise<typename FILTERSTATE::mtState>,
-                      ImgOutlierDetection<typename FILTERSTATE::mtState>, false>
+  typedef LWF::Update<ImgInnovation<typename FILTERSTATE::mtState>,
+                      FILTERSTATE,
+                      ImgUpdateMeas<typename FILTERSTATE::mtState>,
+                      ImgUpdateNoise<typename FILTERSTATE::mtState>,
+                      ImgOutlierDetection<typename FILTERSTATE::mtState>,
+                      false>
       Base;
   using Base::boolRegister_;
   using Base::cancelIteration_;
@@ -260,7 +264,9 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   double discriminativeSamplingGain_;      /**<Gain for threshold above which the samples must lie (if <= 1.0 the patchRejectionTh is used).*/
   double maxAllowedFeatureDistance_;       /**<CUSTOMIZATION: Max allowed estimated feature distance after performing update, remove features with very far away depth and clustered features during backward motion.*/
   double minTimeBeforeMaxFeaDistCheck_;    /**<CUSTOMIZATION: Min time allowed in secd before maxAllowedFeatureDistance check is applied. Typically 1.0sec for camera at 20Hz i.e. 20 updates have been applied*/
-  int depthHalfWinSize_;                   /**<CUSTOMIZATION:*/
+  double directDepInitCovScaleFactor_;     /**<CUSTOMIZATION: Factor to scale depth initialization covaraince in case of direct depth initialization*/
+  int depHorzWinSize_;                     /**<CUSTOMIZATION: Horizontal size of direct depth search window*/
+  int depVertWinSize_;                     /**<CUSTOMIZATION: Vertical size of direct depth search window*/
 
   // Temporary
   mutable PixelOutputCT pixelOutputCT_;
@@ -288,7 +294,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   mutable MultilevelPatchAlignment<mtState::nLevels_, mtState::patchSize_> alignment_; /**<Patch aligner*/
   mutable cv::Mat drawImg_;                                                            /**<Image currently used for drawing*/
 
-  const float max_8bit_image_val = 255.0; /**<CUSTOMIZATION: max value for 8-bit image in float images. Used for disambiguation between conversion from float to 8-bit or 16-bit images.
+  const float max_8bit_image_val = 255.0;   /**<CUSTOMIZATION: max value for 8-bit image in float images. Used for disambiguation between conversion from float to 8-bit or 16-bit images.*/
+  std::vector<cv::Mat> projectedDepthImgs_; /**<CUSTOMIZATION: */
 
   /** \brief Constructor.
    *
@@ -343,9 +350,11 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     alignmentGaussianWeightingSigma_ = 2.0;
     discriminativeSamplingDistance_ = 0.0;
     discriminativeSamplingGain_ = 0.0;
-    maxAllowedFeatureDistance_ = 25.0;    //CUTOMIZATION
-    minTimeBeforeMaxFeaDistCheck_ = 1.0;  //CUTOMIZATION
-    depthHalfWinSize_ = 11;               //CUTOMIZATION
+    maxAllowedFeatureDistance_ = 25.0;          //CUTOMIZATION
+    minTimeBeforeMaxFeaDistCheck_ = 1.0;        //CUTOMIZATION
+    directDepInitCovScaleFactor_ = 10.0;        //CUTOMIZATION
+    depHorzWinSize_ = 23;                       //CUSTOMIZATION
+    depVertWinSize_ = 2 * depHorzWinSize_ + 1;  //CUSTOMIZATION
 
     doubleRegister_.registerDiagonalMatrix("initCovFeature", initCovFeature_);
     doubleRegister_.registerScalar("initDepth", initDepth_);
@@ -404,6 +413,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     doubleRegister_.registerScalar("alignmentGradientExponent", alignmentGradientExponent_);
     doubleRegister_.registerScalar("maxAllowedFeatureDistance", maxAllowedFeatureDistance_);        //CUSTOMIZATION
     doubleRegister_.registerScalar("minTimeBeforeMaxFeaDistCheck", minTimeBeforeMaxFeaDistCheck_);  //CUSTOMIZATION
+    doubleRegister_.registerScalar("directDepInitCovScaleFactor", directDepInitCovScaleFactor_);    //CUSTOMIZATION
   };
 
   /** \brief Destructor
@@ -646,6 +656,89 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     filterState.state_.aux().activeFeature_ = 0;
     filterState.state_.aux().activeCameraCounter_ = 0;
 
+    // CUSTOMIZATION
+    // Project pointcloud from lidar frame to image frame
+    projectedDepthImgs_.clear();
+    projectedDepthImgs_.resize(mtState::nCam_);
+    for (int camID = 0; camID < mtState::nCam_; ++camID) {
+      projectedDepthImgs_[camID] = cv::Mat::zeros(meas.aux().pyr_[camID].imgs_[0].rows, meas.aux().pyr_[camID].imgs_[0].cols, CV_32FC1);
+      std::clock_t projectPCLtoCameraFrame_t = std::clock();
+      projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, projectedDepthImgs_[camID]);
+      if (verbose_) std::cout << " Timing - projectPCLtoImgFrame: " << double(std::clock() - projectPCLtoCameraFrame_t) / CLOCKS_PER_SEC * 1000.0
+                              << " ms - for CamID:" << camID
+                              << " NonZero DepthImg pts: " << cv::countNonZero(projectedDepthImgs_[camID]) << std::endl;
+    }
+
+    //Check All Features if direct depth is now available
+    std::clock_t depthUpdateLoop_t = std::clock();
+    for (int camID = 0; camID < mtState::nCam_; camID++) {
+      if (!projectedDepthImgs_[camID].empty()) {
+        for (unsigned int ID = 0; ID < mtState::nMax_; ++ID) {
+          if (filterState.fsm_.isValid_[ID] &&
+              filterState.fsm_.features_[ID].mpStatistics_->initTime_ > minTimeBeforeMaxFeaDistCheck_) {
+            float convergeDepth = filterState.fsm_.features_[ID].mpDistance_->getDistance();
+            float directDepth = getFeatureDirectDepth(filterState.fsm_.features_[ID].mpCoordinates_->get_c(),
+                                                      projectedDepthImgs_[camID],
+                                                      ID);
+
+            if (directDepth > 0) {  //Valid Depth
+              //Update Depth
+              filterState.fsm_.features_[ID].mpDistance_->p_ = 1.0 / directDepth;
+              filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_ = true;
+              // //Scale Covariance
+              // transformFeatureOutputCT_.setFeatureID(ID);
+              // transformFeatureOutputCT_.setOutputCameraID(camID);
+              // transformFeatureOutputCT_.transformState(filterState.state_, featureOutput_);
+              // MXD scaledCovMat;
+              // transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, scaledCovMat);
+              // std::cout << "Depth Update for Feature ID: " << ID
+              //           << ", dDep/cDep: " << directDepth << "/" << convergeDepth
+              //           << ", diff: " << std::abs(directDepth - convergeDepth)
+              //           << ", CovMat Before: "
+              //           << scaledCovMat(2, 2);
+
+              // if (scaledCovMat(2, 2) > directDepInitCovScaleFactor_) {
+              //   scaledCovMat.colwise().reverseInPlace();
+              //   scaledCovMat.rowwise().reverseInPlace();
+              //   scaledCovMat(0, 0) = directDepInitCovScaleFactor_;
+              //   filterState.resetFeatureCovariance(ID, scaledCovMat);
+              // }
+              // //DEBUG
+              // transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, scaledCovMat);
+              // std::cout << ", AFTER: "
+              //           << scaledCovMat(2, 2) << std::endl;
+              // //DEBUG
+            }
+          }
+        }
+      }
+    }
+    if (verbose_) std::cout << "--- Timing - depthUpdateLoop: " << double(std::clock() - depthUpdateLoop_t) / CLOCKS_PER_SEC * 1000.0 << " ms" << std::endl;
+
+    //DEBUG
+    for (int camID = 0; camID < mtState::nCam_; camID++) {
+      for (unsigned int ID = 0; ID < mtState::nMax_; ID++) {
+        // Update status and visualization
+        if (filterState.fsm_.isValid_[ID]) {
+          transformFeatureOutputCT_.setFeatureID(ID);
+          transformFeatureOutputCT_.setOutputCameraID(camID);
+          transformFeatureOutputCT_.transformState(filterState.state_, featureOutput_);
+          transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, featureOutputCov_);
+          std::cout << "FeaID: " << ID
+                    << ", px(x,y):" << cvRound(featureOutput_.c().get_c().x) << "," << cvRound(featureOutput_.c().get_c().y)
+                    << ", dist: " << featureOutput_.d().getDistance()
+                    << ", Direct:" << (filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_ ? "True" : "False")
+                    << ", CovDep: " << featureOutputCov_(2, 2) << std::endl;
+          // if (ID == 0)
+          //   std::cout << "STATE Cov Mat:\n"
+          //             << featureOutputCov_ << std::endl;
+        }
+      }
+    }
+    //DEBUG
+
+    // CUSTOMIZATION
+
     /* Detect Image changes by looking at the feature patches between current and previous image (both at the current feature location)
      * The maximum change of intensity is obtained if the pixel is moved along the strongest gradient.
      * The maximal singularvalue, which is equivalent to the root of the larger eigenvalue of the Hessian,
@@ -689,7 +782,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
    *  @param isFinished  - True, if process has finished.
    *  @todo split into methods
    */
-  void preProcess(mtFilterState& filterState, const mtMeas& meas, bool& isFinished) {
+  void
+  preProcess(mtFilterState& filterState, const mtMeas& meas, bool& isFinished) {
     if (isFinished) {  // gets called if this is the first call
       commonPreProcess(filterState, meas);
       isFinished = false;
@@ -880,10 +974,9 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
               //CUSTOMIZATION
               if (filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_) {
                 mlpTemp1_.drawMultilevelPatchBorder(drawImg_, featureOutput_.c(), 1.0, cv::Scalar(255, 0, 255));
-                auto tmpPt = featureOutput_.c();
                 cv::rectangle(drawImg_,
-                              cv::Point2f(tmpPt.c_.x - depthHalfWinSize_, tmpPt.c_.y - (2 * depthHalfWinSize_ + 1)),
-                              cv::Point2f(tmpPt.c_.x + depthHalfWinSize_, tmpPt.c_.y + (2 * depthHalfWinSize_ + 1)),
+                              cv::Point2f(featureOutput_.c().get_c().x - (depHorzWinSize_ / 2), featureOutput_.c().get_c().y - (depVertWinSize_ / 2)),
+                              cv::Point2f(featureOutput_.c().get_c().x + (depHorzWinSize_ / 2), featureOutput_.c().get_c().y + (depVertWinSize_ / 2)),
                               cv::Scalar(255, 255, 0));
               } else
                 mlpTemp1_.drawMultilevelPatchBorder(drawImg_, featureOutput_.c(), 1.0, cv::Scalar(0, 150 + (activeCamID == camID) * 105, 0));
@@ -1032,19 +1125,6 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     }
     if (verbose_) std::cout << std::endl;
 
-    //CUSTOMIZATION //FIX - For now calculating depth image for every pcl - cost is very small ~1ms - outside for viualization purposes
-    //TODO should this be moved to common preProcess?
-    std::vector<cv::Mat> depthImgs;
-    depthImgs.resize(mtState::nCam_);
-    for (int camID = 0; camID < mtState::nCam_; ++camID) {
-      depthImgs[camID] = cv::Mat::zeros(filterState.img_[camID].rows, filterState.img_[camID].cols, CV_32FC1);
-      std::clock_t projectPCLtoCameraFrame_t = std::clock();
-      projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, depthImgs[camID]);
-      if (verbose_) std::cout << " Timing - projectPCLtoImgFrame: " << double(std::clock() - projectPCLtoCameraFrame_t) / CLOCKS_PER_SEC * 1000.0 << " ms - for CamID:" << camID << std::endl;
-      // std::cout << "Non-zero depth image points: " << cv::countNonZero(depthImgs[camID]) << ", for CamID: " << camID << std::endl;
-    }
-    //CUSTOMIZATION
-
     // Get new features
     if (filterState.fsm_.getValidCount() < startDetectionTh_ * mtState::nMax_) {
       // Compute the median depth parameters for each camera, using the state features.
@@ -1094,42 +1174,51 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
                                                                                      penaltyDistance_,
                                                                                      zeroDistancePenalty_,
                                                                                      false,
-                                                                                     minAbsoluteSTScore_,
-                                                                                     depthImgs[camID]);
+                                                                                     minAbsoluteSTScore_);
         const double t3 = (double)cv::getTickCount();
         if (verbose_) std::cout << "== Got " << filterState.fsm_.getValidCount() << " after adding " << newSet.size() << " features in camera " << camID << " (" << (t3 - t2) / cv::getTickFrequency() * 1000 << " ms)" << std::endl;
+
+        //Add New Features
         for (auto it = newSet.begin(); it != newSet.end(); ++it) {
           FeatureManager<mtState::nLevels_, mtState::patchSize_, mtState::nCam_>& f = filterState.fsm_.features_[*it];
           f.mpStatistics_->resetStatistics(filterState.t_);
           f.mpStatistics_->status_[camID] = TRACKED;
           f.mpStatistics_->lastPatchUpdate_ = filterState.t_;
+          const double initRelDepthCovTemp_ = initCovFeature_(0, 0);
 
           //CUSTOMIZATION
           // Try to obtain direct depth of feature
-          bool directDepSuccess = false;
-          double feaCovScaleFactor = 0.0;
-          if (f.mpCoordinates_->directDepthInit_) {
-            std::clock_t getFeatureDirectDepth_t = std::clock();
-            float directDepth = getFeatureDirectDepth(f.mpCoordinates_->c_, depthImgs[camID]);
-            std::cout << " Timing - getFeatureDirectDepth: " << double(std::clock() - getFeatureDirectDepth_t) / CLOCKS_PER_SEC * 1000.0 << " ms" << std::endl;
+          double feaCovScaleFactor = 1.0;
+          if (!projectedDepthImgs_[camID].empty()) {
+            float directDepth = getFeatureDirectDepth(f.mpCoordinates_->get_c(), projectedDepthImgs_[camID], *it);
             if (directDepth > 0) {
               f.mpDistance_->p_ = 1.0 / directDepth;
-              feaCovScaleFactor = 5.0;  //TODO: Make Param
-              std::cout << "Feature Init with ID: " << *it << ", with DIRECT depth: " << f.mpDistance_->getDistance();
-              directDepSuccess = true;
+              f.mpCoordinates_->directDepthInit_ = true;
+              feaCovScaleFactor = directDepInitCovScaleFactor_;
             } else
-              std::cout << "Feature Init with ID: " << *it << ", with DIRECT depth ***FAILED***" << std::endl;
+              f.mpCoordinates_->directDepthInit_ = false;
           }
+
           // If direct depth not available or fails use median feature depth
-          if (!directDepSuccess) {
+          if (!f.mpCoordinates_->directDepthInit_) {
             f.mpDistance_->p_ = medianDepthParameters[camID];
             feaCovScaleFactor = 1.0;
           }
           //CUSTOMIZATION
 
-          const double initRelDepthCovTemp_ = initCovFeature_(0, 0);
-          initCovFeature_(0, 0) = initRelDepthCovTemp_ * std::pow(f.mpDistance_->getParameterDerivative() * f.mpDistance_->getDistance(), 2) * feaCovScaleFactor;  //CUSTOMIZATION
-          if (directDepSuccess) std::cout << ", covariance: " << initCovFeature_(0, 0) << std::endl;                                                               //DEBUG
+          //DEBUG
+          f.idx_ = *it;  //Only Visualization - Display Feature IDs instead of TotalFeatureCount - Better for Debugging
+          //DEBUG
+
+          // //DEBUG
+          // std::cout << "INIT FeaID: " << *it
+          //           << ", px(x,y): " << cvRound(f.mpCoordinates_->get_c().x) << "," << cvRound(f.mpCoordinates_->get_c().y)
+          //           << ", dist: " << f.mpDistance_->getDistance()
+          //           << ", Direct: " << (f.mpCoordinates_->directDepthInit_ ? "True" : "False")
+          //           << ", Cov: " << initCovFeature_(0, 0) << std::endl;
+          // //DEBUG
+
+          initCovFeature_(0, 0) = initRelDepthCovTemp_ * std::pow(f.mpDistance_->getParameterDerivative() * f.mpDistance_->getDistance(), 2) * feaCovScaleFactor; //CUSTOMIZATION
           filterState.resetFeatureCovariance(*it, initCovFeature_);
           initCovFeature_(0, 0) = initRelDepthCovTemp_;
           if (doFrameVisualisation_) {
@@ -1200,6 +1289,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       filterState.prevPyr_[i] = meas.aux().pyr_[i];
     }
 
+    std::cout << "\n=================================================================\n";
+
     // Zero Velocity updates if appropriate
     if (isZeroVelocityUpdateEnabled_ && doVisualMotionDetection_ && filterState.state_.aux().timeSinceLastImageMotion_ > minTimeForZeroVelocityUpdate_ && filterState.state_.aux().timeSinceLastInertialMotion_ > minTimeForZeroVelocityUpdate_) {
       cv::putText(filterState.img_[0], "Performing Zero Velocity Updates!", cv::Point2f(150, 25), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255));
@@ -1214,8 +1305,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
    *  @param filterState - Filter state.
    *  @param camID       - ID of the camera, in which image the horizon should be drawn.
    */
-  void
-  drawVirtualHorizon(mtFilterState& filterState, const int camID = 0) {
+  void drawVirtualHorizon(mtFilterState& filterState, const int camID = 0) {
     typename mtFilterState::mtState& state = filterState.state_;
     cv::rectangle(filterState.img_[camID], cv::Point2f(0, 0), cv::Point2f(82, 92), cv::Scalar(50, 50, 50), -1, 8, 0);
     cv::rectangle(filterState.img_[camID], cv::Point2f(0, 0), cv::Point2f(80, 90), cv::Scalar(100, 100, 100), -1, 8, 0);
@@ -1262,30 +1352,40 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       if (!std::isfinite(pt.x) || !std::isfinite(pt.x) || !std::isfinite(pt.z))
         continue;
 
+      //Ignore zero points
+      if (pt.x == 0.0 && pt.y == 0.0 && pt.z == 0.0)
+        continue;
+
       //Transform point from LiDAR frame to Camera frame and remove points behind camera
       tf::Vector3 pt_cam = lidar2cameraTF * tf::Vector3(pt.x, pt.y, pt.z);
+
+      //Check if point is behind camera
       if (pt_cam.getZ() < 0.1)
         continue;
 
       //Project into Image frame
       cv::Point2f pxf;
-      mpMultiCamera_->cameras_[camID].bearingToPixel(Eigen::Vector3d(pt_cam.getX(), pt_cam.getY(), pt_cam.getZ()), pxf);
-      cv::Point2i px = pxf;  //Rounds - https://docs.opencv.org/2.4/modules/core/doc/basic_structures.html#point
+      bool success = mpMultiCamera_->cameras_[camID].bearingToPixel(Eigen::Vector3d(pt_cam.getX(), pt_cam.getY(), pt_cam.getZ()), pxf);
+      if (!success)
+        continue;
+      cv::Point2i px(cvRound(pxf.x), cvRound(pxf.y));
 
       //Assign Depth
       if (px.x > 0 && px.y > 0 && px.x < dImg.cols && px.y < dImg.rows) {
         //Calculate range w.r.t Camera Frame
-        float range = std::sqrt(pt_cam.getX() * pt_cam.getX() + pt_cam.getY() * pt_cam.getY() + pt_cam.getZ() * pt_cam.getZ());  //FIX Should this be depth only? i.e. Z
+        float range = std::sqrt(pt_cam.getX() * pt_cam.getX() + pt_cam.getY() * pt_cam.getY() + pt_cam.getZ() * pt_cam.getZ());
+        //float range = pt_cam.getZ();
+
         //If not assigned i.e. 0 - assign depth
         if (matPtr[px.y * dImg.cols + px.x] == 0)
           matPtr[px.y * dImg.cols + px.x] = range;  //current row * number of coloumns offset + current coloumn
         else if (range < matPtr[px.y * dImg.cols + px.x])
-          matPtr[px.y * dImg.cols + px.x] = range;  //If already assigned - reassign lower depth
+          matPtr[px.y * dImg.cols + px.x] = range;  //If already assigned - re-assign nearest depth
 
         if (doFrameVisualisation_) {
           cv::Mat hsv = cv::Mat::ones(1, 1, CV_8UC3);
           cv::Vec3b& hsv_vec = hsv.at<cv::Vec3b>(0, 0);
-          hsv_vec[0] = static_cast<uint8_t>(range / 50 * 180);  //H //TODO: max range is set to 50 for better color-depth visualuation only - make param?
+          hsv_vec[0] = static_cast<uint8_t>(range / 50 * 180);  //H - max range is set to 50 for better color-depth visualuation only
           hsv_vec[1] = 255;                                     //S - max
           hsv_vec[2] = 255;                                     //V - max
           cvtColor(hsv, hsv, CV_HSV2BGR);
@@ -1296,18 +1396,21 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     }
   }
 
-  float getFeatureDirectDepth(const cv::Point2f& pt, const cv::Mat& depthImg) {
-    static int full_win_size = 2 * depthHalfWinSize_ + 1;
-    int uMin = pt.x - depthHalfWinSize_;
-    int vMin = pt.y - full_win_size;  //depthHalfWinSize_;
+  float getFeatureDirectDepth(const cv::Point2i& ptf, const cv::Mat& depthImg, const int& feaID, float tol = 0.1) {
+    static const int hWinHalf = depHorzWinSize_ / 2;
+    static const int vWinHalf = depVertWinSize_ / 2;
+    static const cv::Point2i ctrPt(depHorzWinSize_ / 2, depVertWinSize_ / 2);
+    cv::Point2i pt(cvRound(ptf.x), cvRound(ptf.y));
+    int uMin = pt.x - hWinHalf;
+    int vMin = pt.y - vWinHalf;
     //Check if ROI boundaries are valid
     if (uMin < 0 || vMin < 0)
       return -1;
-    if ((pt.x + depthHalfWinSize_) > depthImg.cols - 1 || (pt.y + full_win_size) > depthImg.rows - 1)
+    if ((pt.x + hWinHalf) > depthImg.cols - 1 || (pt.y + vWinHalf) > depthImg.rows - 1)
       return -1;
 
     //Count Non-Zero depth points in the ROI
-    cv::Rect ROI(uMin, vMin, full_win_size, (2 * full_win_size + 1));
+    cv::Rect ROI(uMin, vMin, depHorzWinSize_, depVertWinSize_);
     cv::Mat depthPatch(depthImg, ROI);
     cv::Mat countPatch;
     cv::normalize(depthPatch, countPatch, 0, 255, cv::NORM_MINMAX, CV_8UC1);
@@ -1315,39 +1418,110 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     cv::findNonZero(countPatch, ROInonZeroLoc);
 
     //Loop though non-zero points
-    if (ROInonZeroLoc.size() > 4) {  //TODO: make param
-
-      //Sort point w.r.t pixel distance to center pt
-      cv::Point2i ctrPt(static_cast<int>(full_win_size / 2), static_cast<int>((2 * full_win_size + 1) / 2));
-      std::sort(ROInonZeroLoc.begin(), ROInonZeroLoc.end(), [&](const cv::Point2i& a, const cv::Point2i& b) {
-        return (std::abs(a.x - ctrPt.x) + std::abs(a.y - ctrPt.y)) < (std::abs(b.x - ctrPt.x) + std::abs(b.y - ctrPt.y));
-      });
-
+    if (ROInonZeroLoc.size() > 0) {
+      int topCount = 0, bottomCount = 0;
+      std::vector<float> patchDepthVec;
+      patchDepthVec.reserve(ROInonZeroLoc.size() + 1);
       //Calculate Mean Depth
-      float mean = 0.0;
+      float meanDep = 0.0;
       for (auto& roiPt : ROInonZeroLoc) {
-        std::cout << "pt(u,v): " << roiPt.x << "," << roiPt.y << ", with DEPTH: " << depthPatch.at<float>(roiPt) << std::endl;  //DEBUG
-        mean += depthPatch.at<float>(roiPt);
+        meanDep += depthPatch.at<float>(roiPt);
+        patchDepthVec.push_back(depthPatch.at<float>(roiPt));
+        if (roiPt.y < ctrPt.y)
+          ++topCount;
+        else
+          ++bottomCount;
       }
-      mean /= ROInonZeroLoc.size();
+      meanDep /= ROInonZeroLoc.size();
+
+      if (meanDep > maxAllowedFeatureDistance_)  //Exceed Max Depth
+        return -1;
+
+      if (topCount < 2 || bottomCount < 2)  //Single Beam - No information of planarity
+        return -1;
 
       //Calculate Std.Dev
       float stdDev = 0.0;
       for (auto& roiPt : ROInonZeroLoc)
-        stdDev += (depthPatch.at<float>(roiPt) - mean) * (depthPatch.at<float>(roiPt) - mean);
+        stdDev += (depthPatch.at<float>(roiPt) - meanDep) * (depthPatch.at<float>(roiPt) - meanDep);
       stdDev /= (ROInonZeroLoc.size() - 1);
       stdDev = std::sqrt(stdDev);
-
-      std::cout << "--- Original Point(u,v): " << pt.x << "," << pt.y
-                << ", ctrPt(u,v): " << ctrPt.x << "," << ctrPt.y
-                << ", NonZero:" << ROInonZeroLoc.size()
-                << ", MEAN dep: " << mean
-                << ", Std.Dev: " << stdDev << std::endl;  //DEBUG
-
-      if (stdDev > 0.3)  //NOT A PLANE?
+      if (stdDev > tol)  //NOT A PLANE?
         return -1;
 
-      return mean;
+
+      return meanDep;
+
+      // //Median Patch Depth
+      // std::nth_element(patchDepthVec.begin(),
+      //                  patchDepthVec.begin() + (patchDepthVec.size() / 2),
+      //                  patchDepthVec.end());
+      // float medianDep = patchDepthVec[patchDepthVec.size() / 2];
+
+      // std::cout << "FeaID: " << feaID
+      //           << ", Loc(x,y):" << pt.x << "," << pt.y
+      //           << ", NonZero:" << ROInonZeroLoc.size()
+      //           << ", MEAN: " << meanDep
+      //           << ", MEDIAN:" << medianDep
+      //           << ", Std.Dev: " << stdDev
+      //           << ", top/bottom Count:" << topCount << "/" << bottomCount << std::endl;  //DEBUG
+/*
+      //Nearest Points in Four Quadrants
+      std::vector<cv::Point2i> nearPts(4, cv::Point2i(-1, -1));
+      std::vector<float> nDist(4, 100);
+      for (auto& roiPt : ROInonZeroLoc) {
+        //Pixel Distance
+        float d = std::sqrt((roiPt.x - ctrPt.x) * (roiPt.x - ctrPt.x) + (roiPt.y - ctrPt.y) * (roiPt.y - ctrPt.y));
+        //Top Left
+        if (roiPt.x < ctrPt.x && roiPt.y < ctrPt.y && d < nDist[0]) {
+          nearPts[0] = roiPt;
+          nDist[0] = d;
+        }
+        //Top Right
+        if (roiPt.x > ctrPt.x && roiPt.y < ctrPt.y && d < nDist[1]) {
+          nearPts[1] = roiPt;
+          nDist[1] = d;
+        }
+        //Bottom Left
+        if (roiPt.x < ctrPt.x && roiPt.y > ctrPt.y && d < nDist[2]) {
+          nearPts[2] = roiPt;
+          nDist[2] = d;
+        }
+        //Bottom Right
+        if (roiPt.x > ctrPt.x && roiPt.y > ctrPt.y && d < nDist[3]) {
+          nearPts[3] = roiPt;
+          nDist[3] = d;
+        }
+      }
+
+      //Check Valid Neighbours
+      int validNeighbors = 0;
+      float nMeanDep = 0;
+      for (auto& npt : nearPts) {
+        if (npt.x > -1 || npt.y > -1) {
+          ++validNeighbors;
+          nMeanDep += depthPatch.at<float>(npt);
+        }
+      }
+      if (validNeighbors < 3)
+        return -1;
+      nMeanDep /= static_cast<float>(validNeighbors);
+
+      //Check Depth Difference
+      for (auto& npt : nearPts) {
+        if (npt.x > -1 || npt.y > -1) {
+          float depDiff = depthPatch.at<float>(npt) - nMeanDep;
+          if (depDiff > tol)
+            return -1;
+        }
+      }
+
+      std::cout << "FeaID: " << feaID << std::endl;
+      std::cout << "Neighbors, TL: " << nearPts[0] << ", TR: " << nearPts[1] << ", BL: " << nearPts[2] << ", BR: " << nearPts[3] << std::endl;
+      std::cout << "Nearest Mean: " << nMeanDep << ", valid Neighbor Count: " << validNeighbors << std::endl;
+
+      return nMeanDep;
+*/
     } else
       return -1;
   }
