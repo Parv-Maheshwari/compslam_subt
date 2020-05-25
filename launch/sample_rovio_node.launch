@@ -1,0 +1,33 @@
+<!-- Sample ROVIO Node Launch File with Options -->
+<?xml version="1.0" encoding="UTF-8"?> 
+<launch>
+  <node pkg="rovio" type="rovio_node" name="rovio" output="screen" clear_params="true">
+    <!-- Config File -->
+    <param name="filter_config" value="$(find rovio)/cfg/rovio.info"/>
+  
+    <!-- Camera Calibration YAML File -->
+    <param name="camera0_config" value="$(find rovio)/cfg/euroc_cam0.yaml"/>
+    
+    <!-- Input Topics -->
+    <remap from="imu0" to="/imu"/>
+    <remap from="cam0/image_raw" to="/camera/image_raw"/>
+
+    <!-- Camera-IMU time-offset -->
+    <!-- <param name="cam0_offset" value="-0.02414188675155223"/>  #From KALIBR: timeshift[s](t_imu = t_cam + shift) -0.02414188675155223 -->
+
+    <!-- Image Resize -->
+    <!-- <param name="resize_input_image" value="true"/>         # resize input image by resize_factor - CAMERA INTRINSICS NOT SCALED CORRECT CALIBRATION FILE MANUALLY
+    <param name="resize_factor" value="0.5"/>               # (img.cols x resize_factor) X (img.rows x resize_factor) -->
+
+    <!-- CLAHE - Histogram Equalization for Dark Environments -->
+    <!-- <param name="histogram_equalize_8bit_images" value="true"/>
+    <param name="clahe_clip_limit" value="2"/>
+    <param name="clahe_grid_size" value="6"/>    -->
+
+    <!-- Use LiDAR Depth for Feature Depth Initialization -->
+    <!-- <param name="camera_frame_name" value="/camera"/>
+    <param name="lidar_frame_name" value="/velodyne"/>
+    <remap from="lidar/pcl" to="/velodyne_points"/> -->
+
+  </node>
+</launch>

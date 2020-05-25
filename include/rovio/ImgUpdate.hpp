@@ -263,10 +263,12 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   double discriminativeSamplingDistance_;  /**<Sampling distance for checking discriminativity of patch (if <= 0.0 no check is performed).*/
   double discriminativeSamplingGain_;      /**<Gain for threshold above which the samples must lie (if <= 1.0 the patchRejectionTh is used).*/
   double maxAllowedFeatureDistance_;       /**<CUSTOMIZATION: Max allowed estimated feature distance after performing update, remove features with very far away depth and clustered features during backward motion.*/
-  double minTimeBeforeMaxFeaDistCheck_;    /**<CUSTOMIZATION: Min time allowed in secd before maxAllowedFeatureDistance check is applied. Typically 1.0sec for camera at 20Hz i.e. 20 updates have been applied*/
+  double minTimeBeforeFeaDistCheck_;       /**<CUSTOMIZATION: Min time allowed in secd before maxAllowedFeatureDistance check is applied. Typically 1.0sec for camera at 20Hz i.e. 20 updates have been applied*/
+  bool useDepthFromLiDAR_;                 /**<CUSTOMIZATION: Enable or Disable usage of LiDAR direct depth for features */
+  int lidarDepthCalcMode_;                 /**<CUSTOMIZATION: Use Patch(0) or Line(1) for Depth Calculation */
+  int depthSearchWindowWidth_;             /**<CUSTOMIZATION: Horizontal size of direct depth search window*/
+  int depthSearchWindowHeight_;            /**<CUSTOMIZATION: Vertical size of direct depth search window*/
   double directDepInitCovScaleFactor_;     /**<CUSTOMIZATION: Factor to scale depth initialization covaraince in case of direct depth initialization*/
-  int depHorzWinSize_;                     /**<CUSTOMIZATION: Horizontal size of direct depth search window*/
-  int depVertWinSize_;                     /**<CUSTOMIZATION: Vertical size of direct depth search window*/
 
   // Temporary
   mutable PixelOutputCT pixelOutputCT_;
@@ -350,11 +352,13 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     alignmentGaussianWeightingSigma_ = 2.0;
     discriminativeSamplingDistance_ = 0.0;
     discriminativeSamplingGain_ = 0.0;
-    maxAllowedFeatureDistance_ = 25.0;          //CUTOMIZATION
-    minTimeBeforeMaxFeaDistCheck_ = 1.0;        //CUTOMIZATION
-    directDepInitCovScaleFactor_ = 10.0;        //CUTOMIZATION
-    depHorzWinSize_ = 23;                       //CUSTOMIZATION
-    depVertWinSize_ = 2 * depHorzWinSize_ + 1;  //CUSTOMIZATION
+    maxAllowedFeatureDistance_ = 25.0;    //CUTOMIZATION
+    minTimeBeforeFeaDistCheck_ = 1.0;     //CUTOMIZATION
+    useDepthFromLiDAR_ = false;           //CUTOMIZATION
+    lidarDepthCalcMode_ = 0;              //CUTOMIZATION
+    depthSearchWindowWidth_ = 23;         //CUSTOMIZATION
+    depthSearchWindowHeight_ = 47;        //CUSTOMIZATION
+    directDepInitCovScaleFactor_ = 1e-3;  //CUTOMIZATION
 
     doubleRegister_.registerDiagonalMatrix("initCovFeature", initCovFeature_);
     doubleRegister_.registerScalar("initDepth", initDepth_);
@@ -411,9 +415,13 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     doubleRegister_.registerScalar("alignmentGaussianWeightingSigma", alignmentGaussianWeightingSigma_);
     alignmentGradientExponent_ = static_cast<double>(alignment_.gradientExponent_);
     doubleRegister_.registerScalar("alignmentGradientExponent", alignmentGradientExponent_);
-    doubleRegister_.registerScalar("maxAllowedFeatureDistance", maxAllowedFeatureDistance_);        //CUSTOMIZATION
-    doubleRegister_.registerScalar("minTimeBeforeMaxFeaDistCheck", minTimeBeforeMaxFeaDistCheck_);  //CUSTOMIZATION
-    doubleRegister_.registerScalar("directDepInitCovScaleFactor", directDepInitCovScaleFactor_);    //CUSTOMIZATION
+    doubleRegister_.registerScalar("maxAllowedFeatureDistance", maxAllowedFeatureDistance_);      //CUSTOMIZATION
+    doubleRegister_.registerScalar("minTimeBeforeFeaDistCheck", minTimeBeforeFeaDistCheck_);      //CUSTOMIZATION
+    boolRegister_.registerScalar("useDepthFromLiDAR", useDepthFromLiDAR_);                        //CUSTOMIZATION
+    intRegister_.registerScalar("lidarDepthCalcMode_", lidarDepthCalcMode_);                      //CUSTOMIZATION
+    intRegister_.registerScalar("depthSearchWindowWidth", depthSearchWindowWidth_);               //CUSTOMIZATION
+    intRegister_.registerScalar("depthSearchWindowHeight", depthSearchWindowHeight_);             //CUSTOMIZATION
+    doubleRegister_.registerScalar("directDepInitCovScaleFactor", directDepInitCovScaleFactor_);  //CUSTOMIZATION
   };
 
   /** \brief Destructor
@@ -657,66 +665,22 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     filterState.state_.aux().activeCameraCounter_ = 0;
 
     // CUSTOMIZATION
-    // Project pointcloud from lidar frame to image frame
-    projectedDepthImgs_.clear();
-    projectedDepthImgs_.resize(mtState::nCam_);
-    for (int camID = 0; camID < mtState::nCam_; ++camID) {
-      projectedDepthImgs_[camID] = cv::Mat::zeros(meas.aux().pyr_[camID].imgs_[0].rows, meas.aux().pyr_[camID].imgs_[0].cols, CV_32FC1);
-      std::clock_t projectPCLtoCameraFrame_t = std::clock();
-      projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, projectedDepthImgs_[camID]);
-      if (verbose_) std::cout << " Timing - projectPCLtoImgFrame: " << double(std::clock() - projectPCLtoCameraFrame_t) / CLOCKS_PER_SEC * 1000.0
-                              << " ms - for CamID:" << camID
-                              << " NonZero DepthImg pts: " << cv::countNonZero(projectedDepthImgs_[camID]) << std::endl;
-    }
-
-    //Check All Features if direct depth is now available
-    std::clock_t depthUpdateLoop_t = std::clock();
-    for (int camID = 0; camID < mtState::nCam_; camID++) {
-      if (!projectedDepthImgs_[camID].empty()) {
-        for (unsigned int ID = 0; ID < mtState::nMax_; ++ID) {
-          if (filterState.fsm_.isValid_[ID] &&
-              filterState.fsm_.features_[ID].mpStatistics_->initTime_ > minTimeBeforeMaxFeaDistCheck_) {
-            float convergeDepth = filterState.fsm_.features_[ID].mpDistance_->getDistance();
-            float directDepth = getFeatureDirectDepth(filterState.fsm_.features_[ID].mpCoordinates_->get_c(),
-                                                      projectedDepthImgs_[camID],
-                                                      ID);
-
-            if (directDepth > 0) {  //Valid Depth
-              //Update Depth
-              filterState.fsm_.features_[ID].mpDistance_->p_ = 1.0 / directDepth;
-              filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_ = true;
-              // //Scale Covariance
-              // transformFeatureOutputCT_.setFeatureID(ID);
-              // transformFeatureOutputCT_.setOutputCameraID(camID);
-              // transformFeatureOutputCT_.transformState(filterState.state_, featureOutput_);
-              // MXD scaledCovMat;
-              // transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, scaledCovMat);
-              // std::cout << "Depth Update for Feature ID: " << ID
-              //           << ", dDep/cDep: " << directDepth << "/" << convergeDepth
-              //           << ", diff: " << std::abs(directDepth - convergeDepth)
-              //           << ", CovMat Before: "
-              //           << scaledCovMat(2, 2);
-
-              // if (scaledCovMat(2, 2) > directDepInitCovScaleFactor_) {
-              //   scaledCovMat.colwise().reverseInPlace();
-              //   scaledCovMat.rowwise().reverseInPlace();
-              //   scaledCovMat(0, 0) = directDepInitCovScaleFactor_;
-              //   filterState.resetFeatureCovariance(ID, scaledCovMat);
-              // }
-              // //DEBUG
-              // transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, scaledCovMat);
-              // std::cout << ", AFTER: "
-              //           << scaledCovMat(2, 2) << std::endl;
-              // //DEBUG
-            }
-          }
-        }
+    if (useDepthFromLiDAR_) {
+      // Project pointcloud from lidar frame to image frame
+      projectedDepthImgs_.clear();
+      projectedDepthImgs_.resize(mtState::nCam_);
+      for (int camID = 0; camID < mtState::nCam_; ++camID) {
+        projectedDepthImgs_[camID] = cv::Mat::zeros(meas.aux().pyr_[camID].imgs_[0].rows, meas.aux().pyr_[camID].imgs_[0].cols, CV_32FC1);
+        std::clock_t projectPCLtoCameraFrame_t = std::clock();
+        projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, projectedDepthImgs_[camID]);
+        if (verbose_) std::cout << " Timing - projectPCLtoImgFrame: " << double(std::clock() - projectPCLtoCameraFrame_t) / CLOCKS_PER_SEC * 1000.0
+                                << " ms - for CamID:" << camID
+                                << " NonZero DepthImg pts: " << cv::countNonZero(projectedDepthImgs_[camID]) << std::endl;
       }
     }
-    if (verbose_) std::cout << "--- Timing - depthUpdateLoop: " << double(std::clock() - depthUpdateLoop_t) / CLOCKS_PER_SEC * 1000.0 << " ms" << std::endl;
 
-    //DEBUG
-    for (int camID = 0; camID < mtState::nCam_; camID++) {
+    //DEBUG 
+    /*for (int camID = 0; camID < mtState::nCam_; camID++) {
       for (unsigned int ID = 0; ID < mtState::nMax_; ID++) {
         // Update status and visualization
         if (filterState.fsm_.isValid_[ID]) {
@@ -728,15 +692,11 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
                     << ", px(x,y):" << cvRound(featureOutput_.c().get_c().x) << "," << cvRound(featureOutput_.c().get_c().y)
                     << ", dist: " << featureOutput_.d().getDistance()
                     << ", Direct:" << (filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_ ? "True" : "False")
-                    << ", CovDep: " << featureOutputCov_(2, 2) << std::endl;
-          // if (ID == 0)
-          //   std::cout << "STATE Cov Mat:\n"
-          //             << featureOutputCov_ << std::endl;
+                    << ", CovMat\n: " << featureOutputCov_ << std::endl;
         }
       }
-    }
+    }*/
     //DEBUG
-
     // CUSTOMIZATION
 
     /* Detect Image changes by looking at the feature patches between current and previous image (both at the current feature location)
@@ -935,7 +895,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         for (unsigned int i = 0; i < mtState::nMax_; i++) {
           if (filterState.fsm_.isValid_[i]) {
             if (filterState.state_.dep(i).getDistance() < 1e-8 ||
-                ((filterState.fsm_.features_[i].mpStatistics_->currentTime_ - filterState.fsm_.features_[i].mpStatistics_->initTime_) > minTimeBeforeMaxFeaDistCheck_ &&
+                ((filterState.fsm_.features_[i].mpStatistics_->currentTime_ - filterState.fsm_.features_[i].mpStatistics_->initTime_) > minTimeBeforeFeaDistCheck_ &&
                  filterState.state_.dep(i).getDistance() > maxAllowedFeatureDistance_))  //CUSTOMIZATION delete feature if it has more than minTimeBeforeMaxFeaDistCheck secs of updates and converged depth is more than max allowed.)
             {
               if (verbose_) std::cout << "    \033[33mRemoved feature " << filterState.fsm_.features_[i].idx_ << " with invalid distance parameter " << filterState.state_.dep(i).p_ << "!\033[0m" << std::endl;
@@ -971,12 +931,12 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
           if (mlpTemp1_.isMultilevelPatchInFrame(meas.aux().pyr_[camID], featureOutput_.c(), startLevel_, false)) {
             f.mpStatistics_->status_[activeCamID] = TRACKED;
             if (doFrameVisualisation_) {
-              //CUSTOMIZATION
+              //CUSTOMIZATION - Drawing Depth Initialized Patch(Purple) with Depth Window(Cyan)
               if (filterState.fsm_.features_[ID].mpCoordinates_->directDepthInit_) {
                 mlpTemp1_.drawMultilevelPatchBorder(drawImg_, featureOutput_.c(), 1.0, cv::Scalar(255, 0, 255));
                 cv::rectangle(drawImg_,
-                              cv::Point2f(featureOutput_.c().get_c().x - (depHorzWinSize_ / 2), featureOutput_.c().get_c().y - (depVertWinSize_ / 2)),
-                              cv::Point2f(featureOutput_.c().get_c().x + (depHorzWinSize_ / 2), featureOutput_.c().get_c().y + (depVertWinSize_ / 2)),
+                              cv::Point2f(featureOutput_.c().get_c().x - (depthSearchWindowWidth_ / 2), featureOutput_.c().get_c().y - (depthSearchWindowHeight_ / 2)),
+                              cv::Point2f(featureOutput_.c().get_c().x + (depthSearchWindowWidth_ / 2), featureOutput_.c().get_c().y + (depthSearchWindowHeight_ / 2)),
                               cv::Scalar(255, 255, 0));
               } else
                 mlpTemp1_.drawMultilevelPatchBorder(drawImg_, featureOutput_.c(), 1.0, cv::Scalar(0, 150 + (activeCamID == camID) * 105, 0));
@@ -1186,17 +1146,17 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
           f.mpStatistics_->lastPatchUpdate_ = filterState.t_;
           const double initRelDepthCovTemp_ = initCovFeature_(0, 0);
 
-          //CUSTOMIZATION
-          // Try to obtain direct depth of feature
+          //CUSTOMIZATION - Attempt Direct Depth Initialization if LiDAR is available
           double feaCovScaleFactor = 1.0;
-          if (!projectedDepthImgs_[camID].empty()) {
+          f.mpCoordinates_->directDepthInit_ = false;
+          if (useDepthFromLiDAR_ && !projectedDepthImgs_[camID].empty()) {
             float directDepth = getFeatureDirectDepth(f.mpCoordinates_->get_c(), projectedDepthImgs_[camID], *it);
             if (directDepth > 0) {
               f.mpDistance_->p_ = 1.0 / directDepth;
               f.mpCoordinates_->directDepthInit_ = true;
+              f.mpStatistics_->lastDepthUpdate_ = filterState.t_;
               feaCovScaleFactor = directDepInitCovScaleFactor_;
-            } else
-              f.mpCoordinates_->directDepthInit_ = false;
+            }
           }
 
           // If direct depth not available or fails use median feature depth
@@ -1204,21 +1164,12 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
             f.mpDistance_->p_ = medianDepthParameters[camID];
             feaCovScaleFactor = 1.0;
           }
+
+          //Only Visualization - Display Feature IDs instead of TotalFeatureCount - Better for Debugging
+          f.idx_ = *it;
           //CUSTOMIZATION
 
-          //DEBUG
-          f.idx_ = *it;  //Only Visualization - Display Feature IDs instead of TotalFeatureCount - Better for Debugging
-          //DEBUG
-
-          // //DEBUG
-          // std::cout << "INIT FeaID: " << *it
-          //           << ", px(x,y): " << cvRound(f.mpCoordinates_->get_c().x) << "," << cvRound(f.mpCoordinates_->get_c().y)
-          //           << ", dist: " << f.mpDistance_->getDistance()
-          //           << ", Direct: " << (f.mpCoordinates_->directDepthInit_ ? "True" : "False")
-          //           << ", Cov: " << initCovFeature_(0, 0) << std::endl;
-          // //DEBUG
-
-          initCovFeature_(0, 0) = initRelDepthCovTemp_ * std::pow(f.mpDistance_->getParameterDerivative() * f.mpDistance_->getDistance(), 2) * feaCovScaleFactor; //CUSTOMIZATION
+          initCovFeature_(0, 0) = initRelDepthCovTemp_ * std::pow(f.mpDistance_->getParameterDerivative() * f.mpDistance_->getDistance(), 2) * feaCovScaleFactor;  //CUSTOMIZATION
           filterState.resetFeatureCovariance(*it, initCovFeature_);
           initCovFeature_(0, 0) = initRelDepthCovTemp_;
           if (doFrameVisualisation_) {
@@ -1265,11 +1216,66 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         }
       }
     }
+
+    //CUSTOMIZATION - Check All Features for delayed direct depth intialization OR periodic depth update
+    std::clock_t depthUpdateLoop_t = std::clock();
+    for (int camID = 0; camID < mtState::nCam_; ++camID) {
+      if (useDepthFromLiDAR_ && !projectedDepthImgs_[camID].empty()) {
+        for (unsigned int ID = 0; ID < mtState::nMax_; ++ID) {
+          //Get Feature
+          auto& f = filterState.fsm_.features_[ID];
+          //Check 1.Feature is Valid AND 2.Either new depth initialization OR update depth after min time
+          if (filterState.fsm_.isValid_[ID] &&
+              (!f.mpCoordinates_->directDepthInit_ ||
+               (filterState.t_ - f.mpStatistics_->lastDepthUpdate_) > minTimeBeforeFeaDistCheck_)) {
+            //Get Feature Depth
+            float directDepth = getFeatureDirectDepth(f.mpCoordinates_->get_c(), projectedDepthImgs_[camID], ID);
+            if (directDepth > 0) {
+              //Update Depth and status
+              f.mpDistance_->p_ = 1.0 / directDepth;
+              f.mpCoordinates_->directDepthInit_ = true;
+              f.mpStatistics_->lastDepthUpdate_ = filterState.t_;
+
+              //Get Old Covariance
+              transformFeatureOutputCT_.setFeatureID(ID);
+              transformFeatureOutputCT_.setOutputCameraID(camID);
+              transformFeatureOutputCT_.transformState(filterState.state_, featureOutput_);
+              MXD CovMat;
+              transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, CovMat);
+
+              // //DEBUG
+              // std::cout << "Depth Update for Feature ID: " << ID
+              //           << ", Depth: " << directDepth
+              //           << ", CovMat Before:\n"
+              //           << CovMat;
+              // //DEBUG
+
+              //Copy Pixel Covariance block
+              M3D initCovMat = M3D::Zero();
+              initCovMat.block<2, 2>(1, 1) = CovMat.block<2, 2>(0, 0);  // Pixel-Cov Block
+              initCovMat(0, 0) = initCovFeature_(0, 0) * std::pow(f.mpDistance_->getParameterDerivative() * f.mpDistance_->getDistance(), 2) * directDepInitCovScaleFactor_;
+              //Reset Feature Covaraince
+              filterState.resetFeatureCovariance(ID, initCovMat);
+
+              // //DEBUG
+              // transformFeatureOutputCT_.transformCovMat(filterState.state_, filterState.cov_, CovMat);
+              // std::cout << "\nAFTER:\n"
+              //           << CovMat << std::endl;
+              // //DEBUG
+            }
+          }
+        }
+      }
+      if (verbose_) std::cout << "--- Timing - depthUpdateLoop: " << double(std::clock() - depthUpdateLoop_t) / CLOCKS_PER_SEC * 1000.0 << " ms" << std::endl;
+    }
+    //CUSTOMIZATION
+
     for (unsigned int i = 0; i < mtState::nMax_; i++) {
       if (filterState.fsm_.isValid_[i]) {
         filterState.fsm_.features_[i].log_previous_ = *filterState.fsm_.features_[i].mpCoordinates_;
       }
     }
+
     if (doFrameVisualisation_) {
       for (int i = 0; i < mtState::nCam_; i++) {
         drawVirtualHorizon(filterState, i);
@@ -1289,15 +1295,12 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       filterState.prevPyr_[i] = meas.aux().pyr_[i];
     }
 
-    std::cout << "\n=================================================================\n";
-
     // Zero Velocity updates if appropriate
     if (isZeroVelocityUpdateEnabled_ && doVisualMotionDetection_ && filterState.state_.aux().timeSinceLastImageMotion_ > minTimeForZeroVelocityUpdate_ && filterState.state_.aux().timeSinceLastInertialMotion_ > minTimeForZeroVelocityUpdate_) {
       cv::putText(filterState.img_[0], "Performing Zero Velocity Updates!", cv::Point2f(150, 25), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255));
       zeroVelocityUpdate_.performUpdateEKF(filterState, ZeroVelocityUpdateMeas<mtState>());
     }
   }
-
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /** \brief Draws a virtual horizon into the current image of the camera with ID camID
@@ -1345,11 +1348,17 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
    *  @param dImg - Depth Image created by projecting valid LiDAR points into camera frame
    */
   void projectPCLtoImgFrame(const pcl::PointCloud<pcl::PointXYZI>& cloud, const tf::Transform& lidar2cameraTF, const int& camID, cv::Mat& dImg) {
-    float* matPtr = reinterpret_cast<float*>(dImg.data);
+    //If point cloud is empty return an empty Mat
+    if (cloud.points.size() == 0) {
+      dImg = cv::Mat();
+      return;
+    }
+
     //Loop through LiDAR points
+    float* matPtr = (float*)dImg.data;
     for (const auto& pt : cloud.points) {
       //Check if point is good
-      if (!std::isfinite(pt.x) || !std::isfinite(pt.x) || !std::isfinite(pt.z))
+      if (!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z))
         continue;
 
       //Ignore zero points
@@ -1374,7 +1383,6 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       if (px.x > 0 && px.y > 0 && px.x < dImg.cols && px.y < dImg.rows) {
         //Calculate range w.r.t Camera Frame
         float range = std::sqrt(pt_cam.getX() * pt_cam.getX() + pt_cam.getY() * pt_cam.getY() + pt_cam.getZ() * pt_cam.getZ());
-        //float range = pt_cam.getZ();
 
         //If not assigned i.e. 0 - assign depth
         if (matPtr[px.y * dImg.cols + px.x] == 0)
@@ -1383,23 +1391,28 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
           matPtr[px.y * dImg.cols + px.x] = range;  //If already assigned - re-assign nearest depth
 
         if (doFrameVisualisation_) {
-          cv::Mat hsv = cv::Mat::ones(1, 1, CV_8UC3);
-          cv::Vec3b& hsv_vec = hsv.at<cv::Vec3b>(0, 0);
-          hsv_vec[0] = static_cast<uint8_t>(range / 50 * 180);  //H - max range is set to 50 for better color-depth visualuation only
-          hsv_vec[1] = 255;                                     //S - max
-          hsv_vec[2] = 255;                                     //V - max
-          cvtColor(hsv, hsv, CV_HSV2BGR);
-          cv::Vec3b& bgr_vec = hsv.at<cv::Vec3b>(0, 0);
-          cv::circle(drawImg_, px, 1, cv::Scalar(bgr_vec[0], bgr_vec[1], bgr_vec[2]), -1);
+          float red = (3.0 * range / maxAllowedFeatureDistance_) * 255.0;
+          red = (red > 255) ? 255 : red;
+          cv::circle(drawImg_, px, 1, cv::Scalar(0, (255 - (int)red), (int)red), -1);
         }
       }
     }
   }
 
+  /** \brief Get LiDAR depth surrounding a camera feature from the depth image created by projectPCLtoImgFrame
+   *
+   *  @param ptf - Pixel Coordinates of camera feature
+   *  @param depthImg - Depth Image for depth look-up
+   *  @param feaID - ID of feature
+   *  @param tol - Tolereance of Std.Dev of depth patch
+   *  @return - Mean Patch Depth, -1 if invalid patch
+   */
   float getFeatureDirectDepth(const cv::Point2i& ptf, const cv::Mat& depthImg, const int& feaID, float tol = 0.1) {
-    static const int hWinHalf = depHorzWinSize_ / 2;
-    static const int vWinHalf = depVertWinSize_ / 2;
-    static const cv::Point2i ctrPt(depHorzWinSize_ / 2, depVertWinSize_ / 2);
+    //Define look-up window and center point
+    static const int hWinHalf = depthSearchWindowWidth_ / 2;
+    static const int vWinHalf = depthSearchWindowHeight_ / 2;
+
+    //Check if look-up ROI is within image
     cv::Point2i pt(cvRound(ptf.x), cvRound(ptf.y));
     int uMin = pt.x - hWinHalf;
     int vMin = pt.y - vWinHalf;
@@ -1410,23 +1423,51 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       return -1;
 
     //Count Non-Zero depth points in the ROI
-    cv::Rect ROI(uMin, vMin, depHorzWinSize_, depVertWinSize_);
+    cv::Rect ROI(uMin, vMin, depthSearchWindowWidth_, depthSearchWindowHeight_);
     cv::Mat depthPatch(depthImg, ROI);
     cv::Mat countPatch;
     cv::normalize(depthPatch, countPatch, 0, 255, cv::NORM_MINMAX, CV_8UC1);
     std::vector<cv::Point2i> ROInonZeroLoc;
     cv::findNonZero(countPatch, ROInonZeroLoc);
 
+    float depth = -1;
+    if (lidarDepthCalcMode_ == 0)
+      depth = getDirectDepthFromPatch(depthPatch, ROInonZeroLoc);
+    else if (lidarDepthCalcMode_ == 1)
+      depth = getDirectDepthFromLine(depthPatch, ROInonZeroLoc);
+    else
+      ROS_WARN_STREAM("=== ROVIO - INVALID DEPTH CALCULATION MODE SET IT SHOUD BE EITHER 0(PATCH) or 1(LINE)===");
+
+    if (depth > maxAllowedFeatureDistance_)
+      return -1;
+
+    //DEBUG
+    // std::cout << "FeaID: " << feaID
+    //           << ", MODE: " << (lidarDepthCalcMode_ == 0 ? "PATCH" : "LINE")
+    //           << ", NonZero:" << ROInonZeroLoc.size()
+    //           << ", depth: " << depth << std::endl;
+    //DEBUG
+
+    return depth;
+  }
+
+  /** \brief Get LiDAR depth using a Patch surrounding a camera feature
+   *
+   *  @param depthPatch - Patch containing depth values surrounding the feature location
+   *  @param ROInonZeroLoc - Vector of non-zero depth locations in the depthPatch
+   *  @param tol - Tolereance of Std.Dev of depth patch
+   *  @return - Mean Patch Depth, -1 if invalid patch
+   */
+  float getDirectDepthFromPatch(const cv::Mat& depthPatch, const std::vector<cv::Point2i>& ROInonZeroLoc, float tol = 0.1) {
     //Loop though non-zero points
-    if (ROInonZeroLoc.size() > 0) {
+    static const cv::Point2i ctrPt(depthSearchWindowWidth_ / 2, depthSearchWindowHeight_ / 2);
+    if (ROInonZeroLoc.size() > 4) {
       int topCount = 0, bottomCount = 0;
-      std::vector<float> patchDepthVec;
-      patchDepthVec.reserve(ROInonZeroLoc.size() + 1);
       //Calculate Mean Depth
       float meanDep = 0.0;
       for (auto& roiPt : ROInonZeroLoc) {
         meanDep += depthPatch.at<float>(roiPt);
-        patchDepthVec.push_back(depthPatch.at<float>(roiPt));
+        //Check if point is above or below the center
         if (roiPt.y < ctrPt.y)
           ++topCount;
         else
@@ -1434,10 +1475,8 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       }
       meanDep /= ROInonZeroLoc.size();
 
-      if (meanDep > maxAllowedFeatureDistance_)  //Exceed Max Depth
-        return -1;
-
-      if (topCount < 2 || bottomCount < 2)  //Single Beam - No information of planarity
+      // Single Beam - No information of planarity
+      if (topCount < 2 || bottomCount < 2)
         return -1;
 
       //Calculate Std.Dev
@@ -1446,88 +1485,63 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         stdDev += (depthPatch.at<float>(roiPt) - meanDep) * (depthPatch.at<float>(roiPt) - meanDep);
       stdDev /= (ROInonZeroLoc.size() - 1);
       stdDev = std::sqrt(stdDev);
-      if (stdDev > tol)  //NOT A PLANE?
-        return -1;
 
+      //Check if patch has large Std.Dev
+      if (stdDev > tol)
+        return -1;
 
       return meanDep;
-
-      // //Median Patch Depth
-      // std::nth_element(patchDepthVec.begin(),
-      //                  patchDepthVec.begin() + (patchDepthVec.size() / 2),
-      //                  patchDepthVec.end());
-      // float medianDep = patchDepthVec[patchDepthVec.size() / 2];
-
-      // std::cout << "FeaID: " << feaID
-      //           << ", Loc(x,y):" << pt.x << "," << pt.y
-      //           << ", NonZero:" << ROInonZeroLoc.size()
-      //           << ", MEAN: " << meanDep
-      //           << ", MEDIAN:" << medianDep
-      //           << ", Std.Dev: " << stdDev
-      //           << ", top/bottom Count:" << topCount << "/" << bottomCount << std::endl;  //DEBUG
-/*
-      //Nearest Points in Four Quadrants
-      std::vector<cv::Point2i> nearPts(4, cv::Point2i(-1, -1));
-      std::vector<float> nDist(4, 100);
-      for (auto& roiPt : ROInonZeroLoc) {
-        //Pixel Distance
-        float d = std::sqrt((roiPt.x - ctrPt.x) * (roiPt.x - ctrPt.x) + (roiPt.y - ctrPt.y) * (roiPt.y - ctrPt.y));
-        //Top Left
-        if (roiPt.x < ctrPt.x && roiPt.y < ctrPt.y && d < nDist[0]) {
-          nearPts[0] = roiPt;
-          nDist[0] = d;
-        }
-        //Top Right
-        if (roiPt.x > ctrPt.x && roiPt.y < ctrPt.y && d < nDist[1]) {
-          nearPts[1] = roiPt;
-          nDist[1] = d;
-        }
-        //Bottom Left
-        if (roiPt.x < ctrPt.x && roiPt.y > ctrPt.y && d < nDist[2]) {
-          nearPts[2] = roiPt;
-          nDist[2] = d;
-        }
-        //Bottom Right
-        if (roiPt.x > ctrPt.x && roiPt.y > ctrPt.y && d < nDist[3]) {
-          nearPts[3] = roiPt;
-          nDist[3] = d;
-        }
-      }
-
-      //Check Valid Neighbours
-      int validNeighbors = 0;
-      float nMeanDep = 0;
-      for (auto& npt : nearPts) {
-        if (npt.x > -1 || npt.y > -1) {
-          ++validNeighbors;
-          nMeanDep += depthPatch.at<float>(npt);
-        }
-      }
-      if (validNeighbors < 3)
-        return -1;
-      nMeanDep /= static_cast<float>(validNeighbors);
-
-      //Check Depth Difference
-      for (auto& npt : nearPts) {
-        if (npt.x > -1 || npt.y > -1) {
-          float depDiff = depthPatch.at<float>(npt) - nMeanDep;
-          if (depDiff > tol)
-            return -1;
-        }
-      }
-
-      std::cout << "FeaID: " << feaID << std::endl;
-      std::cout << "Neighbors, TL: " << nearPts[0] << ", TR: " << nearPts[1] << ", BL: " << nearPts[2] << ", BR: " << nearPts[3] << std::endl;
-      std::cout << "Nearest Mean: " << nMeanDep << ", valid Neighbor Count: " << validNeighbors << std::endl;
-
-      return nMeanDep;
-*/
     } else
       return -1;
   }
+
+  /** \brief Get LiDAR depth using a LINE nearest to the camera feature
+   *
+   *  @param depthPatch - Patch containing depth values surrounding the feature location
+   *  @param ROInonZeroLoc - Vector of non-zero depth locations in the depthPatch
+   *  @param tol - Tolereance of Max depth difference between consective points on the line
+   *  @return - Mean Line Depth, -1 if invalid
+   */
+  float getDirectDepthFromLine(const cv::Mat& depthPatch, const std::vector<cv::Point2i>& ROInonZeroLoc, float tol = 0.1) {
+    //Loop though non-zero points
+    static const cv::Point2i ctrPt(depthSearchWindowWidth_ / 2, depthSearchWindowHeight_ / 2);
+    if (ROInonZeroLoc.size() > 5) {
+      int leftCount = 0, rightCount = 0;
+      //Calculate Mean Depth
+      float meanDep = 0.0;
+      for (auto& roiPt : ROInonZeroLoc) {
+        meanDep += depthPatch.at<float>(roiPt);
+        //Check if point is above or below the center
+        if (roiPt.x < ctrPt.x)
+          ++leftCount;
+        else
+          ++rightCount;
+      }
+      meanDep /= ROInonZeroLoc.size();
+
+      // Single Beam - Balanced Neighborhoods
+      if (leftCount < 2 || rightCount < 2)
+        return -1;
+
+      //Calculate Max depth difference between consective points
+      float maxDepDiff = 0.0;
+      for (int i = 1; i < ROInonZeroLoc.size(); ++i) {
+        float depDiff = std::abs(depthPatch.at<float>(ROInonZeroLoc[i]) - depthPatch.at<float>(ROInonZeroLoc[i - 1]));
+        if (depDiff > maxDepDiff)
+          maxDepDiff = depDiff;
+      }
+
+      //Check if patch has large Std.Dev
+      if (maxDepDiff > tol)
+        return -1;
+
+      return meanDep;
+    } else
+      return -1;
+  }
+  //CUSTOMIZATION
+
 };  // namespace rovio
-//CUSTOMIZATION
 
 }  // namespace rovio
-
 #endif /* ROVIO_IMGUPDATE_HPP_ */
