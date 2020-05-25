@@ -742,8 +742,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
    *  @param isFinished  - True, if process has finished.
    *  @todo split into methods
    */
-  void
-  preProcess(mtFilterState& filterState, const mtMeas& meas, bool& isFinished) {
+  void preProcess(mtFilterState& filterState, const mtMeas& meas, bool& isFinished) {
     if (isFinished) {  // gets called if this is the first call
       commonPreProcess(filterState, meas);
       isFinished = false;
