@@ -296,8 +296,9 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   mutable MultilevelPatchAlignment<mtState::nLevels_, mtState::patchSize_> alignment_; /**<Patch aligner*/
   mutable cv::Mat drawImg_;                                                            /**<Image currently used for drawing*/
 
-  const float max_8bit_image_val = 255.0;   /**<CUSTOMIZATION: max value for 8-bit image in float images. Used for disambiguation between conversion from float to 8-bit or 16-bit images.*/
-  std::vector<cv::Mat> projectedDepthImgs_; /**<CUSTOMIZATION: */
+  const float max_8bit_image_val = 255.0;   /**<CUSTOMIZATION: Max value for 8-bit image in float images. Used for disambiguation between conversion from float to 8-bit or 16-bit images.*/
+  std::vector<cv::Mat> projectedDepthImgs_; /**<CUSTOMIZATION: Vector containing LiDAR images projected to each camera frame - Current implementation support 1-Camera*/
+  const int min_non_zero_neighbors_ = 4;    /**<CUSTOMIZATION: Minimum number of non-zero neighbors in a depth patch to be considered valid for a depth calculation*/
 
   /** \brief Constructor.
    *
@@ -679,7 +680,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       }
     }
 
-    //DEBUG 
+    //DEBUG
     /*for (int camID = 0; camID < mtState::nCam_; camID++) {
       for (unsigned int ID = 0; ID < mtState::nMax_; ID++) {
         // Update status and visualization
@@ -1367,7 +1368,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       //Transform point from LiDAR frame to Camera frame and remove points behind camera
       tf::Vector3 pt_cam = lidar2cameraTF * tf::Vector3(pt.x, pt.y, pt.z);
 
-      //Check if point is behind camera
+      //Check if point is behind camera (ideally zero but 10cm to avoid noisy points)
       if (pt_cam.getZ() < 0.1)
         continue;
 
@@ -1429,11 +1430,16 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
     std::vector<cv::Point2i> ROInonZeroLoc;
     cv::findNonZero(countPatch, ROInonZeroLoc);
 
+    //If not enough non-zero depth points neighbor present
+    if (ROInonZeroLoc.size() < min_non_zero_neighbors_)
+      return -1;
+
+    //Get Depth
     float depth = -1;
     if (lidarDepthCalcMode_ == 0)
-      depth = getDirectDepthFromPatch(depthPatch, ROInonZeroLoc);
+      depth = getDirectDepthFromPatch(depthPatch, ROInonZeroLoc, tol);
     else if (lidarDepthCalcMode_ == 1)
-      depth = getDirectDepthFromLine(depthPatch, ROInonZeroLoc);
+      depth = getDirectDepthFromLine(depthPatch, ROInonZeroLoc, tol);
     else
       ROS_WARN_STREAM("=== ROVIO - INVALID DEPTH CALCULATION MODE SET IT SHOUD BE EITHER 0(PATCH) or 1(LINE)===");
 
@@ -1460,38 +1466,35 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   float getDirectDepthFromPatch(const cv::Mat& depthPatch, const std::vector<cv::Point2i>& ROInonZeroLoc, float tol = 0.1) {
     //Loop though non-zero points
     static const cv::Point2i ctrPt(depthSearchWindowWidth_ / 2, depthSearchWindowHeight_ / 2);
-    if (ROInonZeroLoc.size() > 4) {
-      int topCount = 0, bottomCount = 0;
-      //Calculate Mean Depth
-      float meanDep = 0.0;
-      for (auto& roiPt : ROInonZeroLoc) {
-        meanDep += depthPatch.at<float>(roiPt);
-        //Check if point is above or below the center
-        if (roiPt.y < ctrPt.y)
-          ++topCount;
-        else
-          ++bottomCount;
-      }
-      meanDep /= ROInonZeroLoc.size();
+    int topCount = 0, bottomCount = 0;
+    //Calculate Mean Depth
+    float meanDep = 0.0;
+    for (auto& roiPt : ROInonZeroLoc) {
+      meanDep += depthPatch.at<float>(roiPt);
+      //Check if point is above or below the center
+      if (roiPt.y < ctrPt.y)
+        ++topCount;
+      else
+        ++bottomCount;
+    }
+    meanDep /= ROInonZeroLoc.size();
 
-      // Single Beam - No information of planarity
-      if (topCount < 2 || bottomCount < 2)
-        return -1;
-
-      //Calculate Std.Dev
-      float stdDev = 0.0;
-      for (auto& roiPt : ROInonZeroLoc)
-        stdDev += (depthPatch.at<float>(roiPt) - meanDep) * (depthPatch.at<float>(roiPt) - meanDep);
-      stdDev /= (ROInonZeroLoc.size() - 1);
-      stdDev = std::sqrt(stdDev);
-
-      //Check if patch has large Std.Dev
-      if (stdDev > tol)
-        return -1;
-
-      return meanDep;
-    } else
+    // Single Beam - No information of planarity
+    if (topCount < 2 || bottomCount < 2)
       return -1;
+
+    //Calculate Std.Dev
+    float stdDev = 0.0;
+    for (auto& roiPt : ROInonZeroLoc)
+      stdDev += (depthPatch.at<float>(roiPt) - meanDep) * (depthPatch.at<float>(roiPt) - meanDep);
+    stdDev /= (ROInonZeroLoc.size() - 1);
+    stdDev = std::sqrt(stdDev);
+
+    //Check if patch has large Std.Dev
+    if (stdDev > tol)
+      return -1;
+
+    return meanDep;
   }
 
   /** \brief Get LiDAR depth using a LINE nearest to the camera feature
@@ -1504,39 +1507,36 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   float getDirectDepthFromLine(const cv::Mat& depthPatch, const std::vector<cv::Point2i>& ROInonZeroLoc, float tol = 0.1) {
     //Loop though non-zero points
     static const cv::Point2i ctrPt(depthSearchWindowWidth_ / 2, depthSearchWindowHeight_ / 2);
-    if (ROInonZeroLoc.size() > 5) {
-      int leftCount = 0, rightCount = 0;
-      //Calculate Mean Depth
-      float meanDep = 0.0;
-      for (auto& roiPt : ROInonZeroLoc) {
-        meanDep += depthPatch.at<float>(roiPt);
-        //Check if point is above or below the center
-        if (roiPt.x < ctrPt.x)
-          ++leftCount;
-        else
-          ++rightCount;
-      }
-      meanDep /= ROInonZeroLoc.size();
+    int leftCount = 0, rightCount = 0;
+    //Calculate Mean Depth
+    float meanDep = 0.0;
+    for (auto& roiPt : ROInonZeroLoc) {
+      meanDep += depthPatch.at<float>(roiPt);
+      //Check if point is above or below the center
+      if (roiPt.x < ctrPt.x)
+        ++leftCount;
+      else
+        ++rightCount;
+    }
+    meanDep /= ROInonZeroLoc.size();
 
-      // Single Beam - Balanced Neighborhoods
-      if (leftCount < 2 || rightCount < 2)
-        return -1;
-
-      //Calculate Max depth difference between consective points
-      float maxDepDiff = 0.0;
-      for (int i = 1; i < ROInonZeroLoc.size(); ++i) {
-        float depDiff = std::abs(depthPatch.at<float>(ROInonZeroLoc[i]) - depthPatch.at<float>(ROInonZeroLoc[i - 1]));
-        if (depDiff > maxDepDiff)
-          maxDepDiff = depDiff;
-      }
-
-      //Check if patch has large Std.Dev
-      if (maxDepDiff > tol)
-        return -1;
-
-      return meanDep;
-    } else
+    // Single Beam - Balanced Neighborhoods
+    if (leftCount < 2 || rightCount < 2)
       return -1;
+
+    //Calculate Max depth difference between consective points
+    float maxDepDiff = 0.0;
+    for (int i = 1; i < ROInonZeroLoc.size(); ++i) {
+      float depDiff = std::abs(depthPatch.at<float>(ROInonZeroLoc[i]) - depthPatch.at<float>(ROInonZeroLoc[i - 1]));
+      if (depDiff > maxDepDiff)
+        maxDepDiff = depDiff;
+    }
+
+    //Check if line has large depth differences
+    if (maxDepDiff > tol)
+      return -1;
+
+    return meanDep;
   }
   //CUSTOMIZATION
 
