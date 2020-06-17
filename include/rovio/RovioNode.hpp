@@ -134,6 +134,7 @@ class RovioNode {
   ros::Subscriber subImu_;
   ros::Subscriber subImg0_;
   ros::Subscriber subImg1_;
+  ros::Subscriber subImg2_;
   ros::Subscriber subGroundtruth_;
   ros::Subscriber subGroundtruthOdometry_;
   ros::Subscriber subVelocity_;
@@ -187,6 +188,8 @@ class RovioNode {
   std::string imu_frame_;
 
   //CUSTOMIZATION
+  V3D t_imu_init_;
+  QPD q_imu_init_;
   ros::Subscriber subPCL_;
   tf::TransformListener tfListener_;
   tf::StampedTransform camera2lidarTF_;
@@ -204,6 +207,7 @@ class RovioNode {
   double clahe_clip_limit_ = 4.0;  //number of pixels used to clip the CDF for histogram equalization
   double clahe_grid_size_ = 8.0;   //clahe_grid_size_ x clahe_grid_size_ pixel neighborhood used
   const float max_8bit_image_val = 255.0;
+
   //CUSTOMIZATION
 
   /** \brief Constructor
@@ -229,6 +233,7 @@ class RovioNode {
     subImu_ = nh_.subscribe("imu0", 1000, &RovioNode::imuCallback, this);
     subImg0_ = nh_.subscribe("cam0/image_raw", 1000, &RovioNode::imgCallback0, this);
     subImg1_ = nh_.subscribe("cam1/image_raw", 1000, &RovioNode::imgCallback1, this);
+    subImg2_ = nh_.subscribe("cam2/image_raw", 1000, &RovioNode::imgCallback2, this);
     subGroundtruth_ = nh_.subscribe("pose", 1000, &RovioNode::groundtruthCallback, this);
     subGroundtruthOdometry_ = nh_.subscribe("odometry", 1000, &RovioNode::groundtruthOdometryCallback, this);
     subVelocity_ = nh_.subscribe("abss/twist", 1000, &RovioNode::velocityCallback, this);
@@ -274,6 +279,9 @@ class RovioNode {
     nh_private_.param("cam1_offset", cam1_offset_, 0.0);
     if (cam1_offset_ != 0.0)
       ROS_WARN_ONCE("ROVIO - CAM1 time offset set to: %f", cam1_offset_);
+    nh_private_.param("cam2_offset", cam2_offset_, 0.0);
+    if (cam2_offset_ != 0.0)
+      ROS_WARN_ONCE("ROVIO - CAM2 time offset set to: %f", cam2_offset_);
 
     //CLAHE
     nh_private_.param("histogram_equalize_8bit_images", histogram_equalize_8bit_images_, false);
@@ -533,6 +541,11 @@ class RovioNode {
       std::cout << std::setprecision(12);
       std::cout << "-- Filter: Initialized at t = " << imu_msg->header.stamp.toSec() + imu_offset_ << std::endl;
       init_state_.state_ = FilterInitializationState::State::Initialized;
+      imuOutputCT_.transformState(mpFilter_->init_.state_, imuOutput_);
+      t_imu_init_ = imuOutput_.WrWB();
+      q_imu_init_ = imuOutput_.qBW();
+      std::cout << "=== ROVIO Init state: t(x,y,z): [" << t_imu_init_.transpose()
+                << "], q(w,x,y,z): [" << -q_imu_init_.w() << " " << q_imu_init_.x() << " " << q_imu_init_.y() << " " << q_imu_init_.z() << "]\n";
     }
   }
 
@@ -554,6 +567,16 @@ class RovioNode {
   void imgCallback1(const sensor_msgs::ImageConstPtr& img) {
     std::lock_guard<std::mutex> lock(m_filter_);
     if (mtState::nCam_ > 1) imgCallback(img, 1);
+  }
+
+  /** \brief Image callback for the camera with ID 2
+   *
+   * @param img - Image message.
+   * @todo generalize
+   */
+  void imgCallback2(const sensor_msgs::ImageConstPtr& img) {
+    std::lock_guard<std::mutex> lock(m_filter_);
+    if (mtState::nCam_ > 2) imgCallback(img, 2);
   }
 
   /** \brief Image callback. Adds images (as update measurements) to the filter.
@@ -578,6 +601,8 @@ class RovioNode {
       cam_offset = cam0_offset_;
     else if (camID == 1)
       cam_offset = cam1_offset_;
+    else if (camID == 2)
+      cam_offset = cam2_offset_;
 
     //Covert Color/Gray/16bit images to float
     cv::Mat cv_img;
@@ -694,15 +719,15 @@ class RovioNode {
       try {
         tfListener_.waitForTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), ros::Duration(0.1));
         tfListener_.lookupTransform(lidar_frame_name_, camera_frame_name_, ros::Time(0), camera2lidarTF_);
-        imgUpdateMeas_.template get<mtImgMeas::_aux>().setLidarCameraCalibration(camera2lidarTF_.inverse()); //
+        imgUpdateMeas_.template get<mtImgMeas::_aux>().setLidarCameraCalibration(camera2lidarTF_.inverse());
         camera2lidarTF_init = true;
-        ROS_WARN_STREAM_ONCE("ROVIO - Camera2LiDAR Calibration Initialized - t(x,y,z): " << camera2lidarTF_.getOrigin().x() << ","
-                                                                                         << camera2lidarTF_.getOrigin().y() << ","
-                                                                                         << camera2lidarTF_.getOrigin().z() << ", q(x,y,z,w):"
-                                                                                         << camera2lidarTF_.getRotation().x() << ","
-                                                                                         << camera2lidarTF_.getRotation().y() << ","
-                                                                                         << camera2lidarTF_.getRotation().z() << ","
-                                                                                         << camera2lidarTF_.getRotation().w());
+        ROS_WARN_STREAM_ONCE("ROVIO - Camera2LiDAR Calibration Initialized - t(x,y,z): [" << camera2lidarTF_.getOrigin().x() << " "
+                                                                                          << camera2lidarTF_.getOrigin().y() << " "
+                                                                                          << camera2lidarTF_.getOrigin().z() << "], q(x,y,z,w): ["
+                                                                                          << camera2lidarTF_.getRotation().x() << " "
+                                                                                          << camera2lidarTF_.getRotation().y() << " "
+                                                                                          << camera2lidarTF_.getRotation().z() << " "
+                                                                                          << camera2lidarTF_.getRotation().w() << "]");
       } catch (tf::TransformException& ex) {
         ROS_WARN("%s", ex.what());
         return;
@@ -834,6 +859,17 @@ class RovioNode {
           tf_transform_WI.setRotation(tf::Quaternion(qWI.x(), qWI.y(), qWI.z(), -qWI.w()));
           tb_.sendTransform(tf_transform_WI);
         }
+
+        //CUSTOMIZATION
+        // Send IMU Intialization pose
+        tf::StampedTransform tf_transform_MW_init;
+        tf_transform_MW_init.frame_id_ = world_frame_;
+        tf_transform_MW_init.child_frame_id_ = imu_frame_ + "_init";
+        tf_transform_MW_init.stamp_ = ros::Time(mpFilter_->safe_.t_);
+        tf_transform_MW_init.setOrigin(tf::Vector3(t_imu_init_[0], t_imu_init_[1], t_imu_init_[2]));
+        tf_transform_MW_init.setRotation(tf::Quaternion(q_imu_init_.x(), q_imu_init_.y(), q_imu_init_.z(), -q_imu_init_.w()));
+        tb_.sendTransform(tf_transform_MW_init);
+        //CUSTOMIZATION
 
         // Send IMU pose.
         tf::StampedTransform tf_transform_MW;
