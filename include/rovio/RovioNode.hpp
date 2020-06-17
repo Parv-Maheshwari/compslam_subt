@@ -207,7 +207,6 @@ class RovioNode {
   double clahe_clip_limit_ = 4.0;  //number of pixels used to clip the CDF for histogram equalization
   double clahe_grid_size_ = 8.0;   //clahe_grid_size_ x clahe_grid_size_ pixel neighborhood used
   const float max_8bit_image_val = 255.0;
-
   //CUSTOMIZATION
 
   /** \brief Constructor
