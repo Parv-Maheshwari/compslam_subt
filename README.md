@@ -25,12 +25,17 @@ Related paper:
 
 ### Install without opengl scene ###
 Dependencies:  
+
 * ros  
+
 * kindr (https://github.com/ethz-asl/kindr)  
+
 * **lightweight_filtering (as submodule, use "git submodule update --init --recursive")**  
 
 Forced Library Versions:  
+
 * **OpenCV version:** An explicit path for ROS(system) default version of OpenCV library is defined. This is to resolve conflict if multiple versions of OpenCV are installed e.g. version 3.2.0 installed by ROS Medlodic and version 3.4.2 installed by opencv3_catkin package (*used by alphasense driver and maplab*).  
+
 * **Yaml-cpp:** Use of Yaml-cpp is forced even if yaml_catkin_cpp is installed as the later seems to be deprecated.  
 
 ```
