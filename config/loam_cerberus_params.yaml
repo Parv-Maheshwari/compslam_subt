@@ -7,16 +7,16 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
-lidarFrame: velodyne                     #LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
-extPriorAvailable: false                 #Flag to check if 'Primary' external prior is available
-extOdomFrame: vio_imu                    #External Prior odometry frame name
-extFixedFrame: vio_world #vio_imu_init   #External Prior fixed frame name
-extSensorFrame: imu                      #External Prior sensor frame name
-extOdomTimeOffset : -0.1 #seconds        #Timeoffset between LiDAR pointcloud and external source
+lidarFrame: lidar                        #LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
+extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+extOdomFrame: imu_link                   #External Prior odometry frame name
+extFixedFrame: odom                      #External Prior fixed frame name
+extSensorFrame: imu_link                 #External Prior sensor frame name
+extOdomTimeOffset : 0.0 #seconds         #Timeoffset between LiDAR pointcloud and external source
 fallbackExtPriorAvailable: false         #Flag to check if 'Fallback ' external prior is available
-fallbackExtOdomFrame: base #base_subt    #Fallback External Prior odometry frame name
-fallbackExtFixedFrame: odom              #Fallback External Prior fixed frame name
-fallbackExtSensorFrame: base #base_subt  #Fallback External Prior sensor frame name
+fallbackExtOdomFrame: vio_imu            #Fallback External Prior odometry frame name
+fallbackExtFixedFrame: vio_world         #Fallback External Prior fixed frame name
+fallbackExtSensorFrame: vio_imu          #Fallback External Prior sensor frame name
 fallbackExtOdomTimeOffset: 0.0 #seconds  #Timeoffset between LiDAR pointcloud and Fallbackexternal source
 
 #MultiScanRegistration
@@ -34,7 +34,7 @@ surfaceCurvatureThreshold: 0.1           #Threshold above which feature is categ
 lessFlatFilterSize: 0.2                  #Leaf Size for downsampling remaing pointcloud after feature selection, default 0.2 
 
 #LaserOdometry
-undistortInputCloud: true                #If true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
+undistortInputCloud: false               #If true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
 odomMaxIterations: 25                    #Number of LO optimization iterations, default 25
 odomDeltaTAbort: 0.05                    #Translation threshold for optimization convergence, deafult 0.1 (m) 
 odomDeltaRAbort: 0.05                    #Rotation threshold for optimization convergence, deafult 0.1 (deg)
