@@ -55,6 +55,7 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _frameCount(0),
       _mapFrameCount(0),
       _maxIterations(maxIterations),
+      _minIterations(1),
       _deltaTAbort(0.05),
       _deltaRAbort(0.05),
       _mapDegenEigVal(100),
@@ -947,7 +948,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
     deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
                              std::pow(matX(4, 0) * 100, 2) +
                              std::pow(matX(5, 0) * 100, 2));
-    if (deltaR < _deltaRAbort && deltaT < _deltaTAbort) {
+    if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
       // //CUSTOMIZATION
       // //Calculation of the vairance of the solution
       // Eigen::VectorXf residual = (matA * matX) - matB;

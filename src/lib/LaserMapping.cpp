@@ -68,7 +68,17 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
       return false;
     } else {
       setMaxIterations(iParam);
-      ROS_INFO("Set mapMaxIterations: %d", iParam);
+      ROS_INFO("Set mapMaxIterations: %d", static_cast<int>(maxIterations()));
+    }
+  }
+
+  if (privateNode.getParam("mapMinIterations", iParam)) {
+    if (iParam < 0) {
+      ROS_ERROR("Invalid mapMinIterations parameter: %d", iParam);
+      return false;
+    } else {
+      setMinIterations(iParam);
+      ROS_INFO("Set mapMinIterations: %d", static_cast<int>(minIterations()));
     }
   }
 

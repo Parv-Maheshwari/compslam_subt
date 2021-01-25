@@ -94,7 +94,17 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
       return false;
     } else {
       setMaxIterations(iParam);
-      ROS_INFO("Set odomMaxIterations: %d", iParam);
+      ROS_INFO("Set odomMaxIterations: %d", static_cast<int>(maxIterations()));
+    }
+  }
+
+  if (privateNode.getParam("odomMinIterations", iParam)) {
+    if (iParam < 0) {
+      ROS_ERROR("Invalid odomMinIterations parameter: %d", iParam);
+      return false;
+    } else {
+      setMinIterations(iParam);
+      ROS_INFO("Set odomMinIterations: %d", static_cast<int>(minIterations()));
     }
   }
 

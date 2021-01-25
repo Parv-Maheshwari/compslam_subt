@@ -22,6 +22,7 @@ BasicLaserOdometry::BasicLaserOdometry(float scanPeriod, size_t maxIterations)
       _systemInited(false),
       _frameCount(0),
       _maxIterations(maxIterations),
+      _minIterations(1),
       _deltaTAbort(0.1),
       _deltaRAbort(0.1),
       _odomDegenEigVal(10),
@@ -273,7 +274,7 @@ void BasicLaserOdometry::process() {
     bool error_converged = false;
     size_t iterCount = 0;
     std::clock_t time_start = std::clock();
-    for (; iterCount < _maxIterations; iterCount++) {
+    for (; iterCount < _maxIterations; ++iterCount) {
       pcl::PointXYZI pointSel, pointProj, tripod1, tripod2, tripod3;
       _laserCloudOri->clear();
       _coeffSel->clear();
@@ -616,7 +617,7 @@ void BasicLaserOdometry::process() {
       deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
                          std::pow(matX(4, 0) * 100, 2) +
                          std::pow(matX(5, 0) * 100, 2));
-      if (deltaR < _deltaRAbort && deltaT < _deltaTAbort) {
+      if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
         // //CUSTOMIZATION
         // //Calculation of the vairance of the solution
         // Eigen::VectorXf residual = (matA * matX) - matB;
