@@ -198,7 +198,7 @@ void BasicLaserOdometry::process() {
 
   //DEBUG - Negation for human understanding - reverses direction of pcl alignment
   if (_verboseLevel > 1)
-    std::cout << "\033[35mLASER\033[0m Motion Model (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
+    std::cout << "\033[35mLASER\033[0m Motion Model DELTA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
   //DEBUG
 
@@ -243,7 +243,7 @@ void BasicLaserOdometry::process() {
 
     //DEBUG - Negation for human understanding - reverses direction of pcl alignment
     if (_verboseLevel > 1)
-      std::cout << "\033[35mLASER\033[0m EXT PRIOR (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
+      std::cout << "\033[35mLASER\033[0m Ext Prior DELTA (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
                 << "], (r,p,y): [" << rad2deg(rotation_prior[2]) << " " << rad2deg(rotation_prior[0]) << " " << rad2deg(rotation_prior[1])
                 << "], Type: " << (primaryPrior ? "P" : "F") << std::endl;
     //DEBUG
@@ -693,10 +693,15 @@ void BasicLaserOdometry::process() {
   _transformSum.rot_z = rz;
   _transformSum.pos = trans;
 
-  //DEBUG - Negation for human understanding - reverses direction of pcl alignment
-  if (_verboseLevel > 1)
-    std::cout << "\033[35mLASER\033[0m RESULT (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
+  //DEBUG 
+  if (_verboseLevel > 1) {
+    //Optimization Result - DELTA - Negation for human understanding - reverses direction of pcl alignment
+    std::cout << "\033[35mLASER\033[0m Opt Result DELTA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
+    //Laser Odometry in ROS frame
+    std::cout << "\033[35mLASER\033[0m Odometry (x,y,z): [" << _transformSum.pos.z() << " " << _transformSum.pos.x() << " " << _transformSum.pos.y()
+              << "], (r,p,y): [" << _transformSum.rot_z.deg() << " " << _transformSum.rot_x.deg() << " " << _transformSum.rot_y.deg() << "]\n";
+  }
   //DEBUG
 
   transformToEnd(_cornerPointsLessSharp);

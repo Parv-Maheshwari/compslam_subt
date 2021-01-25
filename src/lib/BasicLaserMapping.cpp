@@ -108,7 +108,7 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
     _laserCloudSurfDSArray[i].reset(new pcl::PointCloud<pcl::PointXYZI>());
   }
 
-  //CUSTOMIZATION - 
+  //CUSTOMIZATION -
   //data structure for storing previosuly saved submaps
   _savedCornerSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
   _savedSurfSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
@@ -312,12 +312,8 @@ bool BasicLaserMapping::createDownsizedMap() {
 }
 
 bool BasicLaserMapping::process(Time const& laserOdometryTime) {
-  // skip some frames?!? //smk: this will not do anything as _stackFrameNum is 1 so _frameCount++ will never be less than 1
+  // Update frame count and time
   _frameCount++;
-  if (_frameCount < _stackFrameNum) {
-    return false;
-  }
-  _frameCount = 0;
   _laserOdometryTime = laserOdometryTime;
 
   pcl::PointXYZI pointSel;
@@ -694,7 +690,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   matA1.setZero();
   matD1.setZero();
   matV1.setZero();
-  
+
   Eigen::Matrix<float, 6, 6> matP;
 
   size_t laserCloudCornerStackNum = _laserCloudCornerStackDS->size();
@@ -943,11 +939,11 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
     _transformTobeMapped.pos.z() += matX(5, 0);
 
     deltaR = std::sqrt(std::pow(rad2deg(matX(0, 0)), 2) +
-                             std::pow(rad2deg(matX(1, 0)), 2) +
-                             std::pow(rad2deg(matX(2, 0)), 2));
+                       std::pow(rad2deg(matX(1, 0)), 2) +
+                       std::pow(rad2deg(matX(2, 0)), 2));
     deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
-                             std::pow(matX(4, 0) * 100, 2) +
-                             std::pow(matX(5, 0) * 100, 2));
+                       std::pow(matX(4, 0) * 100, 2) +
+                       std::pow(matX(5, 0) * 100, 2));
     if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
       // //CUSTOMIZATION
       // //Calculation of the vairance of the solution
@@ -1075,11 +1071,12 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
   static ros::Duration time_offset(_extOdomTimeOffset);
   static ros::Duration fallback_time_offset(_fallbackExtOdomTimeOffset);
 
-  if (_lastPCLTime.is_zero()) {
-    std::cout << "\033[32mMAPPING\033[0m FIRST MAP PCL RECEIVED" << std::endl;
+  //Skip first two pointclouds from external prior lookup as _transformAftMapped has not updated yet
+  if(_frameCount < 3){
+    std::cout << "\033[32mMAPPING\033[0m External Prior - Skip for PCL: "<< _frameCount<< std::endl;
     return false;
   }
-
+  
   if (!useFallback) {
     try {
       //Relative Transform
@@ -1142,7 +1139,7 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
     rotPriorXYZ << e1[1], e1[0], e1[2];
   else
     rotPriorXYZ << e2[1], e2[0], e2[2];
-      
+
   return true;
 }
 
