@@ -14,14 +14,14 @@
 #include <Eigen/Core>
 
 namespace loam {
-class ImuManager {
+class ImuBuffer {
  public:
   //Constructor
-  ImuManager(const size_t maxSize = 200)
+  ImuBuffer(const size_t maxSize = 200)
       : _maxBufferSize(maxSize) {}
 
   //Destructor
-  ~ImuManager() {}
+  ~ImuBuffer() {}
 
   /** \brief Reset Max allowed size of IMU Buffer
      *

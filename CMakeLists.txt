@@ -26,11 +26,17 @@ find_package(PCL REQUIRED)
 message("PCL Version:" ${PCL_VERSION})
 message("PCL Path:" ${PCL_DIR})
 
+find_package(GTSAM REQUIRED)
+message("GTSAM version: ${GTSAM_VERSION}")
+message("GTSAM path: ${GTSAM_DIR}")
+
 include_directories(
   include
 	${catkin_INCLUDE_DIRS}
 	#${EIGEN3_INCLUDE_DIR}
-	${PCL_INCLUDE_DIRS})
+	${PCL_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIR}
+)
 
 add_message_files(
   DIRECTORY msg
@@ -66,7 +72,7 @@ add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
 target_link_libraries(multiScanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
 
 add_executable(laserOdometry src/laser_odometry_node.cpp)
-target_link_libraries(laserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(laserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} gtsam gtsam_unstable loam)                     
 
 add_executable(laserMapping src/laser_mapping_node.cpp)
 target_link_libraries(laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )

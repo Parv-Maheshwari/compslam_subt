@@ -58,7 +58,7 @@ bool ScanRegistration::parseParams(const ros::NodeHandle& nh, RegistrationParams
       success = false;
     } else {
       config_out.imuHistorySize = iParam;
-      _imuMgr.resetBufferSize(iParam);
+      _imuBuffer.resetBufferSize(iParam);
       ROS_INFO("Set imuHistorySize: %d", iParam);
     }
   }
@@ -194,7 +194,7 @@ void ScanRegistration::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_ptr) {
                                                      imu_ptr->linear_acceleration.y,
                                                      imu_ptr->linear_acceleration.z);
   //Add to buffer
-  _imuMgr.addToBuffer(accMsgPtr);
+  _imuBuffer.addToBuffer(accMsgPtr);
   _imuAvailable = true;
 }
 
@@ -207,7 +207,7 @@ void ScanRegistration::publishResult() {
   if (_imuAvailable) {
     Eigen::Vector4d estimatedAccData;
     Eigen::Quaterniond qGravity;
-    _imuMgr.getRollPitchfromIMU(_rosPCLTimeStamp, qGravity, estimatedAccData);
+    _imuBuffer.getRollPitchfromIMU(_rosPCLTimeStamp, qGravity, estimatedAccData);
     _imuQuatTf.stamp_ = _rosPCLTimeStamp;
     _imuQuatTf.setRotation(tf::Quaternion(qGravity.x(), qGravity.y(), qGravity.z(), qGravity.w()));
     _tfBroadcaster.sendTransform(_imuQuatTf);
