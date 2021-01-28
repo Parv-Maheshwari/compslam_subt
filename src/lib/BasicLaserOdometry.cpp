@@ -22,6 +22,7 @@ BasicLaserOdometry::BasicLaserOdometry(float scanPeriod, size_t maxIterations)
       _systemInited(false),
       _frameCount(0),
       _maxIterations(maxIterations),
+      _minIterations(1),
       _deltaTAbort(0.1),
       _deltaRAbort(0.1),
       _odomDegenEigVal(10),
@@ -58,15 +59,12 @@ void BasicLaserOdometry::transformToStart(const pcl::PointXYZI& pi, pcl::PointXY
 
 size_t BasicLaserOdometry::transformToEnd(pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud) {
   size_t cloudSize = cloud->points.size();
-  float s;
 
   for (size_t i = 0; i < cloudSize; i++) {
     pcl::PointXYZI& point = cloud->points[i];
 
-    if (_undistortInputCloud)
-      s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
-    else
-      s = 1.0;
+    //Project current point to the end of the scan
+    float s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
 
     point.x -= s * _transform.pos.x();
     point.y -= s * _transform.pos.y();
@@ -199,8 +197,8 @@ void BasicLaserOdometry::process() {
   _transform.pos -= _imuVeloFromStart * _scanPeriod;
 
   //DEBUG - Negation for human understanding - reverses direction of pcl alignment
-  if (_verboseLevel > 0)
-    std::cout << "\033[35mLASER\033[0m Motion Model (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
+  if (_verboseLevel > 1)
+    std::cout << "\033[35mLASER\033[0m Motion Model DELTA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
   //DEBUG
 
@@ -244,8 +242,8 @@ void BasicLaserOdometry::process() {
     }
 
     //DEBUG - Negation for human understanding - reverses direction of pcl alignment
-    if (_verboseLevel > 0)
-      std::cout << "\033[35mLASER\033[0m EXT PRIOR (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
+    if (_verboseLevel > 1)
+      std::cout << "\033[35mLASER\033[0m Ext Prior DELTA (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
                 << "], (r,p,y): [" << rad2deg(rotation_prior[2]) << " " << rad2deg(rotation_prior[0]) << " " << rad2deg(rotation_prior[1])
                 << "], Type: " << (primaryPrior ? "P" : "F") << std::endl;
     //DEBUG
@@ -276,7 +274,7 @@ void BasicLaserOdometry::process() {
     bool error_converged = false;
     size_t iterCount = 0;
     std::clock_t time_start = std::clock();
-    for (; iterCount < _maxIterations; iterCount++) {
+    for (; iterCount < _maxIterations; ++iterCount) {
       pcl::PointXYZI pointSel, pointProj, tripod1, tripod2, tripod3;
       _laserCloudOri->clear();
       _coeffSel->clear();
@@ -619,7 +617,7 @@ void BasicLaserOdometry::process() {
       deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
                          std::pow(matX(4, 0) * 100, 2) +
                          std::pow(matX(5, 0) * 100, 2));
-      if (deltaR < _deltaRAbort && deltaT < _deltaTAbort) {
+      if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
         // //CUSTOMIZATION
         // //Calculation of the vairance of the solution
         // Eigen::VectorXf residual = (matA * matX) - matB;
@@ -632,6 +630,18 @@ void BasicLaserOdometry::process() {
         break;
       }
     }
+
+    //DEBUG - Optimization Status
+    if (_verboseLevel > 0) {
+      auto t = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC * 1000.0;
+      std::cout << "\033[35mLASER\033[0m - Converged:" << (error_converged ? " \033[32mTrue\033[0m" : "\033[31mFalse\033[0m")
+                << ", Degenerate:" << (isDegenerate ? " \033[31mTrue\033[0m" : "\033[32mFalse\033[0m")
+                << ", Iter:" << iterCount + 1
+                << ", Residual(T/R):" << deltaT << "/" << deltaR
+                << ", Time(ms):" << t
+                << (t < 50 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+    }
+    //DEBUG - Optimization Status
 
     //CUSTOMIZATION - Update Optimization Status Message
     _optStatusMsg.converged = error_converged;
@@ -683,10 +693,15 @@ void BasicLaserOdometry::process() {
   _transformSum.rot_z = rz;
   _transformSum.pos = trans;
 
-  //DEBUG - Negation for human understanding - reverses direction of pcl alignment
-  if (_verboseLevel > 0)
-    std::cout << "\033[35mLASER\033[0m RESULT (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
+  //DEBUG 
+  if (_verboseLevel > 1) {
+    //Optimization Result - DELTA - Negation for human understanding - reverses direction of pcl alignment
+    std::cout << "\033[35mLASER\033[0m Opt Result DELTA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
+    //Laser Odometry in ROS frame
+    std::cout << "\033[35mLASER\033[0m Odometry (x,y,z): [" << _transformSum.pos.z() << " " << _transformSum.pos.x() << " " << _transformSum.pos.y()
+              << "], (r,p,y): [" << _transformSum.rot_z.deg() << " " << _transformSum.rot_x.deg() << " " << _transformSum.rot_y.deg() << "]\n";
+  }
   //DEBUG
 
   transformToEnd(_cornerPointsLessSharp);
@@ -774,14 +789,15 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
   transPriorXYZ << prior.getOrigin().y(), prior.getOrigin().z(), prior.getOrigin().x();
 
   //Prior Rotation
-  Eigen::Quaterniond q(prior.getRotation().w(), prior.getRotation().x(), prior.getRotation().y(), prior.getRotation().z());
-  Eigen::Quaterniond q_fix = Eigen::AngleAxisd(deg2rad(5.0), Eigen::Vector3d::UnitZ()) *
-                             Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-                             Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-  q = q_fix * q;
-  Eigen::Vector3d euler = q.toRotationMatrix().eulerAngles(2, 1, 0);  //ZYX order
-  euler[0] -= 0.0872665;                                              //5deg rotation fix
-  rotPriorXYZ << euler[1], euler[0], euler[2];                        //YZX
+  Eigen::Vector3d e1, e2;
+  prior.getBasis().getRPY(e1[2], e1[1], e1[0]);  //XYZ
+  prior.getBasis().getRPY(e2[2], e2[1], e2[0], 2);
+  //Set smaller rotation solution
+  if (e1.norm() < e2.norm())
+    rotPriorXYZ << e1[1], e1[0], e1[2];  //YZX
+  else
+    rotPriorXYZ << e2[1], e2[0], e2[2];
+
   return true;
 }
 
