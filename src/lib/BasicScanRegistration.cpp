@@ -1,7 +1,4 @@
 #include "loam/BasicScanRegistration.h"
-
-#include <pcl/filters/voxel_grid.h>
-
 #include "math_utils.h"
 
 namespace loam {
@@ -72,7 +69,11 @@ void BasicScanRegistration::processScanlines(const Time &scanTime, std::vector<p
 }
 
 bool BasicScanRegistration::configure(const RegistrationParams &config) {
+  //Update Configuration
   _config = config;
+  //Set voxelgrid filter
+  _downSizeFilter.setLeafSize(_config.lessFlatFilterSize, _config.lessFlatFilterSize, _config.lessFlatFilterSize);
+  //Check IMU Buffer /*Deprecated*/
   _imuHistory.ensureCapacity(_config.imuHistorySize);
   return true;
 }
@@ -97,6 +98,7 @@ void BasicScanRegistration::reset(const Time &scanTime) {
     _cornerPointsLessSharp.clear();
     _surfacePointsFlat.clear();
     _surfacePointsLessFlat.clear();
+    _surfPointsLessFlatScanDS.clear();
 
     // clear scan indices vector
     _scanIndices.clear();
@@ -259,13 +261,12 @@ void BasicScanRegistration::extractFeatures(const uint16_t &beginIdx) {
     }
 
     // down size less flat surface point cloud of current scan
-    pcl::PointCloud<pcl::PointXYZI> surfPointsLessFlatScanDS;
-    pcl::VoxelGrid<pcl::PointXYZI> downSizeFilter;
-    downSizeFilter.setInputCloud(surfPointsLessFlatScan);
-    downSizeFilter.setLeafSize(_config.lessFlatFilterSize, _config.lessFlatFilterSize, _config.lessFlatFilterSize);
-    downSizeFilter.filter(surfPointsLessFlatScanDS);
-
-    _surfacePointsLessFlat += surfPointsLessFlatScanDS;
+    _surfPointsLessFlatScanDS.clear();
+    _downSizeFilter.setInputCloud(surfPointsLessFlatScan);
+    _downSizeFilter.filter(_surfPointsLessFlatScanDS);
+    
+    // accumulate downsampled less flat points across scan lines
+    _surfacePointsLessFlat += _surfPointsLessFlatScanDS;
   }
 
   // ////DEBUG

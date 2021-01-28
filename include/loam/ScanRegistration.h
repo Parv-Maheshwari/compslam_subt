@@ -102,7 +102,7 @@ class ScanRegistration : protected BasicScanRegistration {
   //This is the original un-modiifed timestamp from the input pointcloud
   ros::Publisher _pubLaserCloudRGB;         // Full resolution RGB cloud message publisher
   ros::Time _rosPCLTimeStamp;               // Timestamp of input clouds in ROS formate
-  ImuBuffer _imuBuffer;                       // IMU Buffer instance for gravity alignment
+  ImuBuffer _imuBuffer;                     // IMU Buffer instance for gravity alignment
   bool _imuAvailable = false;               // Flag to check if IMU messages are received for gravity alignment
   tf::TransformBroadcaster _tfBroadcaster;  // TF Broadcastet for gravity aligned frame
   tf::StampedTransform _imuQuatTf;          // Gravity aligned TF message

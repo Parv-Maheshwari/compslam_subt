@@ -225,6 +225,10 @@ void ScanRegistration::publishResult() {
     _subImu.shutdown();
     _imuAvailable = false;
     ROS_INFO("*** ScanRegistration - Gravity Init Roll/Pitch Published - Shutting down IMU subscriber ***");
+
+    double roll, pitch, yaw;
+    _imuQuatTf.getBasis().getRPY(roll, pitch, yaw);
+    std::cout << "IMUBUFFER (y,p,r): " << rad2deg(yaw) << "," << rad2deg(pitch) << "," << rad2deg(roll) << std::endl;
   }
   //CUTOMIZATION
 

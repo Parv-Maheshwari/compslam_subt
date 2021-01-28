@@ -67,8 +67,6 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIR,
 )
 
 namespace loam{
-
-
 /** \brief Class realizing a linear mapping from vertical point angle to the corresponding scan ring.
  *
  */
