@@ -13,7 +13,7 @@ add_library(loam
             laser_odometry_nodelet.cpp
             laser_mapping_nodelet.cpp
             laser_transform_maintenance_nodelet.cpp)
-target_link_libraries(loam ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+target_link_libraries(loam ${catkin_LIBRARIES} ${PCL_LIBRARIES} gtsam gtsam_unstable)
 
 install(TARGETS loam
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

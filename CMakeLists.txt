@@ -69,16 +69,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_subdirectory(src/lib)
 
 add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
-target_link_libraries(multiScanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(multiScanRegistration loam)
 
 add_executable(laserOdometry src/laser_odometry_node.cpp)
-target_link_libraries(laserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} gtsam gtsam_unstable loam)                     
+target_link_libraries(laserOdometry loam)                     
 
 add_executable(laserMapping src/laser_mapping_node.cpp)
-target_link_libraries(laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(laserMapping loam)
 
 add_executable(transformMaintenance src/transform_maintenance_node.cpp)
-target_link_libraries(transformMaintenance ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(transformMaintenance loam )
 
 add_dependencies(loam ${catkin_EXPORTED_TARGETS})
 
