@@ -36,6 +36,8 @@ BasicLaserOdometry::BasicLaserOdometry(float scanPeriod, size_t maxIterations)
       _lastSurfaceCloud(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudOri(new pcl::PointCloud<pcl::PointXYZI>()),
       _coeffSel(new pcl::PointCloud<pcl::PointXYZI>()) {
+  //Initialize factor graph parameter object
+  _gm._params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
 }
 
 void BasicLaserOdometry::transformToStart(const pcl::PointXYZI& pi, pcl::PointXYZI& po) {
@@ -184,6 +186,69 @@ void BasicLaserOdometry::process() {
       _transformSum.rot_z = Angle(initRoll);
     } else
       ROS_WARN("*** LaserOdometry - No Gravity Aligned Roll/Pitch Initialization ***");
+
+    //Estimate Initiale pose
+    double g = 9.81;
+    gtsam::Rot3 imu_attitude;
+    _imuBuffer.estimatePoseFromImu(_currentPCLTime.toSec(), imu_attitude, g);
+
+    //Initialize IMU Preintegrator
+    _gm._imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedU(g);
+    _gm._imuParams->accelerometerCovariance = gtsam::Matrix33::Identity(3, 3) * _gm.accNoiseDensity();
+    _gm._imuParams->biasAccCovariance = gtsam::Matrix33::Identity(3, 3) * _gm.accBiasRandomWalk();
+    _gm._imuParams->gyroscopeCovariance = gtsam::Matrix33::Identity(3, 3) * _gm.gyrNoiseDensity();
+    _gm._imuParams->biasOmegaCovariance = gtsam::Matrix33::Identity(3, 3) * _gm.gyrBiasRandomWalk();
+    // _gm._imuParams->integrationCovariance = gtsam::Matrix33::Identity(3, 3) * 1.0e-8;
+    // _gm._imuParams->biasAccOmegaInt = gtsam::Matrix66::Identity(6, 6) * 1.0e-5;
+    gtsam::Vector3 acc_bias_prior(_gm.accBiasPrior(), _gm.accBiasPrior(), _gm.accBiasPrior());
+    gtsam::Vector3 gyr_bias_prior(_gm.gyrBiasPrior(), _gm.gyrBiasPrior(), _gm.gyrBiasPrior());
+    gtsam::imuBias::ConstantBias imu_bias_prior(acc_bias_prior, gyr_bias_prior);
+    _gm._imuPreintegrator = std::make_shared<gtsam::PreintegratedCombinedMeasurements>(_gm._imuParams, imu_bias_prior);
+    _gm._imuParams->print("IMU Preintegration Parameters:");
+
+    //Set graph relinearization thresholdsInitialize factor graph
+    gtsam::FastMap<char, gtsam::Vector> relinTh;
+    relinTh['X'] = (gtsam::Vector(6) << _gm.rotReLinTh(), _gm.rotReLinTh(), _gm.rotReLinTh(), _gm.posReLinTh(), _gm.posReLinTh(), _gm.posReLinTh()).finished();
+    relinTh['V'] = (gtsam::Vector(3) << _gm.velReLinTh(), _gm.velReLinTh(), _gm.velReLinTh()).finished();
+    relinTh['B'] = (gtsam::Vector(6) << _gm.accBiasReLinTh(), _gm.accBiasReLinTh(), _gm.accBiasReLinTh(), _gm.gyrBiasReLinTh(), _gm.gyrBiasReLinTh(), _gm.gyrBiasReLinTh()).finished();
+    _gm._params.relinearizeThreshold = relinTh;
+
+    //Create Prior factor and Initialize factor graph
+    //Prior factor noise
+    auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 0.01, 0.01, 0.01, 0.0001, 0.0001, 0.0001).finished());  // rad,rad,rad,m, m, m
+    auto velocityNoise = gtsam::noiseModel::Isotropic::Sigma(3, 0.0001);                                                              // m/s
+    double accSigma = _gm.accBiasRandomWalk() * _gm.accBiasRandomWalk();
+    double gyrSigma = _gm.gyrBiasRandomWalk() * _gm.gyrBiasRandomWalk();
+    auto biasNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << accSigma, accSigma, accSigma, gyrSigma, gyrSigma, gyrSigma).finished());
+    //Create prior factors
+    gtsam::Key key = 0;
+    gtsam::Pose3 init_pose(imu_attitude, gtsam::Point3());
+    _gm._factors.resize(0);
+    _gm._factors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), init_pose, poseNoise);                       //POSE - PriorFactor format is (key,value,matrix) value is same type as type of PriorFactor
+    _gm._factors.emplace_shared<gtsam::PriorFactor<gtsam::Vector3>>(V(key), gtsam::Vector3(0, 0, 0), velocityNoise);   //VELOCITY
+    _gm._factors.emplace_shared<gtsam::PriorFactor<gtsam::imuBias::ConstantBias>>(B(key), imu_bias_prior, biasNoise);  //BIAS
+
+    //Prior factor initial estimate
+    gtsam::Values estimate;
+    estimate.insert(X(key), init_pose);
+    estimate.insert(V(key), gtsam::Vector3(0, 0, 0));
+    estimate.insert(B(key), imu_bias_prior);
+
+    //Initialize factor graph
+    _gm._graph = std::make_shared<gtsam::IncrementalFixedLagSmoother>(_gm.smootherLag(), _gm._params);
+    _gm._params.print("Factor Graph Parameters:");
+
+    //Add prior factor to graph and update
+    std::map<gtsam::Key, double> keyTimestampMap;
+    keyTimestampMap[key] = _currentPCLTime.toSec();
+    _gm._graph->update(_gm._factors, estimate, keyTimestampMap);
+
+    //Reset
+     _gm._factors.resize(0);
+
+    //DEBUG
+    gtsam::Values result = _gm._graph->calculateEstimate();
+    result.print("Prior Factor Result:");
     //CUSTOMIZATION
 
     _systemInited = true;

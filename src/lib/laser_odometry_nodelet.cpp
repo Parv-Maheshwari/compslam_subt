@@ -13,8 +13,8 @@ class LaserOdometryNodelet : public nodelet::Nodelet {
   //Function
   virtual void onInit() {
     //Get Node Handles
-    nh_ = getNodeHandle();
-    pnh_ = getPrivateNodeHandle();
+    nh_ = getMTNodeHandle();
+    pnh_ = getMTPrivateNodeHandle();
 
     //Create Instance & Initialize
     laserOdom_ = std::make_unique<loam::LaserOdometry>(0.1);

@@ -274,6 +274,50 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
       ROS_WARN_STREAM("LaserOdometry - Input Pointcloud is Undistorted - NO Ego Motion Compensation will be performed");
   }
 
+  /** Graph Parameters **/
+  //IMU Preintegrtor
+  if (privateNode.getParam("accNoiseDensity", dParam))
+    _gm.setAccNoiseDensity(dParam);
+  if (privateNode.getParam("accBiasRandomWalk", dParam))
+    _gm.setAccBiasRandomWalk(dParam);
+  if (privateNode.getParam("accBiasPrior", dParam))
+    _gm.setAccBiasPrior(dParam);
+  if (privateNode.getParam("gyrNoiseDensity", dParam))
+    _gm.setGyroNoiseDensity(dParam);
+  if (privateNode.getParam("gyrBiasRandomWalk", dParam))
+    _gm.setGyrBiasRandomWalk(dParam);
+  if (privateNode.getParam("gyrBiasPrior", dParam))
+    _gm.setGyrBiasPrior(dParam);
+  //Factor Graph
+  if (privateNode.getParam("smootherLag", dParam))
+    _gm.setSmootherLag(dParam);
+  if (privateNode.getParam("additonalIterations", iParam))
+    _gm.setIterations(iParam);
+  if (privateNode.getParam("positionReLinTh", dParam))
+    _gm.setPositionReLinTh(dParam);
+  if (privateNode.getParam("rotationReLinTh", dParam))
+    _gm.setRotationReLinTh(dParam);
+  if (privateNode.getParam("velocityReLinTh", dParam))
+    _gm.setVelocityReLinTh(dParam);
+  if (privateNode.getParam("accBiasReLinTh", dParam))
+    _gm.setAccBiasReLinTh(dParam);
+  if (privateNode.getParam("gyrBiasReLinTh", dParam))
+    _gm.setGyrBiasReLinTh(dParam);
+  if (privateNode.getParam("relinearizeSkip", iParam))
+    _gm._params.setRelinearizeSkip(iParam);
+  if (privateNode.getParam("enableRelinearization", bParam))
+    _gm._params.setEnableRelinearization(bParam);
+  if (privateNode.getParam("evaluateNonlinearError", bParam))
+    _gm._params.setEvaluateNonlinearError(bParam);
+  if (privateNode.getParam("cacheLinearizedFactors", bParam))
+    _gm._params.setCacheLinearizedFactors(bParam);
+  if (privateNode.getParam("findUnusedFactorSlots", bParam))
+    _gm._params.findUnusedFactorSlots = bParam;
+  if (privateNode.getParam("enableDetailedResults", bParam))
+    _gm._params.setEnableDetailedResults(bParam);
+
+  /** Graph Parameters **/
+
   //Verbose Ouput
   iParam = 0;
   if (privateNode.getParam("loamVerbosity", iParam)) {
@@ -300,6 +344,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   // subscribe to IMU topic
   _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::imuTransHandler, this);
+  _subImu = node.subscribe<sensor_msgs::Imu>("/imu", 400, &LaserOdometry::imuCallback, this, ros::TransportHints().tcpNoDelay());
 
   // ARL Coordinate Frame Facilitators
   _laserOdometryTrans_CORRECTED.frame_id_ = "/camera_init_CORRECTED";
@@ -366,6 +411,13 @@ void LaserOdometry::imuTransHandler(const sensor_msgs::PointCloud2ConstPtr& imuT
   pcl::PointCloud<pcl::PointXYZ> imuTrans;
   pcl::fromROSMsg(*imuTransMsg, imuTrans);
   updateIMU(imuTrans);
+}
+
+void LaserOdometry::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_ptr) {
+  //Add to buffer
+  _imuBuffer.addToIMUBuffer(imu_ptr->header.stamp.toSec(),
+                            imu_ptr->linear_acceleration.x, imu_ptr->linear_acceleration.y, imu_ptr->linear_acceleration.z,
+                            imu_ptr->angular_velocity.x, imu_ptr->angular_velocity.y, imu_ptr->angular_velocity.z);
 }
 
 void LaserOdometry::syncCloudsHandler(const sensor_msgs::PointCloud2ConstPtr& pclSharp,

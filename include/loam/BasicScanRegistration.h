@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pcl/point_cloud.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <utility>
 #include <vector>
@@ -221,6 +222,9 @@ class BasicScanRegistration {
   pcl::PointCloud<pcl::PointXYZI> _cornerPointsLessSharp;  ///< less sharp corner points cloud
   pcl::PointCloud<pcl::PointXYZI> _surfacePointsFlat;      ///< flat surface points cloud
   pcl::PointCloud<pcl::PointXYZI> _surfacePointsLessFlat;  ///< less flat surface points cloud
+
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilter;             ///< voxel grid filter to downsample less flat surface points cloud
+  pcl::PointCloud<pcl::PointXYZI> _surfPointsLessFlatScanDS;  ///< downsampled less flat surface points cloud
 
   Time _sweepStart;                      ///< time stamp of beginning of current sweep
   Time _scanTime;                        ///< time stamp of most recent scan

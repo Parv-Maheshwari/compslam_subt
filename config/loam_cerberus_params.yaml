@@ -60,3 +60,24 @@ useSavedSubmapsForInitialization: false  #Use saved submap on disc for initializ
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
 forcePathPublishing: true                #Force ROS path message publishing for mapping odometry
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider)
+
+#Factor Graph
+accNoiseDensity: 1.3e-03
+accBiasRandomWalk: 1.0e-04
+accBiasPrior: 0.0
+gyrNoiseDensity: 5.398e-05
+gyrBiasRandomWalk: 9.33e-06
+gyrBiasPrior: 0.0
+smootherLag: 1.0
+additonalIterations: 5
+positionReLinTh: 0.5
+rotationReLinTh: 0.1
+velocityReLinTh: 0.1
+accBiasReLinTh: 0.2
+gyrBiasReLinTh: 0.2
+relinearizeSkip: 10
+enableRelinearization: true
+evaluateNonlinearError: false
+cacheLinearizedFactors: true
+findUnusedFactorSlots: true
+enableDetailedResults: false

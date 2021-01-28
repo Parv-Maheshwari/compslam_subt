@@ -38,6 +38,7 @@
 #include <pcl/point_types.h>
 #include <ros/node_handle.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Imu.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 
@@ -105,6 +106,12 @@ class LaserOdometry : public BasicLaserOdometry {
   void process();
 
   //CUSTOMIZATION
+  /** \brief IMU Callback Function for handling incoming IMU messages
+     *
+     * @param imu_ptr pointer to incoming ROS IMU message
+  */
+  void imuCallback(const sensor_msgs::Imu::ConstPtr& imu_ptr);
+
   /** \brief Sync Callback Handler for all input clouds
    * @param pclSharp Sharp Corner Points
    * @param pclLessSharp Less Sharp Corner Points
@@ -142,6 +149,7 @@ class LaserOdometry : public BasicLaserOdometry {
   tf::TransformBroadcaster _tfBroadcaster;  ///< laser odometry transform broadcaster
 
   ros::Subscriber _subImuTrans;  ///< IMU transformation information message subscriber
+  ros::Subscriber _subImu;       ///< IMU subscriber
 
   // ARL Coordinate Frame Facilitators
   tf::StampedTransform _laserOdometryTrans_CORRECTED;  ///< laser odometry transformation CORRECTED

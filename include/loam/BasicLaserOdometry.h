@@ -14,6 +14,8 @@
 #include <fstream>
 #include "CircularBuffer.h"
 #include "loam/OptStatus.h"
+#include "ImuManager.hpp"
+#include "GraphManager.hpp"
 //CUSTOMIZATION
 
 namespace loam {
@@ -158,6 +160,12 @@ class BasicLaserOdometry {
   loam::OptStatus _optStatusMsg;
   //CUTOMIZATION
 
+ protected:
+  /** \brief IMU buffer*/
+  ImuManager _imuBuffer;
+  /** \brief Factor graph*/
+  GraphManager _gm;
+
  private:
   /** \brief Transform the given point to the start of the sweep.
    *
@@ -175,7 +183,7 @@ class BasicLaserOdometry {
                           Angle lx, Angle ly, Angle lz,
                           Angle& ox, Angle& oy, Angle& oz);
 
- private:
+  //Member variables
   float _scanPeriod;      ///< time per scan
   long _frameCount;       ///< number of processed frames
   size_t _maxIterations;  ///< maximum number of iterations
