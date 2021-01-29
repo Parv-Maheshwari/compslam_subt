@@ -34,7 +34,6 @@
 
 #include <tf/transform_datatypes.h>
 
-#include "math_utils.h"
 
 namespace loam {
 bool ScanRegistration::parseParams(const ros::NodeHandle& nh, RegistrationParams& config_out) {

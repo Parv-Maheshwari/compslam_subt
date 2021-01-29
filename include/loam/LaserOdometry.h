@@ -45,6 +45,7 @@
 #include "BasicLaserOdometry.h"
 #include "Twist.h"
 #include "nanoflann_pcl.h"
+#include "math_utils.h"
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>

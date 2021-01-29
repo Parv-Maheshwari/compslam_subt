@@ -38,7 +38,6 @@
 #include <Eigen/QR>
 
 #include "loam/nanoflann_pcl.h"
-#include "math_utils.h"
 
 namespace loam {
 

@@ -230,6 +230,18 @@ inline void rotateYXZ(PointT& p,
   rotZ(p, angZ);
 }
 
+/** \brief Invert a homogenous transformation matrix
+ *
+ * @param m_in input 4x4 matrix
+ * @param m_out inverted 4x4 matrix
+ */
+inline void invertHomogenousMatrix(const Eigen::Matrix4d& m_in, Eigen::Matrix4d& m_out) {
+  Eigen::Matrix3d R = m_in.block<3, 3>(0, 0);
+  Eigen::Vector3d t = m_in.block<3, 1>(0, 3);
+  m_out.block<3, 3>(0, 0) = R.transpose();
+  m_out.block<3, 1>(0, 3) = -R.transpose() * t;
+}
+
 }  // end namespace loam
 
 #endif  // LOAM_MATH_UTILS_H

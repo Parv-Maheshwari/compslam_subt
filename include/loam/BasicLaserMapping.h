@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BASIC_LASER_MAPPING_H
+#define BASIC_LASER_MAPPING_H
 // Copyright 2013, Ji Zhang, Carnegie Mellon University
 // Further contributions copyright (c) 2016, Southwest Research Institute
 // All rights reserved.
@@ -35,6 +36,7 @@
 #include "Twist.h"
 #include "loam/OptStatus.h"
 #include "time_utils.h"
+#include "math_utils.h"
 
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
@@ -317,3 +319,4 @@ class BasicLaserMapping {
 };
 
 }  // end namespace loam
+#endif

@@ -1,5 +1,4 @@
 add_library(loam
-            math_utils.h
             ScanRegistration.cpp
             BasicScanRegistration.cpp
             MultiScanRegistration.cpp
@@ -9,6 +8,7 @@ add_library(loam
             BasicLaserMapping.cpp
             TransformMaintenance.cpp
             BasicTransformMaintenance.cpp
+            GraphManager.cpp
             laser_multiscan_registration_nodelet.cpp
             laser_odometry_nodelet.cpp
             laser_mapping_nodelet.cpp

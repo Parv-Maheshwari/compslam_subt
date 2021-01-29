@@ -34,7 +34,7 @@
 #define LOAM_MULTISCANREGISTRATION_H
 
 #include "loam/ScanRegistration.h"
-
+#include "math_utils.h"
 #include <sensor_msgs/PointCloud2.h>
 
 #include <pcl/pcl_macros.h>

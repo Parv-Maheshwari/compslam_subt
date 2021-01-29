@@ -42,6 +42,7 @@
 #include "BasicScanRegistration.h"
 #include "ImuBuffer.hpp"
 #include "common.h"
+#include "math_utils.h"
 
 namespace loam {
 /** \brief Base class for LOAM scan registration implementations.

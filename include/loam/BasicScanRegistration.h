@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BASIC_SCAN_REGISTRATION_H
+#define BASIC_SCAN_REGISTRATION_H
 
 #include <pcl/point_cloud.h>
 #include <pcl/filters/voxel_grid.h>
@@ -10,6 +11,7 @@
 #include "CircularBuffer.h"
 #include "Vector3.h"
 #include "time_utils.h"
+#include "math_utils.h"
 
 namespace loam {
 
@@ -243,3 +245,4 @@ class BasicScanRegistration {
 };
 
 }  // namespace loam
+#endif

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BASIC_TRANSFORM_MAINTAINENCE_H
+#define BASIC_TRANSFORM_MAINTAINENCE_H
 // Copyright 2013, Ji Zhang, Carnegie Mellon University
 // Further contributions copyright (c) 2016, Southwest Research Institute
 // All rights reserved.
@@ -61,3 +62,4 @@ class BasicTransformMaintenance {
 };
 
 }  // end namespace loam
+#endif
