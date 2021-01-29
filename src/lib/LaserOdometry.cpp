@@ -35,7 +35,7 @@
 #include <pcl/filters/filter.h>
 
 #include "loam/common.h"
-#include "math_utils.h"
+
 
 namespace loam {
 
@@ -276,45 +276,50 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   /** Graph Parameters **/
   //IMU Preintegrtor
+  if (privateNode.getParam("imuFrame", sParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU frame for preintegrator: " << sParam);
+    setImuFrame(sParam);
+  } else
+    ROS_WARN("LaserOdometry - IMU frame not set for preintegrator");
   if (privateNode.getParam("accNoiseDensity", dParam))
-    _gm.setAccNoiseDensity(dParam);
+    _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
-    _gm.setAccBiasRandomWalk(dParam);
+    _graphMgr.setAccBiasRandomWalk(dParam);
   if (privateNode.getParam("accBiasPrior", dParam))
-    _gm.setAccBiasPrior(dParam);
+    _graphMgr.setAccBiasPrior(dParam);
   if (privateNode.getParam("gyrNoiseDensity", dParam))
-    _gm.setGyroNoiseDensity(dParam);
+    _graphMgr.setGyroNoiseDensity(dParam);
   if (privateNode.getParam("gyrBiasRandomWalk", dParam))
-    _gm.setGyrBiasRandomWalk(dParam);
+    _graphMgr.setGyrBiasRandomWalk(dParam);
   if (privateNode.getParam("gyrBiasPrior", dParam))
-    _gm.setGyrBiasPrior(dParam);
+    _graphMgr.setGyrBiasPrior(dParam);
   //Factor Graph
   if (privateNode.getParam("smootherLag", dParam))
-    _gm.setSmootherLag(dParam);
+    _graphMgr.setSmootherLag(dParam);
   if (privateNode.getParam("additonalIterations", iParam))
-    _gm.setIterations(iParam);
+    _graphMgr.setIterations(iParam);
   if (privateNode.getParam("positionReLinTh", dParam))
-    _gm.setPositionReLinTh(dParam);
+    _graphMgr.setPositionReLinTh(dParam);
   if (privateNode.getParam("rotationReLinTh", dParam))
-    _gm.setRotationReLinTh(dParam);
+    _graphMgr.setRotationReLinTh(dParam);
   if (privateNode.getParam("velocityReLinTh", dParam))
-    _gm.setVelocityReLinTh(dParam);
+    _graphMgr.setVelocityReLinTh(dParam);
   if (privateNode.getParam("accBiasReLinTh", dParam))
-    _gm.setAccBiasReLinTh(dParam);
+    _graphMgr.setAccBiasReLinTh(dParam);
   if (privateNode.getParam("gyrBiasReLinTh", dParam))
-    _gm.setGyrBiasReLinTh(dParam);
+    _graphMgr.setGyrBiasReLinTh(dParam);
   if (privateNode.getParam("relinearizeSkip", iParam))
-    _gm._params.setRelinearizeSkip(iParam);
+    _graphMgr._params.setRelinearizeSkip(iParam);
   if (privateNode.getParam("enableRelinearization", bParam))
-    _gm._params.setEnableRelinearization(bParam);
+    _graphMgr._params.setEnableRelinearization(bParam);
   if (privateNode.getParam("evaluateNonlinearError", bParam))
-    _gm._params.setEvaluateNonlinearError(bParam);
+    _graphMgr._params.setEvaluateNonlinearError(bParam);
   if (privateNode.getParam("cacheLinearizedFactors", bParam))
-    _gm._params.setCacheLinearizedFactors(bParam);
+    _graphMgr._params.setCacheLinearizedFactors(bParam);
   if (privateNode.getParam("findUnusedFactorSlots", bParam))
-    _gm._params.findUnusedFactorSlots = bParam;
+    _graphMgr._params.findUnusedFactorSlots = bParam;
   if (privateNode.getParam("enableDetailedResults", bParam))
-    _gm._params.setEnableDetailedResults(bParam);
+    _graphMgr._params.setEnableDetailedResults(bParam);
 
   /** Graph Parameters **/
 

@@ -62,11 +62,12 @@ forcePathPublishing: true                #Force ROS path message publishing for 
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider)
 
 #Factor Graph
-accNoiseDensity: 1.3e-03
-accBiasRandomWalk: 1.0e-04
+imuFrame: imu_link
+accNoiseDensity: 1.3e-06 #1.3e-03
+accBiasRandomWalk: 1.0e-08 #1.0e-04
 accBiasPrior: 0.0
-gyrNoiseDensity: 5.398e-05
-gyrBiasRandomWalk: 9.33e-06
+gyrNoiseDensity: 5.398e-09 #5.398e-05
+gyrBiasRandomWalk: 9.33e-10 #9.33e-06
 gyrBiasPrior: 0.0
 smootherLag: 1.0
 additonalIterations: 5

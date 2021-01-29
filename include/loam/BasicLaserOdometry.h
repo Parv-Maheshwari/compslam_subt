@@ -1,9 +1,12 @@
-#pragma once
+#ifndef BASIC_LASER_ODOMETRY_H
+#define BASIC_LASER_ODOMETRY_H
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
 #include "Twist.h"
 #include "nanoflann_pcl.h"
+#include "math_utils.h"
 
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
@@ -155,6 +158,7 @@ class BasicLaserOdometry {
   bool gravityRollPitchInitialized() { return _gravityInitSuccess; }
   auto const& getLiDARGravityInitRotation() { return _gravityInitRotation; }
   void setUndistortInputCloud(bool b){_undistortInputCloud = b;}
+  void setImuFrame(const std::string& s) { _imuFrame = s; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   loam::OptStatus _optStatusMsg;
@@ -164,7 +168,7 @@ class BasicLaserOdometry {
   /** \brief IMU buffer*/
   ImuManager _imuBuffer;
   /** \brief Factor graph*/
-  GraphManager _gm;
+  GraphManager _graphMgr;
 
  private:
   /** \brief Transform the given point to the start of the sweep.
@@ -252,7 +256,11 @@ class BasicLaserOdometry {
   bool _gravityInitSuccess = false;          // Flag if Roll/Pitch from gravity were initialized
   tf::Transform _gravityInitRotation;        // Roll/Pitch transform of initial gravity alignment
   bool _undistortInputCloud = true;          // If set to true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
+
+  //Graph Parameters
+  std::string _imuFrame = "";                // IMU frame name - used to lookup LiDAR-to-IMU Frame
   //CUSTOMIZATION
 };
 
 }  // end namespace loam
+#endif
