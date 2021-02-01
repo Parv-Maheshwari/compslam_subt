@@ -185,6 +185,28 @@ void BasicLaserOdometry::process() {
     } else
       ROS_WARN("*** LaserOdometry - No Gravity Aligned Roll/Pitch Initialization ***");
 
+    //FACTOR-GRAPH
+    //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
+    tf::StampedTransform T_LB, T_BL;
+    try {
+      _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_LB);
+      _tfListener.lookupTransform(_imuFrame, _lidarFrame, ros::Time(0), T_BL);
+    } catch (tf::TransformException ex) {
+      ROS_WARN("%s", ex.what());
+    }
+    //T_LB
+    Eigen::Vector3d t_LB(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
+    Eigen::Quaterniond q_LB(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
+    q_LB.normalize();
+    _T_LB.block<3, 1>(0, 3) = t_LB;
+    _T_LB.block<3, 3>(0, 0) = q_LB.toRotationMatrix();
+    //T_BL
+    invertHomogenousMatrix(_T_LB, _T_BL);
+    std::cout << "\033[35mLASER\033[0m IMU-to-LiDAR Extrinsic Calibration:\n"
+              << _T_LB << std::endl;
+    std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
+              << _T_BL << std::endl;
+    
     //Estimate Initial attitude from IMU
     double g = 9.81;
     gtsam::Rot3 imu_attitude;
@@ -193,18 +215,14 @@ void BasicLaserOdometry::process() {
     //Initialize IMU Preintegrator and Factor Graph
     _graphMgr.initializeImuPreintegrator(g);
     _graphMgr.initializeGraph(_currentPCLTime.toSec(), imu_attitude);
-    //External IMU-to-LiDAR transform
 
-    tf::StampedTransform T_LB;
-    try {
-      _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_LB);
-    } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(1.0, "%s", ex.what());
-    }
-    Eigen::Vector3d t_LB(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
-    Eigen::Quaterniond q_LB(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
-    q_LB.normalize();
-    _graphMgr.setImuLidarTransforms(t_LB, q_LB);
+    //Get Init state - Pose
+    Eigen::Matrix4d LkLkm1 = _T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL;
+    Eigen::Quaterniond q_new(LkLkm1.block<3, 3>(0, 0));
+    q_new.normalize();
+    //Update Odometry Message
+    tf::pointEigenToMsg(LkLkm1.block<3, 1>(0, 3), _graphOdomMsg.pose.pose.position);
+    tf::quaternionEigenToMsg(q_new, _graphOdomMsg.pose.pose.orientation);
     //CUSTOMIZATION
 
     _systemInited = true;
@@ -678,6 +696,19 @@ void BasicLaserOdometry::process() {
     //CUSTOMIZATION
   }
 
+  /* -----Factor Graph----- */
+  //Update Factor graph with IMU and LiDAR pose factors
+  updateFactorGraph();
+
+  //Get new state - Pose
+  Eigen::Matrix4d LkLkm1 = _T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL;
+  Eigen::Quaterniond q_new(LkLkm1.block<3, 3>(0, 0));
+  q_new.normalize();
+  //Update odometry message
+  tf::pointEigenToMsg(LkLkm1.block<3, 1>(0, 3), _graphOdomMsg.pose.pose.position);
+  tf::quaternionEigenToMsg(q_new, _graphOdomMsg.pose.pose.orientation);
+  /* -----Factor Graph----- */
+
   //Update odometry
   Angle rx, ry, rz;
   accumulateRotation(_transformSum.rot_x,
@@ -705,88 +736,6 @@ void BasicLaserOdometry::process() {
   _transformSum.rot_z = rz;
   _transformSum.pos = trans;
 
-  /* -----Factor Graph----- */
-  //Update keys and timestamps
-  auto old_key = _graphMgr._state.key();
-  auto new_key = _graphMgr.newStateKey();
-  auto old_ts = _lastPCLTime.toSec();
-  auto new_ts = _currentPCLTime.toSec();
-  std::cout << std::fixed << "FACTOR-GRAPH keys: (" << old_key << "/" << new_key << "), ts: (" << old_ts << "/" << new_ts << "), diff:" << new_ts - old_ts << std::endl;
-
-  //Get IMU measurements between pointcloud timestamps and add IMU factor
-  IMUMap imu_meas;
-  bool success = _imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas);
-  if (success)
-    _graphMgr.addImuFactor(old_key, new_key, imu_meas);
-
-  //CREATE POSE FACTOR - LIDAR Frame
-  //Delta Pose in LiDAR Frame
-  Eigen::Matrix4d LkLkm1;
-  LkLkm1.block<3, 1>(0, 3) = Eigen::Vector3d(_transform.pos.z(), _transform.pos.x(), _transform.pos.y());
-  Eigen::Quaterniond q_lidar = Eigen::AngleAxisd(_transform.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
-                         Eigen::AngleAxisd(_transform.rot_x.rad(), Eigen::Vector3d::UnitY()) *
-                         Eigen::AngleAxisd(_transform.rot_x.rad(), Eigen::Vector3d::UnitX());
-  q_lidar.normalize();
-  LkLkm1.block<3, 3>(0, 0) = q_lidar.toRotationMatrix();
-  //Invert
-  Eigen::Matrix4d Lkm1Lk;
-  invertHomogenousMatrix(LkLkm1, Lkm1Lk);
-  Eigen::Quaterniond q(Lkm1Lk.block<3, 3>(0, 0));
-  q.normalize();
-  Eigen::Vector3d t = Lkm1Lk.block<3, 1>(0, 3);
-
-  //Express in IMU frame
-  // Eigen::Matrix4d Bkm1Bk = _graphMgr.T_BL() * Lkm1Lk * _graphMgr.T_LB();
-
-  //Convert to IMU frame
-  Eigen::Quaterniond q_BL(_graphMgr.T_BL().block<3, 3>(0, 0));
-  q_BL.normalize();
-  Eigen::Quaterniond q_delta = q_BL * q * q_BL.inverse();
-  q_delta.normalize();
-  Eigen::Matrix4d Bkm1Bk = Eigen::Matrix4d::Identity();
-  Bkm1Bk.block<3, 3>(0, 0) = q_delta.toRotationMatrix();
-  Bkm1Bk.block<3, 1>(0, 3) = q_BL._transformVector(t);
-
-  std::cout << "Lkm1Lk:\n"
-            << Lkm1Lk << "\n";
-  std::cout << "Bkm1Bk:\n"
-            << Bkm1Bk << "\n";
-
-  //Create Pose BetweenFactor and add
-  double r_noise = 0.02, t_noise = 0.05;
-  auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << r_noise, r_noise, r_noise, t_noise, t_noise, t_noise).finished());  // rad,rad,rad,m, m, m
-  gtsam::BetweenFactor<gtsam::Pose3> poseBetweenFactor(X(old_key), X(new_key), gtsam::Pose3(Bkm1Bk), poseNoiseModel);
-  _graphMgr._factors.add(poseBetweenFactor);
-
-  //Add estimate
-  gtsam::NavState imuPropogatedState = _graphMgr._imuPreintegrator->predict(_graphMgr._state.navState(), _graphMgr._state.imuBias());
-  gtsam::Values estimate;
-  estimate.insert(X(new_key), imuPropogatedState.pose());
-  estimate.insert(V(new_key), imuPropogatedState.velocity());
-  estimate.insert(B(new_key), _graphMgr._state.imuBias());
-
-  //Update graph
-  std::map<gtsam::Key, double> keyTimestampMap;
-  _graphMgr.valuesToKeyTimeStampMap(estimate, new_ts, keyTimestampMap);
-  _graphMgr._graph->update(_graphMgr._factors, estimate, keyTimestampMap);
-  _graphMgr._factors.resize(0);
-
-  //Result
-  auto result = _graphMgr._graph->calculateEstimate();
-
-  //Update Current State and Bias
-  _graphMgr._state.updateNavStateAndBias(new_key,
-                                         _currentPCLTime.toSec(),
-                                         gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), result.at<gtsam::Vector3>(V(new_key))),
-                                         result.at<gtsam::imuBias::ConstantBias>(B(new_key)));  //Bias is estimate doesn't change with IMU factor
-
-  //Debug - Result
-  auto& ps = imuPropogatedState;
-  std::cout << "Predict   t(x,y,z): " << ps.position().transpose()<< ", YPR(deg): " << ps.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ps.velocity().transpose()  << "\n";                                         
-  auto& ns = _graphMgr._state.navState();
-  std::cout << "Optimized t(x,y,z): " << ns.position().transpose()<< ", YPR(deg): " << ns.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ns.velocity().transpose()  << "\n";                                         
-  /* -----Factor Graph----- */
-
   //DEBUG - Negation for human understanding - reverses direction of pcl alignment
   if (_verboseLevel > 0)
     std::cout << "\033[35mLASER\033[0m RESULT (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
@@ -806,7 +755,7 @@ void BasicLaserOdometry::process() {
     _lastCornerKDTree.setInputCloud(_lastCornerCloud);
     _lastSurfaceKDTree.setInputCloud(_lastSurfaceCloud);
   }
-}  // namespace loam
+}
 
 //CUSTOMIZATION
 void BasicLaserOdometry::updatePCLTime(const ros::Time& currentTimeStamp) {
@@ -930,6 +879,46 @@ bool BasicLaserOdometry::getInitGravityRollPitch(double& roll, double& pitch, bo
 
   return lookUpSuccess;
 }
+
+bool BasicLaserOdometry::updateFactorGraph() {
+  //Update keys and timestamps
+  auto old_key = _graphMgr._state.key();
+  auto new_key = _graphMgr.newStateKey();
+  auto old_ts = _lastPCLTime.toSec();
+  auto new_ts = _currentPCLTime.toSec();
+  // std::cout << std::fixed << "FACTOR-GRAPH keys: (" << old_key << "/" << new_key << "), ts: (" << old_ts << "/" << new_ts << "), diff:" << new_ts - old_ts << std::endl;
+
+  //Get IMU measurements between pointcloud timestamps and add IMU factor
+  IMUMap imu_meas;
+  bool success = _imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas);
+  if (success)
+    _graphMgr.addImuFactor(old_key, new_key, imu_meas);
+  else
+    ROS_WARN("LaserOdometry - IMU factor not added to graph");
+
+  //CREATE LiDAR POSE BETWEEN FACTOR
+  //Pose delta in LiDAR Frame - LOAM calcualtes transformation to be applied on New pointcloud to align with to Old
+  //For odometry we require Old->New transformation. Hence, delta rotation and translation is negated to reverse direction.
+  Eigen::Matrix4d delta = Eigen::Matrix4d::Identity();
+  Eigen::Quaterniond dq = Eigen::AngleAxisd(-_transform.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
+                          Eigen::AngleAxisd(-_transform.rot_x.rad(), Eigen::Vector3d::UnitY()) *
+                          Eigen::AngleAxisd(-_transform.rot_z.rad(), Eigen::Vector3d::UnitX());
+  dq.normalize();
+  delta.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
+  delta.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
+
+  // Convert to IMU frame
+  Eigen::Matrix4d BkBkm1 = _T_BL * delta * _T_LB;
+
+  //Add Pose between Factor
+  _graphMgr.addPoseBetweenFactor(old_key, new_key, BkBkm1);
+
+  //Update graph with factors and calculate new state
+  _graphMgr.updateGraphAndState(new_ts, new_key);
+
+  return success;
+}
+
 //CUSTOMIZATION
 
 }  // end namespace loam

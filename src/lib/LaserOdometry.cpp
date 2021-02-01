@@ -320,6 +320,12 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     _graphMgr._params.findUnusedFactorSlots = bParam;
   if (privateNode.getParam("enableDetailedResults", bParam))
     _graphMgr._params.setEnableDetailedResults(bParam);
+  //Pose between factor noise
+  std::vector<double> poseNoise{0, 0, 0, 0, 0, 0};  //roll,pitch,yaw,x,y,z
+  if (privateNode.getParam("poseBetweenNoise", poseNoise)){
+    _graphMgr.setPoseNoise(poseNoise);
+  }
+   
 
   /** Graph Parameters **/
 
@@ -361,6 +367,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
   _pubOptimizationStatus = node.advertise<OptStatus>("/laser_odom_optimization_status", 5);
   _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
+  _pubLaserGraphOdometry = node.advertise<nav_msgs::Odometry>("/laser_graph_odom", 5);
   //CUSTOMIZATION
   return true;
 }  // namespace loam
@@ -499,6 +506,19 @@ void LaserOdometry::publishResult() {
   _tfBroadcaster.sendTransform(_laserOdometryTrans_CORRECTED);
   // END ARL Coordinate Frame Facilitators
 
+  //Graph Odometry
+  nav_msgs::OdometryPtr laserGraphOdomPtr(new nav_msgs::Odometry);
+  laserGraphOdomPtr->header.frame_id = "/camera_init_CORRECTED";
+  laserGraphOdomPtr->child_frame_id = "/laser_odom_CORRECTED";
+  laserGraphOdomPtr->header.stamp = _timeSurfPointsLessFlat;
+  laserGraphOdomPtr->pose.pose.orientation.x = graphOdom().pose.pose.orientation.x;
+  laserGraphOdomPtr->pose.pose.orientation.y = graphOdom().pose.pose.orientation.y;
+  laserGraphOdomPtr->pose.pose.orientation.z = graphOdom().pose.pose.orientation.z;
+  laserGraphOdomPtr->pose.pose.orientation.w = graphOdom().pose.pose.orientation.w;
+  laserGraphOdomPtr->pose.pose.position.x = graphOdom().pose.pose.position.x;
+  laserGraphOdomPtr->pose.pose.position.y = graphOdom().pose.pose.position.y;
+  laserGraphOdomPtr->pose.pose.position.z = graphOdom().pose.pose.position.z;
+  _pubLaserGraphOdometry.publish(laserGraphOdomPtr);
   //CUSTOMIZATION
   //Publish LaserOdometry Optimization Status
   if (_pubOptimizationStatus.getNumSubscribers() > 0) {

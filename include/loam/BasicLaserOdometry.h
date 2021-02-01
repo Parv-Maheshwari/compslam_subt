@@ -56,6 +56,8 @@ class BasicLaserOdometry {
   auto deltaTAbort() const { return _deltaTAbort; }
   auto deltaRAbort() const { return _deltaRAbort; }
 
+  auto const& graphOdom() const {return _graphOdomMsg;}
+
   /** \brief Transform the given point cloud to the end of the sweep.
    *
    * @param cloud the point cloud to transform
@@ -187,6 +189,8 @@ class BasicLaserOdometry {
                           Angle lx, Angle ly, Angle lz,
                           Angle& ox, Angle& oy, Angle& oz);
 
+  bool updateFactorGraph();                          
+
   //Member variables
   float _scanPeriod;      ///< time per scan
   long _frameCount;       ///< number of processed frames
@@ -258,7 +262,10 @@ class BasicLaserOdometry {
   bool _undistortInputCloud = true;          // If set to true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
 
   //Graph Parameters
-  std::string _imuFrame = "";                // IMU frame name - used to lookup LiDAR-to-IMU Frame
+  std::string _imuFrame = "";                           // IMU frame name - used to lookup LiDAR-to-IMU Frame
+  Eigen::Matrix4d _T_LB = Eigen::Matrix4d::Identity();  //IMU to LiDAR expressed in IMU frame, Read as Transforms LiDAR into IMU
+  Eigen::Matrix4d _T_BL = Eigen::Matrix4d::Identity();  //LiDAR to IMU expressed in LiDAR frame, Read as Transforms IMU into LiDAR
+  nav_msgs::Odometry _graphOdomMsg;
   //CUSTOMIZATION
 };
 

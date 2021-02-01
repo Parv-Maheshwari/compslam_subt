@@ -69,8 +69,8 @@ accBiasPrior: 0.0
 gyrNoiseDensity: 5.398e-09 #5.398e-05
 gyrBiasRandomWalk: 9.33e-10 #9.33e-06
 gyrBiasPrior: 0.0
-smootherLag: 1.0
-additonalIterations: 5
+smootherLag: 5.0
+additonalIterations: 3
 positionReLinTh: 0.5
 rotationReLinTh: 0.1
 velocityReLinTh: 0.1
@@ -82,3 +82,4 @@ evaluateNonlinearError: false
 cacheLinearizedFactors: true
 findUnusedFactorSlots: true
 enableDetailedResults: false
+poseBetweenNoise: [0.02, 0.02, 0.02, 0.05, 0.05, 0.05] #ORDER RPY(rad) - XYZ(meters)

@@ -33,6 +33,8 @@ bool GraphManager::initializeGraph(const double ts, const gtsam::Rot3 init_attit
   //Initialize factor graph
   _graph = std::make_shared<gtsam::IncrementalFixedLagSmoother>(_smootherLag, _params);
   _params.print("Factor Graph Parameters:");
+  std::cout << "Pose Between Factor Noise - RPY(rad): " << _poseNoise[0] << "," << _poseNoise[1] << "," << _poseNoise[2]
+            << ", XYZ(m): " << _poseNoise[3] << "," << _poseNoise[4] << "," << _poseNoise[5] << std::endl;
 
   //Add prior factor to graph and update
   std::map<gtsam::Key, double> keyTimestampMap;
@@ -49,8 +51,8 @@ bool GraphManager::initializeGraph(const double ts, const gtsam::Rot3 init_attit
                                *_imuBiasPrior);
 
   //DEBUG
-  gtsam::Values result = _graph->calculateEstimate();
-  result.print("Prior Factor Result:");
+  // gtsam::Values result = _graph->calculateEstimate();
+  // result.print("Prior Factor Result:");
 }
 
 bool GraphManager::initializeImuPreintegrator(const double g) {
@@ -122,23 +124,45 @@ bool GraphManager::addImuFactor(const gtsam::Key old_key, const gtsam::Key new_k
   return success;
 }
 
-bool GraphManager::setImuLidarTransforms(const Eigen::Vector3d& t, const Eigen::Quaterniond& q) {
-  //IMU to LiDAR expressed in IMU frame
-  _T_LB.block<3, 1>(0, 3) = t;
-  _T_LB.block<3, 3>(0, 0) = q.toRotationMatrix();
-  //LiDAR to IMU expressed in LiDAR frame
-  invertHomogenousMatrix(_T_LB, _T_BL);
-  std::cout << "IMU-to-LiDAR Extrinsic Calibration:\n"
-            << _T_LB << std::endl;
-  std::cout << "LiDAR-to-IMU Extrinsic Calibration:\n"
-            << _T_BL << std::endl;
+bool GraphManager::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const Eigen::Matrix4d& pose) {
+  //Create Pose BetweenFactor and add
+  auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
+  gtsam::BetweenFactor<gtsam::Pose3> poseBetweenFactor(X(old_key), X(new_key), gtsam::Pose3(pose), poseNoiseModel);
+  _factors.add(poseBetweenFactor);
 }
 
-void GraphManager::invertHomogenousMatrix(const Eigen::Matrix4d& m_in, Eigen::Matrix4d& m_out) {
-  Eigen::Matrix3d R = m_in.block<3, 3>(0, 0);
-  Eigen::Vector3d t = m_in.block<3, 1>(0, 3);
-  m_out.block<3, 3>(0, 0) = R.transpose();
-  m_out.block<3, 1>(0, 3) = -R.transpose() * t;
-}
+void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new_key) {
+  auto t1 = std::chrono::high_resolution_clock::now();
+  //Create propogated state estimate using IMU
+  gtsam::NavState imuPropogatedState = _imuPreintegrator->predict(_state.navState(), _state.imuBias());
+  gtsam::Values estimate;
+  estimate.insert(X(new_key), imuPropogatedState.pose());
+  estimate.insert(V(new_key), imuPropogatedState.velocity());
+  estimate.insert(B(new_key), _state.imuBias());
 
+  //Update graph
+  std::map<gtsam::Key, double> keyTimestampMap;
+  valuesToKeyTimeStampMap(estimate, new_ts, keyTimestampMap);
+  _graph->update(_factors, estimate, keyTimestampMap);
+  _factors.resize(0);
+
+  //Additional iterations
+  for (size_t itr = 0; itr < _additonalIterations; ++itr)
+    _graph->update();
+
+  //Update State
+  auto result = _graph->calculateEstimate();
+  _state.updateNavStateAndBias(new_key,
+                               new_ts,
+                               gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), result.at<gtsam::Vector3>(V(new_key))),
+                               result.at<gtsam::imuBias::ConstantBias>(B(new_key)));
+  auto t2 = std::chrono::high_resolution_clock::now();
+  
+  // //Debug
+  // auto& ps = imuPropogatedState;
+  // std::cout << "Predict   t(x,y,z): " << ps.position().transpose()<< ", YPR(deg): " << ps.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ps.velocity().transpose()  << "\n";
+  // auto& ns = _state.navState();
+  // std::cout << "Optimized t(x,y,z): " << ns.position().transpose()<< ", YPR(deg): " << ns.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ns.velocity().transpose()  << "\n";
+  // std::cout << "Graph time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl; lag 1s:0-1ms 5s:1-2ms
+}
 }  //namespace loam

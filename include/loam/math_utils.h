@@ -236,6 +236,7 @@ inline void rotateYXZ(PointT& p,
  * @param m_out inverted 4x4 matrix
  */
 inline void invertHomogenousMatrix(const Eigen::Matrix4d& m_in, Eigen::Matrix4d& m_out) {
+  m_out = Eigen::Matrix4d::Identity();
   Eigen::Matrix3d R = m_in.block<3, 3>(0, 0);
   Eigen::Vector3d t = m_in.block<3, 1>(0, 3);
   m_out.block<3, 3>(0, 0) = R.transpose();
