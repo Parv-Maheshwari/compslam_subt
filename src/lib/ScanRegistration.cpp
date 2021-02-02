@@ -57,7 +57,6 @@ bool ScanRegistration::parseParams(const ros::NodeHandle& nh, RegistrationParams
       success = false;
     } else {
       config_out.imuHistorySize = iParam;
-      _imuBuffer.resetBufferSize(iParam);
       ROS_INFO("Set imuHistorySize: %d", iParam);
     }
   }
@@ -152,14 +151,6 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   _pubSurfPointsLessFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_flat", 2);
   _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("/imu_trans", 5);
 
-  //CUTOMIZATION
-  _subImu = node.subscribe<sensor_msgs::Imu>("/imu", 200, &ScanRegistration::imuCallback, this, ros::TransportHints().tcpNoDelay());
-  _pubImuInterpolated = node.advertise<sensor_msgs::Imu>("/imu_interpolated", 200);
-  _imuQuatTf.frame_id_ = "/gravity";
-  _imuQuatTf.child_frame_id_ = "/gravity_init_roll_pitch";
-  _imuQuatTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  //CUTOMIZATION
-
   return true;
 }
 
@@ -186,50 +177,8 @@ void ScanRegistration::handleIMUMessage(const sensor_msgs::Imu::ConstPtr& imuIn)
   updateIMUData(acc, newState);
 }
 
-void ScanRegistration::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_ptr) {
-  //Create acceleration message
-  auto accMsgPtr = std::make_shared<Eigen::Vector4d>(imu_ptr->header.stamp.toSec(),
-                                                     imu_ptr->linear_acceleration.x,
-                                                     imu_ptr->linear_acceleration.y,
-                                                     imu_ptr->linear_acceleration.z);
-  //Add to buffer
-  _imuBuffer.addToBuffer(accMsgPtr);
-  _imuAvailable = true;
-}
-
 void ScanRegistration::publishResult() {
-  //CUTOMIZATION
-  //auto sweepStartTime = toROSTime(sweepStart());
   auto sweepStartTime = _rosPCLTimeStamp;  //smk: publish at same ros time stamp as input pcl cloud
-
-  //IMU Roll-Pitch Rotation w.r.t gravity
-  if (_imuAvailable) {
-    Eigen::Vector4d estimatedAccData;
-    Eigen::Quaterniond qGravity;
-    _imuBuffer.getRollPitchfromIMU(_rosPCLTimeStamp, qGravity, estimatedAccData);
-    _imuQuatTf.stamp_ = _rosPCLTimeStamp;
-    _imuQuatTf.setRotation(tf::Quaternion(qGravity.x(), qGravity.y(), qGravity.z(), qGravity.w()));
-    _tfBroadcaster.sendTransform(_imuQuatTf);
-    //Interpolated IMU debug
-    if (_pubImuInterpolated.getNumSubscribers() > 0) {
-      sensor_msgs::Imu imuMsg;
-      imuMsg.header.stamp = _rosPCLTimeStamp;
-      imuMsg.linear_acceleration.x = estimatedAccData[1];
-      imuMsg.linear_acceleration.y = estimatedAccData[2];
-      imuMsg.linear_acceleration.z = estimatedAccData[3];
-      _pubImuInterpolated.publish(imuMsg);
-    }
-    //NOTE: Currently only initial roll/pitch is published for LaserOdometry and Subscriber is shutdown to save processing - 
-    //Although only one message is published - IMU is kept in Scan Registration for future extension purposes. Otherwise it will be made part of LaserOdometry/LaserMapping
-    _subImu.shutdown();
-    _imuAvailable = false;
-    ROS_INFO("*** ScanRegistration - Gravity Init Roll/Pitch Published - Shutting down IMU subscriber ***");
-
-    double roll, pitch, yaw;
-    _imuQuatTf.getBasis().getRPY(roll, pitch, yaw);
-    std::cout << "IMUBUFFER (y,p,r): " << rad2deg(yaw) << "," << rad2deg(pitch) << "," << rad2deg(roll) << std::endl;
-  }
-  //CUTOMIZATION
 
   // publish full resolution and feature point clouds
   publishCloudMsg(_pubLaserCloud, laserCloud(), sweepStartTime, "/camera");  //smk: contains all points but now ring-wise sorted

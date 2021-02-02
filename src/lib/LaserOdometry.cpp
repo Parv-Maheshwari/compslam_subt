@@ -531,9 +531,9 @@ void LaserOdometry::publishResult() {
   laserOdomStatusMsgPtr->seq = (getLaserOdometryStatus() ? 1 : 0);
   _pubLaserOdometryStatus.publish(laserOdomStatusMsgPtr);
   //Publish Gravity Aligned Init frame
-  if (gravityRollPitchInitialized()) {
+  if (gravityAttitudeInitialized()) {
     _cameraInitGravityAlignedTf.stamp_ = _timeSurfPointsLessFlat;
-    _cameraInitGravityAlignedTf.setBasis(getLiDARGravityInitRotation().getBasis());
+    _cameraInitGravityAlignedTf.setBasis(getLiDARGravityInitAttitude().getBasis());
     _tfBroadcaster.sendTransform(_cameraInitGravityAlignedTf);
   }
   //CUSTOMIZATION

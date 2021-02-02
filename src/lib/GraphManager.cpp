@@ -50,9 +50,10 @@ bool GraphManager::initializeGraph(const double ts, const gtsam::Rot3 init_attit
                                gtsam::NavState(init_pose, gtsam::Vector3(0, 0, 0)),
                                *_imuBiasPrior);
 
-  //DEBUG
+  // //DEBUG
   // gtsam::Values result = _graph->calculateEstimate();
   // result.print("Prior Factor Result:");
+  // //DEBUG
 }
 
 bool GraphManager::initializeImuPreintegrator(const double g) {
@@ -96,12 +97,11 @@ bool GraphManager::updateImuPreintegrator(const IMUMap& imu_meas) {
     ++count;
   }
 
-  //DEBUG
-  if (true /*kDisplayDebugText_*/)
-    std::cout << std::fixed << "updateImuPreintegrator -- # of IMU msgs: " << count
-              << ", with Start/End ts: " << imu_meas.begin()->first << "/" << imu_meas.rbegin()->first
-              << ", diff: " << imu_meas.rbegin()->first - imu_meas.begin()->first << std::endl;
-  //DEBUG
+  // //DEBUG
+  // std::cout << std::fixed << "updateImuPreintegrator -- # of IMU msgs: " << count
+  //           << ", with Start/End ts: " << imu_meas.begin()->first << "/" << imu_meas.rbegin()->first
+  //           << ", diff: " << imu_meas.rbegin()->first - imu_meas.begin()->first << std::endl;
+  // //DEBUG
 
   return true;
 }
@@ -157,12 +157,13 @@ void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new
                                gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), result.at<gtsam::Vector3>(V(new_key))),
                                result.at<gtsam::imuBias::ConstantBias>(B(new_key)));
   auto t2 = std::chrono::high_resolution_clock::now();
-  
+
   // //Debug
   // auto& ps = imuPropogatedState;
   // std::cout << "Predict   t(x,y,z): " << ps.position().transpose()<< ", YPR(deg): " << ps.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ps.velocity().transpose()  << "\n";
   // auto& ns = _state.navState();
   // std::cout << "Optimized t(x,y,z): " << ns.position().transpose()<< ", YPR(deg): " << ns.attitude().ypr().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ns.velocity().transpose()  << "\n";
   // std::cout << "Graph time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl; lag 1s:0-1ms 5s:1-2ms
+  // //Debug
 }
 }  //namespace loam

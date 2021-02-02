@@ -5,8 +5,8 @@
 #include <pcl/point_types.h>
 
 #include "Twist.h"
-#include "nanoflann_pcl.h"
 #include "math_utils.h"
+#include "nanoflann_pcl.h"
 
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
@@ -16,9 +16,9 @@
 #include <tf_conversions/tf_eigen.h>
 #include <fstream>
 #include "CircularBuffer.h"
-#include "loam/OptStatus.h"
-#include "ImuManager.hpp"
 #include "GraphManager.hpp"
+#include "ImuManager.hpp"
+#include "loam/OptStatus.h"
 //CUSTOMIZATION
 
 namespace loam {
@@ -56,7 +56,7 @@ class BasicLaserOdometry {
   auto deltaTAbort() const { return _deltaTAbort; }
   auto deltaRAbort() const { return _deltaRAbort; }
 
-  auto const& graphOdom() const {return _graphOdomMsg;}
+  auto const& graphOdom() const { return _graphOdomMsg; }
 
   /** \brief Transform the given point cloud to the end of the sweep.
    *
@@ -135,14 +135,6 @@ class BasicLaserOdometry {
    */
   bool calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen::Vector3d& rotPriorXYZ, bool useFallback = false);
 
-  /** \brief Get Gravity-aligned Initial LiDAR Roll and Pitch estimates (RADIAN)
-   * @param roll: roll angle estimate 
-   * @param pitch: pitch angle estimate 
-   * @param useFallback: use fallback Sensor-to-LiDAR lookup for calculation
-   * @return bool: return true if estimate calculation is successful
-   */
-  bool getInitGravityRollPitch(double& roll, double& pitch, bool useFallback = false);
-
   // Set frames and parameters for integration of external motion priors
   void setExternalPriorStatus(bool b) { _extPriorAvailable = b; }
   void setExternalOdometryFrame(const std::string& s) { _extOdomFrame = s; }
@@ -157,9 +149,9 @@ class BasicLaserOdometry {
   void setLidarFrame(const std::string& s) { _lidarFrame = s; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  bool gravityRollPitchInitialized() { return _gravityInitSuccess; }
-  auto const& getLiDARGravityInitRotation() { return _gravityInitRotation; }
-  void setUndistortInputCloud(bool b){_undistortInputCloud = b;}
+  bool gravityAttitudeInitialized() { return _gravityAttitudeInit; }
+  auto const& getLiDARGravityInitAttitude() { return _gravityAttitude; }
+  void setUndistortInputCloud(bool b) { _undistortInputCloud = b; }
   void setImuFrame(const std::string& s) { _imuFrame = s; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
@@ -189,7 +181,7 @@ class BasicLaserOdometry {
                           Angle lx, Angle ly, Angle lz,
                           Angle& ox, Angle& oy, Angle& oz);
 
-  bool updateFactorGraph();                          
+  bool updateFactorGraph();
 
   //Member variables
   float _scanPeriod;      ///< time per scan
@@ -257,14 +249,14 @@ class BasicLaserOdometry {
   std::string _lidarFrame = "";              // LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
   bool _isInputPCLRotated = false;           // Flag indicating if input PCL is rotated due to mounting position of LiDAR
   tf::Transform _Rot_inCloudLiDAR;           // Rotation of input PCL w.r.t ROS frmae
-  bool _gravityInitSuccess = false;          // Flag if Roll/Pitch from gravity were initialized
-  tf::Transform _gravityInitRotation;        // Roll/Pitch transform of initial gravity alignment
   bool _undistortInputCloud = true;          // If set to true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
 
   //Graph Parameters
   std::string _imuFrame = "";                           // IMU frame name - used to lookup LiDAR-to-IMU Frame
   Eigen::Matrix4d _T_LB = Eigen::Matrix4d::Identity();  //IMU to LiDAR expressed in IMU frame, Read as Transforms LiDAR into IMU
   Eigen::Matrix4d _T_BL = Eigen::Matrix4d::Identity();  //LiDAR to IMU expressed in LiDAR frame, Read as Transforms IMU into LiDAR
+  bool _gravityAttitudeInit = false;                    // Flag if attitude from gravity were initialized
+  tf::Transform _gravityAttitude;                       // Attitude from initial gravity alignment
   nav_msgs::Odometry _graphOdomMsg;
   //CUSTOMIZATION
 };

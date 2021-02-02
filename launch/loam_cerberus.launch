@@ -17,7 +17,6 @@
   <node pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <remap from="/multi_scan_points" to="$(arg pointcloud_topic_name)" />
-    <remap from="/imu" to="$(arg imu_topic_name)" /> 
   </node>
 
   <!-- Laser Odometry Nodelet -->
