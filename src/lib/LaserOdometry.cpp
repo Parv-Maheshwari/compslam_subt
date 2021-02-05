@@ -54,6 +54,8 @@ LaserOdometry::LaserOdometry(float scanPeriod, uint16_t ioRatio, size_t maxItera
   _laserOdometryTrans.frame_id_ = "camera_init";
   _laserOdometryTrans.child_frame_id_ = "laser_odom";
   _cameraFrameId = "camera";
+  _laserOdometryTrans_CORRECTED.frame_id_ = "camera_init_CORRECTED";
+  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
 
   // initialize gravity aligned tf message
   _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
@@ -313,9 +315,6 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::imuTransHandler, this);
 
   // ARL Coordinate Frame Facilitators
-  _laserOdometryTrans_CORRECTED.frame_id_ = _cameraInitGravityAlignedTf.frame_id_;
-  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
-
   _pubLaserOdometry_CORRECTED = node.advertise<nav_msgs::Odometry>("/laser_odom_to_init_CORRECTED", 5);
   // END ARL Coordinate Frame Facilitators
 
@@ -430,7 +429,7 @@ void LaserOdometry::publishResult() {
 
   // ARL Coordinate Frame Facilitators
   nav_msgs::OdometryPtr laserOdometry_CORRECTEDPtr(new nav_msgs::Odometry);
-  laserOdometry_CORRECTEDPtr->header.frame_id = _cameraInitGravityAlignedTf.frame_id_;
+  laserOdometry_CORRECTEDPtr->header.frame_id = _laserOdometryTrans_CORRECTED.frame_id_;
   laserOdometry_CORRECTEDPtr->child_frame_id = _laserOdometryTrans_CORRECTED.child_frame_id_;
   laserOdometry_CORRECTEDPtr->header.stamp = _timeSurfPointsLessFlat;
   laserOdometry_CORRECTEDPtr->pose.pose.orientation.x = geoQuat.x;
