@@ -51,12 +51,15 @@ LaserOdometry::LaserOdometry(float scanPeriod, uint16_t ioRatio, size_t maxItera
     : BasicLaserOdometry(scanPeriod, maxIterations),
       _ioRatio(ioRatio) {
   // initialize tf messages
-  _laserOdometryTrans.frame_id_ = "/camera_init";
-  _laserOdometryTrans.child_frame_id_ = "/laser_odom";
+  _laserOdometryTrans.frame_id_ = "camera_init";
+  _laserOdometryTrans.child_frame_id_ = "laser_odom";
+  _cameraFrameId = "camera";
+  _laserOdometryTrans_CORRECTED.frame_id_ = "camera_init_CORRECTED";
+  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
 
   // initialize gravity aligned tf message
-  _cameraInitGravityAlignedTf.frame_id_ = "/camera_init_CORRECTED";
-  _cameraInitGravityAlignedTf.child_frame_id_ = "/camera_init_GRAVITY_ALIGNED";
+  _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
+  _cameraInitGravityAlignedTf.child_frame_id_ = "camera_init_GRAVITY_ALIGNED";
   _cameraInitGravityAlignedTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
 }
 
@@ -312,9 +315,6 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::imuTransHandler, this);
 
   // ARL Coordinate Frame Facilitators
-  _laserOdometryTrans_CORRECTED.frame_id_ = "/camera_init_CORRECTED";
-  _laserOdometryTrans_CORRECTED.child_frame_id_ = "/laser_odom_CORRECTED";
-
   _pubLaserOdometry_CORRECTED = node.advertise<nav_msgs::Odometry>("/laser_odom_to_init_CORRECTED", 5);
   // END ARL Coordinate Frame Facilitators
 
@@ -410,8 +410,8 @@ void LaserOdometry::publishResult() {
 
   // initialize odometry and odometry tf messages
   nav_msgs::OdometryPtr laserOdometryMsgPtr(new nav_msgs::Odometry);
-  laserOdometryMsgPtr->header.frame_id = "/camera_init";
-  laserOdometryMsgPtr->child_frame_id = "/laser_odom";
+  laserOdometryMsgPtr->header.frame_id = _laserOdometryTrans.frame_id_;
+  laserOdometryMsgPtr->child_frame_id = _laserOdometryTrans.child_frame_id_;
   laserOdometryMsgPtr->header.stamp = _timeSurfPointsLessFlat;
   laserOdometryMsgPtr->pose.pose.orientation.x = -geoQuat.y;
   laserOdometryMsgPtr->pose.pose.orientation.y = -geoQuat.z;
@@ -429,8 +429,8 @@ void LaserOdometry::publishResult() {
 
   // ARL Coordinate Frame Facilitators
   nav_msgs::OdometryPtr laserOdometry_CORRECTEDPtr(new nav_msgs::Odometry);
-  laserOdometry_CORRECTEDPtr->header.frame_id = "/camera_init_CORRECTED";
-  laserOdometry_CORRECTEDPtr->child_frame_id = "/laser_odom_CORRECTED";
+  laserOdometry_CORRECTEDPtr->header.frame_id = _laserOdometryTrans_CORRECTED.frame_id_;
+  laserOdometry_CORRECTEDPtr->child_frame_id = _laserOdometryTrans_CORRECTED.child_frame_id_;
   laserOdometry_CORRECTEDPtr->header.stamp = _timeSurfPointsLessFlat;
   laserOdometry_CORRECTEDPtr->pose.pose.orientation.x = geoQuat.x;
   laserOdometry_CORRECTEDPtr->pose.pose.orientation.y = -geoQuat.y;
@@ -473,10 +473,10 @@ void LaserOdometry::publishResult() {
 
   // publish cloud results according to the input output ratio
   if (_ioRatio < 2 || frameCount() % _ioRatio == 1) {
-    publishCloudMsg(_pubLaserCloudCornerLast, *lastCornerCloud(), _timeSurfPointsLessFlat, "/camera");  //smk: becuase of _ioRatio=2 this is 5Hz
-    publishCloudMsg(_pubLaserCloudSurfLast, *lastSurfaceCloud(), _timeSurfPointsLessFlat, "/camera");
+    publishCloudMsg(_pubLaserCloudCornerLast, *lastCornerCloud(), _timeSurfPointsLessFlat, _cameraFrameId);  //smk: becuase of _ioRatio=2 this is 5Hz
+    publishCloudMsg(_pubLaserCloudSurfLast, *lastSurfaceCloud(), _timeSurfPointsLessFlat, _cameraFrameId);
     transformToEnd(laserCloud());  // transform full resolution cloud to sweep end before sending it ///smk: velodyne_cloud_2 is transformed and sent out as /velodyne_cloud_3
-    publishCloudMsg(_pubLaserCloudFullRes, *laserCloud(), _timeSurfPointsLessFlat, "/camera");
+    publishCloudMsg(_pubLaserCloudFullRes, *laserCloud(), _timeSurfPointsLessFlat, _cameraFrameId);
   }
 }
 

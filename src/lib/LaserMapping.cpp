@@ -40,8 +40,8 @@ namespace loam {
 
 LaserMapping::LaserMapping(const float& scanPeriod, const size_t& maxIterations) {
   // initialize mapping tf messages
-  _aftMappedTrans.frame_id_ = "/camera_init";
-  _aftMappedTrans.child_frame_id_ = "/aft_mapped";
+  _aftMappedTrans.frame_id_ = "camera_init";
+  _aftMappedTrans.child_frame_id_ = "aft_mapped";
 }
 
 bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
@@ -387,14 +387,14 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subImu = node.subscribe<sensor_msgs::Imu>("/imu/data", 50, &LaserMapping::imuHandler, this);
 
   // ARL Coordinate Frame Facilitators
-  _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = "/camera_init_CORRECTED";
-  _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = "/aft_mapped_to_init_CORRECTED";
+  _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = "camera_init_CORRECTED";
+  _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = "aft_mapped_to_init_CORRECTED";
 
   _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("/aft_mapped_to_init_CORRECTED", 5);
   _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("/transform_aft_mapped_to_init_CORRECTED", 5);
 
   // Initialize path message and publisher
-  _pathMsg.header.frame_id = "/camera_init_CORRECTED";
+  _pathMsg.header.frame_id = _gm_aftMappedTransformStamped_CORRECTED.header.frame_id;
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
 
@@ -491,7 +491,7 @@ void LaserMapping::syncInputsHandler(const sensor_msgs::PointCloud2ConstPtr& pcl
 
 void LaserMapping::process() {
   //Update Timestamp of BasicLaserMapping should be same as _timeSurfPointsLessFlat from LaserOdometry
-  updatePCLTime(_timeLaserOdometry);  
+  updatePCLTime(_timeLaserOdometry);
 
   if (!BasicLaserMapping::process(fromROSTime(_timeLaserOdometry)))
     return;
@@ -503,30 +503,30 @@ void LaserMapping::publishResult() {
   // publish new map cloud according to the input output ratio
   if (_pubLaserCloudSurround.getNumSubscribers() > 0)
     if (createDownsizedMap())
-      publishCloudMsg(_pubLaserCloudSurround, laserCloudSurroundDS(), _timeLaserOdometry, "/camera_init");
+      publishCloudMsg(_pubLaserCloudSurround, laserCloudSurroundDS(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
 
   // publish transformed full resolution input cloud
-  publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, "/camera_init");
+  publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
 
   //CUTOMIZATION - DEBUG
   //Curent Submaps
   if (_pubCurrentCornerSubmap.getNumSubscribers() > 0)
-    publishCloudMsg(_pubCurrentCornerSubmap, getCurrentCornerSubmap(), _timeLaserOdometry, "/camera_init");
+    publishCloudMsg(_pubCurrentCornerSubmap, getCurrentCornerSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   if (_pubCurrentSurfSubmap.getNumSubscribers() > 0)
-    publishCloudMsg(_pubCurrentSurfSubmap, getCurrentSurfSubmap(), _timeLaserOdometry, "/camera_init");
+    publishCloudMsg(_pubCurrentSurfSubmap, getCurrentSurfSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   //Saved Submaps
   if (_pubSavedCornerSubmap.getNumSubscribers() > 0)
-    publishCloudMsg(_pubSavedCornerSubmap, getSavedCornerSubmap(), _timeLaserOdometry, "/camera_init");
+    publishCloudMsg(_pubSavedCornerSubmap, getSavedCornerSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   if (_pubSavedSurfSubmap.getNumSubscribers() > 0)
-    publishCloudMsg(_pubSavedSurfSubmap, getSavedSurfSubmap(), _timeLaserOdometry, "/camera_init");
+    publishCloudMsg(_pubSavedSurfSubmap, getSavedSurfSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   //CUTOMIZATION -DEBUG
 
   // publish odometry after mapped transformations
   geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw(transformAftMapped().rot_z.rad(), -transformAftMapped().rot_x.rad(), -transformAftMapped().rot_y.rad());
 
   nav_msgs::OdometryPtr odomAftMappedPtr(new nav_msgs::Odometry);
-  odomAftMappedPtr->header.frame_id = "/camera_init";
-  odomAftMappedPtr->child_frame_id = "/aft_mapped";
+  odomAftMappedPtr->header.frame_id = _aftMappedTrans.frame_id_;
+  odomAftMappedPtr->child_frame_id = _aftMappedTrans.child_frame_id_;
   odomAftMappedPtr->header.stamp = _timeLaserOdometry;
   odomAftMappedPtr->pose.pose.orientation.x = -geoQuat.y;
   odomAftMappedPtr->pose.pose.orientation.y = -geoQuat.z;
@@ -564,8 +564,8 @@ void LaserMapping::publishResult() {
   _tfBroadcaster.sendTransform(_gm_aftMappedTransformStamped_CORRECTED);
 
   nav_msgs::OdometryPtr _odomAftMapped_CORRECTEDPtr(new nav_msgs::Odometry);
-  _odomAftMapped_CORRECTEDPtr->header.frame_id = "/camera_init_CORRECTED";
-  _odomAftMapped_CORRECTEDPtr->child_frame_id = "/aft_mapped_to_init_CORRECTED";
+  _odomAftMapped_CORRECTEDPtr->header.frame_id = _gm_aftMappedTransformStamped_CORRECTED.header.frame_id;
+  _odomAftMapped_CORRECTEDPtr->child_frame_id = _gm_aftMappedTransformStamped_CORRECTED.child_frame_id;
   _odomAftMapped_CORRECTEDPtr->header.stamp = _timeLaserOdometry;
   _odomAftMapped_CORRECTEDPtr->pose.pose.orientation.x = geoQuat.x;
   _odomAftMapped_CORRECTEDPtr->pose.pose.orientation.y = -geoQuat.y;
@@ -588,7 +588,7 @@ void LaserMapping::publishResult() {
   if (_pubPath.getNumSubscribers() > 0 || _forcePathPublishing) {
     //Pose Message
     geometry_msgs::PoseStamped poseMsg;
-    poseMsg.header.frame_id = "/camera_init_CORRECTED";
+    poseMsg.header.frame_id = _gm_aftMappedTransformStamped_CORRECTED.header.frame_id;
     poseMsg.header.stamp = _timeLaserOdometry;
     poseMsg.pose.position.x = transformAftMapped().pos.z();
     poseMsg.pose.position.y = transformAftMapped().pos.x();
@@ -610,11 +610,11 @@ void LaserMapping::publishResult() {
     _optStatusMsg.header.stamp = _timeLaserOdometry;
     _pubOptimizationStatus.publish(_optStatusMsg);
   }
-  
+
   //
   if (_pubMap.getNumSubscribers() > 0 && _mapCounter > _mapPublishRateDivider) {
     _mapCounter = 0;
-    publishCloudMsg(_pubMap, laserMap(), _timeLaserOdometry, "/camera_init");
+    publishCloudMsg(_pubMap, laserMap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   } else
     ++_mapCounter;
 
