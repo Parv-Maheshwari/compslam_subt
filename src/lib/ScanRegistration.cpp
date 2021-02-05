@@ -159,7 +159,7 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   _imuQuatTf.frame_id_ = "gravity";
   _imuQuatTf.child_frame_id_ = "gravity_init_roll_pitch";
   _imuQuatTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  _cameraFrameId = "camera"
+  _cameraFrameId = "camera";
   //CUTOMIZATION
 
   return true;

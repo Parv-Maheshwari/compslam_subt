@@ -53,7 +53,7 @@ LaserOdometry::LaserOdometry(float scanPeriod, uint16_t ioRatio, size_t maxItera
   // initialize tf messages
   _laserOdometryTrans.frame_id_ = "camera_init";
   _laserOdometryTrans.child_frame_id_ = "laser_odom";
-  _cameraFrameId = "camera"
+  _cameraFrameId = "camera";
 
   // initialize gravity aligned tf message
   _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
