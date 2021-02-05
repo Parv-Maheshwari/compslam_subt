@@ -164,6 +164,7 @@ class LaserOdometry : public BasicLaserOdometry {
       _pclExactSyncPolicy;                                                                 // ROS Exact Sync Policy Object
   boost::shared_ptr<message_filters::Synchronizer<_pclExactSyncPolicy>> _pclExactSyncPtr;  // ROS Exact Sync Policy Message Filter
   tf::StampedTransform _cameraInitGravityAlignedTf;                                        // Transform from camera_init_CORRECTED to Gravity Aligned Frame
+  std::string _cameraFrameId;                                                              // Frame id of camera
   //CUSTOMIZATION
 };
 

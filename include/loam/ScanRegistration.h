@@ -107,6 +107,7 @@ class ScanRegistration : protected BasicScanRegistration {
   tf::TransformBroadcaster _tfBroadcaster;  // TF Broadcastet for gravity aligned frame
   tf::StampedTransform _imuQuatTf;          // Gravity aligned TF message
   ros::Publisher _pubImuInterpolated;       // Publisher for interpolated IMU Acceleration messages - Debug purposes
+  std::string _cameraFrameId;               // Frame id of camera
   //CUSTOMIZATION
 };
 

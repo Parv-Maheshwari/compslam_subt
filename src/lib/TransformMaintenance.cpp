@@ -38,11 +38,11 @@ namespace loam {
 
 TransformMaintenance::TransformMaintenance() {
   // initialize odometry and odometry tf messages
-  _laserOdometry2.header.frame_id = "/camera_init";
-  _laserOdometry2.child_frame_id = "/camera";
+  _laserOdometry2.header.frame_id = "camera_init";
+  _laserOdometry2.child_frame_id = "camera";
 
-  _laserOdometryTrans2.frame_id_ = "/camera_init";
-  _laserOdometryTrans2.child_frame_id_ = "/camera";
+  _laserOdometryTrans2.frame_id_ = _laserOdometry2.header.frame_id;
+  _laserOdometryTrans2.child_frame_id_ = _laserOdometry2.child_frame_id;
 }
 
 bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
@@ -54,12 +54,12 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
 
   _subOdomAftMapped = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 5, &TransformMaintenance::odomAftMappedHandler, this);
 
-  // ARL Coordinate Frame Facilitators 
-  _laserOdometry2_CORRECTED.header.frame_id = "/camera_init_CORRECTED";
-  _laserOdometry2_CORRECTED.child_frame_id = "/camera_CORRECTED";
+  // ARL Coordinate Frame Facilitators
+  _laserOdometry2_CORRECTED.header.frame_id = "camera_init_CORRECTED";
+  _laserOdometry2_CORRECTED.child_frame_id = "camera_CORRECTED";
 
-  _gm_laserTransformStamped2_CORRECTED.header.frame_id = "/camera_init_CORRECTED";
-  _gm_laserTransformStamped2_CORRECTED.child_frame_id = "/camera_CORRECTED";
+  _gm_laserTransformStamped2_CORRECTED.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
+  _gm_laserTransformStamped2_CORRECTED.child_frame_id = _laserOdometry2_CORRECTED.child_frame_id;
 
   _pubLaserTransformStamped2_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("/loam_transform_CORRECTED", 5);
   _pubLaserOdometry2_CORRECTED = node.advertise<nav_msgs::Odometry>("/integrated_to_init_CORRECTED", 5);
@@ -67,7 +67,7 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
 
   //CUSTOMIZATION
   // Initialize path message and publisher
-  _pathMsg.header.frame_id = "/camera_init_CORRECTED";
+  _pathMsg.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
   _pathMsg.poses.reserve(20000);  //30 minutes path @ 10Hz
   _pubPath = node.advertise<nav_msgs::Path>("/laser_integrated_path", 5);
   //CUSTOMIZATION
@@ -134,7 +134,7 @@ void TransformMaintenance::laserOdometryHandler(const nav_msgs::Odometry::ConstP
   if (_pubPath.getNumSubscribers() > 0) {
     //Pose Message
     geometry_msgs::PoseStamped poseMsg;
-    poseMsg.header.frame_id = "/camera_init_CORRECTED";
+    poseMsg.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
     poseMsg.header.stamp = laserOdometry->header.stamp;;
     poseMsg.pose.position.x = transformMapped()[5];
     poseMsg.pose.position.y = transformMapped()[3];

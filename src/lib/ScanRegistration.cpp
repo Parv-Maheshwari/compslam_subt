@@ -156,9 +156,10 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   //CUTOMIZATION
   _subImu = node.subscribe<sensor_msgs::Imu>("/imu", 200, &ScanRegistration::imuCallback, this, ros::TransportHints().tcpNoDelay());
   _pubImuInterpolated = node.advertise<sensor_msgs::Imu>("/imu_interpolated", 200);
-  _imuQuatTf.frame_id_ = "/gravity";
-  _imuQuatTf.child_frame_id_ = "/gravity_init_roll_pitch";
+  _imuQuatTf.frame_id_ = "gravity";
+  _imuQuatTf.child_frame_id_ = "gravity_init_roll_pitch";
   _imuQuatTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  _cameraFrameId = "camera"
   //CUTOMIZATION
 
   return true;
@@ -220,7 +221,7 @@ void ScanRegistration::publishResult() {
       imuMsg.linear_acceleration.z = estimatedAccData[3];
       _pubImuInterpolated.publish(imuMsg);
     }
-    //NOTE: Currently only initial roll/pitch is published for LaserOdometry and Subscriber is shutdown to save processing - 
+    //NOTE: Currently only initial roll/pitch is published for LaserOdometry and Subscriber is shutdown to save processing -
     //Although only one message is published - IMU is kept in Scan Registration for future extension purposes. Otherwise it will be made part of LaserOdometry/LaserMapping
     _subImu.shutdown();
     _imuAvailable = false;
@@ -229,19 +230,19 @@ void ScanRegistration::publishResult() {
   //CUTOMIZATION
 
   // publish full resolution and feature point clouds
-  publishCloudMsg(_pubLaserCloud, laserCloud(), sweepStartTime, "/camera");  //smk: contains all points but now ring-wise sorted
-  publishCloudMsg(_pubCornerPointsSharp, cornerPointsSharp(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubCornerPointsLessSharp, cornerPointsLessSharp(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubSurfPointsFlat, surfacePointsFlat(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubSurfPointsLessFlat, surfacePointsLessFlat(), sweepStartTime, "/camera");
+  publishCloudMsg(_pubLaserCloud, laserCloud(), sweepStartTime, _cameraFrameId);  //smk: contains all points but now ring-wise sorted
+  publishCloudMsg(_pubCornerPointsSharp, cornerPointsSharp(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubCornerPointsLessSharp, cornerPointsLessSharp(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubSurfPointsFlat, surfacePointsFlat(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubSurfPointsLessFlat, surfacePointsLessFlat(), sweepStartTime, _cameraFrameId);
 
   //CUSTOMIZATION - for dome LiDAR debug visualization
   if (_pubLaserCloudRGB.getNumSubscribers() > 0)
-    publishCloudMsg(_pubLaserCloudRGB, laserCloudRGB(), sweepStartTime, "/camera");
+    publishCloudMsg(_pubLaserCloudRGB, laserCloudRGB(), sweepStartTime, _cameraFrameId);
   //CUSTOMIZATION
 
   // publish corresponding IMU transformation information
-  publishCloudMsg(_pubImuTrans, imuTransform(), sweepStartTime, "/camera");
+  publishCloudMsg(_pubImuTrans, imuTransform(), sweepStartTime, _cameraFrameId);
 }
 
 }  // end namespace loam
