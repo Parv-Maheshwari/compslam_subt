@@ -45,6 +45,9 @@ class GraphManager {
   //Update graph and get new state
   void updateGraphAndState(const double new_ts, const gtsam::Key new_key, const bool debug = false);
 
+  //Check if zero motion has occured and add zero pose/velocity factor
+  bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
+
   //Associate timestamp to each 'value key', e.g. for graph key 0, value keys (x0,v0,b0) need to be associated
   void valuesToKeyTimeStampMap(const gtsam::Values& values, const double ts, std::map<gtsam::Key, double>& key_timestamp_map) {
     for (const auto& value : values)
@@ -99,6 +102,10 @@ class GraphManager {
   double _gyrBiasReLinTh = 0.1;  //Gyroscope bias linearization threshold
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
+  //Zero Velocity Factor
+  double _zeroMotionTh = 0.01;              //Zero motion threshold meters
+  double _minDetections = 4;                //Number of consective zero motions detected before zero motion factors are added
+  double _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
 };
 }  //namespace loam
 

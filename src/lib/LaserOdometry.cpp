@@ -331,6 +331,14 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("poseBetweenNoise", poseNoise)){
     _graphMgr.setPoseNoise(poseNoise);
   }
+  //Zero Motion Factor
+  if (privateNode.getParam("zeroMotionDetection", bParam)) {
+    setZeroMotionDetection(bParam);
+    if (bParam)
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Velocity and Zero Delta Pose Factors will be added");
+    else
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED");
+  }
   /** Graph Parameters **/
 
   //Verbose Ouput

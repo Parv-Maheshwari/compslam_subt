@@ -167,4 +167,35 @@ void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new
   }
   //Debug
 }
+
+bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose) {
+  //Check external motion
+  if (pose.translation().norm() > _zeroMotionTh) {
+    _detectionCount = 0;
+    return false;
+  }
+
+  //Check IMU motion
+  gtsam::NavState imuPropogatedState = _imuPreintegrator->predict(gtsam::NavState(), _state.imuBias());
+  if (imuPropogatedState.position().norm() > _zeroMotionTh) {
+    _detectionCount = 0;
+    return false;
+  }
+
+  //Check consective zero-motion detections
+  ++_detectionCount;
+  if (_detectionCount < _minDetections)
+    return false;
+
+  //Add Zero Pose Factor
+  _newFactors.add(gtsam::BetweenFactor<gtsam::Pose3>(X(old_key), 
+                                                     X(new_key), 
+                                                     gtsam::Pose3(), 
+                                                     gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3).finished())));
+  //Add Zero Velocity Factor
+  _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key), 
+                                                     gtsam::Vector3::Zero(), 
+                                                     gtsam::noiseModel::Isotropic::Sigma(3, 1e-3)));
+  return true;
+}
 }  //namespace loam

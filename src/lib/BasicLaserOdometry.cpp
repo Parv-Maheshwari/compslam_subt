@@ -873,6 +873,10 @@ bool BasicLaserOdometry::updateFactorGraph() {
   //Add Pose between Factor
   _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
 
+  // Check and Add Zero Motion Factor
+  if (_zeroMotionDetection)
+    bool zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+
   //Update graph with factors and calculate new state
   _graphMgr.updateGraphAndState(new_ts, new_key);
 
