@@ -77,7 +77,7 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _laserCloudSurroundDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudCornerFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurfFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserMap(new pcl::PointCloud<pcl::PointXYZI>()){
+      _laserMap(new pcl::PointCloud<pcl::PointXYZI>()) {
   // setup down size filters
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
@@ -106,7 +106,7 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
     _laserCloudSurfDSArray[i].reset(new pcl::PointCloud<pcl::PointXYZI>());
   }
 
-  //CUSTOMIZATION - 
+  //CUSTOMIZATION
   //data structure for storing previosuly saved submaps
   _savedCornerSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
   _savedSurfSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
@@ -670,7 +670,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   matA1.setZero();
   matD1.setZero();
   matV1.setZero();
-  
+
   Eigen::Matrix<float, 6, 6> matP;
 
   size_t laserCloudCornerStackNum = _laserCloudCornerStackDS->size();
@@ -919,11 +919,11 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
     _transformTobeMapped.pos.z() += matX(5, 0);
 
     deltaR = std::sqrt(std::pow(rad2deg(matX(0, 0)), 2) +
-                             std::pow(rad2deg(matX(1, 0)), 2) +
-                             std::pow(rad2deg(matX(2, 0)), 2));
+                       std::pow(rad2deg(matX(1, 0)), 2) +
+                       std::pow(rad2deg(matX(2, 0)), 2));
     deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
-                             std::pow(matX(4, 0) * 100, 2) +
-                             std::pow(matX(5, 0) * 100, 2));
+                       std::pow(matX(4, 0) * 100, 2) +
+                       std::pow(matX(5, 0) * 100, 2));
     if (deltaR < _deltaRAbort && deltaT < _deltaTAbort) {
       // //CUSTOMIZATION
       // //Calculation of the vairance of the solution

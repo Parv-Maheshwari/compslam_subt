@@ -35,8 +35,8 @@
 #include "CircularBuffer.h"
 #include "Twist.h"
 #include "loam/OptStatus.h"
-#include "time_utils.h"
 #include "math_utils.h"
+#include "time_utils.h"
 
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
@@ -163,9 +163,9 @@ class BasicLaserMapping {
   auto& getSavedSurfSubmap() { return *_savedSurfSubmap; }
   auto& getCurrentCornerSubmap() { return *_laserCloudCornerArray[_laserCloudNum / 2]; }
   auto& getCurrentSurfSubmap() { return *_laserCloudSurfArray[_laserCloudNum / 2]; }
-  
+
   pcl::PointCloud<pcl::PointXYZI>& laserMap();
-  
+
   // Set internal map parameters
   void setMapCubeSize(double s) { _mapCubeSize = s; }
   void setMapWidthInCubes(size_t w) { _laserCloudWidth = w; }
@@ -200,6 +200,7 @@ class BasicLaserMapping {
   //CUSTOMIZATION
 
  private:
+  //Functions
   /** Run an optimization. */
   void optimizeTransformTobeMapped();
 
@@ -209,16 +210,12 @@ class BasicLaserMapping {
   void pointAssociateTobeMapped(const pcl::PointXYZI& pi, pcl::PointXYZI& po);
   void transformFullResToMap();
 
-  // private:
-  size_t toIndex(int i, int j, int k) const {
-    return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k;
-  }
+  size_t toIndex(int i, int j, int k) const { return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k; }
 
   // CUSTOMIZATION
   void processDegeneration(bool is_degenerating);
-  // END
 
- private:
+  //Members
   Time _laserOdometryTime;
 
   float _scanPeriod;  ///< time per scan
@@ -257,7 +254,7 @@ class BasicLaserMapping {
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurroundDS;  ///< down sampled
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudCornerFromMap;
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurfFromMap;
-  
+
   pcl::PointCloud<pcl::PointXYZI> _laserCloudOri;
   pcl::PointCloud<pcl::PointXYZI> _coeffSel;
 
@@ -278,11 +275,11 @@ class BasicLaserMapping {
   bool _downsizedMapCreated = false;
 
   //CUSTOMIZATION
-  std::ofstream _mappingLogFile;                       // logging file for debugging
-  float _mapDegenEigVal;                               // optimization degeneracy checking eigen value threshold
-  double _mapPriorNormThresh;                          // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
-  bool _isLaserOdometryDegenerate = false;             // flag to check if laser odometry is degenrate
-  ros::Time _currentPCLTime, _lastPCLTime;             // timestamps of last and current pointclouds
+  std::ofstream _mappingLogFile;            // logging file for debugging
+  float _mapDegenEigVal;                    // optimization degeneracy checking eigen value threshold
+  double _mapPriorNormThresh;               // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
+  bool _isLaserOdometryDegenerate = false;  // flag to check if laser odometry is degenrate
+  ros::Time _currentPCLTime, _lastPCLTime;  // timestamps of last and current pointclouds
 
   //Submap Co-Localization
   pcl::PointCloud<pcl::PointXYZI>::Ptr _savedCornerSubmap, _savedSurfSubmap;
@@ -310,8 +307,8 @@ class BasicLaserMapping {
   bool _isInputPCLRotated = false;
   tf::Transform _Rot_inCloudLiDAR;
 
-  // Full Map Publish
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserMap;    // Full Map
+  // Full Map for visualization - Downsampled
+  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserMap;  // Full Map
 
   //DEBUG
   int _verboseLevel = 0;

@@ -346,9 +346,9 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Map Publish Rate Divider
   if (privateNode.getParam("mapPublishRateDivider", iParam)) {
     _mapPublishRateDivider = iParam;
-    int ioRatio=0;
+    int ioRatio = 0;
     privateNode.getParam("ioRatio", ioRatio);
-    ROS_INFO_STREAM("LaserMapping - Full Map Published at: " << (1.0/(scanPeriod() * float(ioRatio) * float(_mapPublishRateDivider))) << " Hz");
+    ROS_INFO_STREAM("LaserMapping - Full Map Published at: " << (1.0 / (scanPeriod() * float(ioRatio) * float(_mapPublishRateDivider))) << " Hz");
   }
 
   //Verbose Ouput
@@ -388,6 +388,7 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
 
+  // Publish optimization status
   _pubOptimizationStatus = node.advertise<OptStatus>("/laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
@@ -465,9 +466,9 @@ bool LaserMapping::saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_
 }
 
 void LaserMapping::syncInputsHandler(const sensor_msgs::PointCloud2ConstPtr& pclCorner,
-                       const sensor_msgs::PointCloud2ConstPtr& pclFlat,
-                       const sensor_msgs::PointCloud2ConstPtr& pclFull,
-                       const nav_msgs::OdometryConstPtr& laserOdom) {
+                                     const sensor_msgs::PointCloud2ConstPtr& pclFlat,
+                                     const sensor_msgs::PointCloud2ConstPtr& pclFull,
+                                     const nav_msgs::OdometryConstPtr& laserOdom) {
   //Process incoming pointclouds and odometry
   laserCloudCornerLastHandler(pclCorner);
   laserCloudSurfLastHandler(pclFlat);
@@ -481,7 +482,7 @@ void LaserMapping::syncInputsHandler(const sensor_msgs::PointCloud2ConstPtr& pcl
 
 void LaserMapping::process() {
   //Update Timestamp of BasicLaserMapping should be same as _timeSurfPointsLessFlat from LaserOdometry
-  updatePCLTime(_timeLaserOdometry);  
+  updatePCLTime(_timeLaserOdometry);
 
   if (!BasicLaserMapping::process(fromROSTime(_timeLaserOdometry)))
     return;
@@ -600,14 +601,13 @@ void LaserMapping::publishResult() {
     _optStatusMsg.header.stamp = _timeLaserOdometry;
     _pubOptimizationStatus.publish(_optStatusMsg);
   }
-  
-  //
+
+  //Publish full downsampled map for visualitzation purposes
   if (_pubMap.getNumSubscribers() > 0 && _mapCounter > _mapPublishRateDivider) {
     _mapCounter = 0;
     publishCloudMsg(_pubMap, laserMap(), _timeLaserOdometry, "/camera_init");
   } else
     ++_mapCounter;
-
   //CUSTOMIZATION
 }
 

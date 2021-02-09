@@ -36,9 +36,9 @@
 #include "BasicLaserMapping.h"
 #include "common.h"
 
-#include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
+#include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/SetBool.h>
@@ -155,8 +155,8 @@ class LaserMapping : public BasicLaserMapping {
   // ARL Coordinate Frame Facilitators
   geometry_msgs::TransformStamped _gm_aftMappedTransformStamped_CORRECTED;  ///< geometry_msg of mapping odometry message CORRECTED
 
-  ros::Publisher _pubOdomAftMapped_CORRECTED;               ///< mapping odometry message CORRECTED
-  ros::Publisher _pubAftMappedTransformStamped_CORRECTED;   ///< mapping transform CORRECTED
+  ros::Publisher _pubOdomAftMapped_CORRECTED;              ///< mapping odometry message CORRECTED
+  ros::Publisher _pubAftMappedTransformStamped_CORRECTED;  ///< mapping transform CORRECTED
   ros::Publisher _pubOptimizationStatus;
   // END ARL Coordinate Frame Facilitators
 
