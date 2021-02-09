@@ -62,24 +62,26 @@ forcePathPublishing: true                #Force ROS path message publishing for 
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider)
 
 #Factor Graph
-imuFrame: imu_link
-accNoiseDensity: 1.3e-06 #1.3e-03
-accBiasRandomWalk: 1.0e-08 #1.0e-04
-accBiasPrior: 0.0
-gyrNoiseDensity: 5.398e-09 #5.398e-05
-gyrBiasRandomWalk: 9.33e-10 #9.33e-06
-gyrBiasPrior: 0.0
-smootherLag: 5.0
-additonalIterations: 3
-positionReLinTh: 0.5
-rotationReLinTh: 0.1
-velocityReLinTh: 0.1
-accBiasReLinTh: 0.2
-gyrBiasReLinTh: 0.2
-relinearizeSkip: 10
+imuFrame: imu_link                       #Frame of IMU used in integrator - Used for lookup transform to lidarFrame 
+imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
+accNoiseDensity: 1.3e-04                 #Continuous-time "Covariance" of accelerometer
+accBiasRandomWalk: 1.0e-06               #Continuous-time "Covariance" describing accelerometer bias random walk
+accBiasPrior: 0.0                        #Prior/starting value of accelerometer bias
+gyrNoiseDensity: 5.398e-06               #Continuous-time "Covariance" of gyroscope measurements
+gyrBiasRandomWalk: 9.33e-08              #Continuous-time "Covariance" describing gyroscope bias random walk
+gyrBiasPrior: 0.0                        #Prior/starting value of gyroscope bias
+smootherLag: 3.0                         #Lag of fixed lag smoother[seconds]
+additonalIterations: 3                   #Additional iterations of graph optimizer after update with new factors
+positionReLinTh: 0.05                    #Position linearization threshold
+rotationReLinTh: 0.05                    #Rotation linearization threshold
+velocityReLinTh: 0.1                     #Linear Velocity linearization threshold
+accBiasReLinTh: 0.1                      #Accelerometer bias linearization threshold
+gyrBiasReLinTh: 0.1                      #Gyroscope bias linearization threshold
+relinearizeSkip: 1
 enableRelinearization: true
 evaluateNonlinearError: false
 cacheLinearizedFactors: true
 findUnusedFactorSlots: true
+enablePartialRelinearizationCheck: true
 enableDetailedResults: false
-poseBetweenNoise: [0.02, 0.02, 0.02, 0.05, 0.05, 0.05] #ORDER RPY(rad) - XYZ(meters)
+poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -ORDER RPY(rad) - XYZ(meters)

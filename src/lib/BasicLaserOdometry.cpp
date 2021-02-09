@@ -186,46 +186,35 @@ void BasicLaserOdometry::process() {
     _T_LB.block<3, 3>(0, 0) = q_LB.toRotationMatrix();
     //T_BL
     invertHomogenousMatrix(_T_LB, _T_BL);
-    std::cout << "IMU-to-LiDAR Extrinsic Calibration:\n"
+    std::cout << "\033[35mLASER\033[0m IMU-to-LiDAR Extrinsic Calibration:\n"
               << _T_LB << std::endl;
-    std::cout << "LiDAR-to-IMU Extrinsic Calibration:\n"
+    std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
               << _T_BL << std::endl;
 
     //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
     double g = 9.81;
     gtsam::Rot3 imu_attitude;
-    _imuBuffer.estimatePoseFromImu(_currentPCLTime.toSec(), imu_attitude, g);
-
-    //Initial attitude in LiDAR frmae
-    _gravityAttitude.getBasis().setRPY(imu_attitude.roll(), imu_attitude.pitch(), imu_attitude.yaw());
-    _gravityAttitude = T_LB * _gravityAttitude * T_LB.inverse();
-    _gravityAttitudeInit = true;
-    //Prior Rotation
-    Eigen::Vector3d e, e1, e2;
-    _gravityAttitude.getBasis().getRPY(e1[2], e1[1], e1[0]);  //XYZ
-    _gravityAttitude.getBasis().getRPY(e2[2], e2[1], e2[0], 2);
-    //Set smaller rotation solution
-    if (e1.norm() < e2.norm())
-      e = e1;
-    else
-      e = e2;
-    _transformSum.rot_z = Angle(e[2]);
-    _transformSum.rot_x = Angle(e[1]);
-    _transformSum.rot_y = Angle(e[0]);
-    
-    std::cout << "\033[35mLASER\033[0m - Gravity Attitude Init (deg), Roll: " << _transformSum.rot_z.deg() << ", Pitch: " << _transformSum.rot_x.deg() << ", Yaw: " << _transformSum.rot_y.deg() << std::endl;
+    _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g);
 
     //Initialize IMU Preintegrator and Factor Graph
-    _graphMgr.initializeImuPreintegrator(g);
-    _graphMgr.initializeGraph(_currentPCLTime.toSec(), imu_attitude);
+    _graphMgr.initImuIntegrator(g);
+    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), gtsam::Pose3(imu_attitude, gtsam::Point3()));
 
-    //Get Init state - Pose
-    Eigen::Matrix4d LkLkm1 = _T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL;
-    Eigen::Quaterniond q_new(LkLkm1.block<3, 3>(0, 0));
-    q_new.normalize();
-    //Update Odometry Message
-    tf::pointEigenToMsg(LkLkm1.block<3, 1>(0, 3), _graphOdomMsg.pose.pose.position);
-    tf::quaternionEigenToMsg(q_new, _graphOdomMsg.pose.pose.orientation);
+    //Get LiDAR pose - FG gives pose in IMU frame
+    gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
+
+    //Initialize pose in LOAM frame from LiDAR pose
+    _transformSum.pos.z() = initLiDARPose.translation().x();
+    _transformSum.pos.x() = initLiDARPose.translation().y();
+    _transformSum.pos.y() = initLiDARPose.translation().z();
+    _transformSum.rot_z = Angle(initLiDARPose.rotation().roll());
+    _transformSum.rot_x = Angle(initLiDARPose.rotation().pitch());
+    _transformSum.rot_y = Angle(initLiDARPose.rotation().yaw());
+    std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << initLiDARPose.translation().transpose() << ", RPY(deg): " << initLiDARPose.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
+
+    //Set TF for debug purposes
+    _gravityAttitude.getBasis().setRPY(initLiDARPose.rotation().roll(), initLiDARPose.rotation().pitch(), initLiDARPose.rotation().yaw());
+    _gravityAttitudeInit = true;
     //CUSTOMIZATION
 
     _systemInited = true;
@@ -703,13 +692,11 @@ void BasicLaserOdometry::process() {
   //Update Factor graph with IMU and LiDAR pose factors
   updateFactorGraph();
 
-  //Get new state - Pose
-  Eigen::Matrix4d LkLkm1 = _T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL;
-  Eigen::Quaterniond q_new(LkLkm1.block<3, 3>(0, 0));
-  q_new.normalize();
-  //Update odometry message
-  tf::pointEigenToMsg(LkLkm1.block<3, 1>(0, 3), _graphOdomMsg.pose.pose.position);
-  tf::quaternionEigenToMsg(q_new, _graphOdomMsg.pose.pose.orientation);
+  //Get new pose
+  gtsam::Pose3 lidarPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL); // L_B * Binit_Bnow * B_L = LinitLnow
+  //Update IMU bias message for publishing
+  tf::vectorEigenToMsg(_graphMgr._state.imuBias().accelerometer(), _imuBiasMsg.linear_acceleration);  //Accelerometer
+  tf::vectorEigenToMsg(_graphMgr._state.imuBias().gyroscope(), _imuBiasMsg.angular_velocity);         //Gyroscope
   /* -----Factor Graph----- */
 
   //Update odometry
@@ -739,12 +726,22 @@ void BasicLaserOdometry::process() {
   _transformSum.rot_z = rz;
   _transformSum.pos = trans;
 
+  //Factor-graph odometry - LOAM frame
+  _transformSum.pos.z() = lidarPose.translation().x();
+  _transformSum.pos.x() = lidarPose.translation().y();
+  _transformSum.pos.y() = lidarPose.translation().z();
+  _transformSum.rot_z = Angle(lidarPose.rotation().roll()); 
+  _transformSum.rot_x = Angle(lidarPose.rotation().pitch());
+  _transformSum.rot_y = Angle(lidarPose.rotation().yaw());  
+  //Factor-graph odometry
+
   //DEBUG - Negation for human understanding - reverses direction of pcl alignment
-  if (_verboseLevel > 0)
+  if (_verboseLevel > 0) {
     std::cout << "\033[35mLASER\033[0m Opt-Result DETLA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
-  std::cout << "\033[35mLASER\033[0m Odometry (x,y,z): [" << _transformSum.pos.z() << " " << _transformSum.pos.x() << " " << _transformSum.pos.y()
-            << "], (r,p,y): [" << _transformSum.rot_z.deg() << " " << _transformSum.rot_x.deg() << " " << _transformSum.rot_y.deg() << "]\n";
+    std::cout << "\033[35mLASER\033[0m Odometry (x,y,z): [" << _transformSum.pos.z() << " " << _transformSum.pos.x() << " " << _transformSum.pos.y()
+              << "], (r,p,y): [" << _transformSum.rot_z.deg() << " " << _transformSum.rot_x.deg() << " " << _transformSum.rot_y.deg() << "]\n";
+  }
   //DEBUG
 
   transformToEnd(_cornerPointsLessSharp);
@@ -847,8 +844,8 @@ bool BasicLaserOdometry::updateFactorGraph() {
   //Update keys and timestamps
   auto old_key = _graphMgr._state.key();
   auto new_key = _graphMgr.newStateKey();
-  auto old_ts = _lastPCLTime.toSec();
-  auto new_ts = _currentPCLTime.toSec();
+  auto old_ts = _lastPCLTime.toSec() + _imuTimeOffset;
+  auto new_ts = _currentPCLTime.toSec() + _imuTimeOffset;
   // std::cout << std::fixed << "FACTOR-GRAPH keys: (" << old_key << "/" << new_key << "), ts: (" << old_ts << "/" << new_ts << "), diff:" << new_ts - old_ts << std::endl;
 
   //Get IMU measurements between pointcloud timestamps and add IMU factor
@@ -862,19 +859,19 @@ bool BasicLaserOdometry::updateFactorGraph() {
   //CREATE LiDAR POSE BETWEEN FACTOR
   //Pose delta in LiDAR Frame - LOAM calcualtes transformation to be applied on New pointcloud to align with to Old
   //For odometry we require Old->New transformation. Hence, delta rotation and translation is negated to reverse direction.
-  Eigen::Matrix4d delta = Eigen::Matrix4d::Identity();
+  Eigen::Matrix4d delta_lidar = Eigen::Matrix4d::Identity();
   Eigen::Quaterniond dq = Eigen::AngleAxisd(-_transform.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
                           Eigen::AngleAxisd(-_transform.rot_x.rad(), Eigen::Vector3d::UnitY()) *
                           Eigen::AngleAxisd(-_transform.rot_z.rad(), Eigen::Vector3d::UnitX());
   dq.normalize();
-  delta.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
-  delta.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
+  delta_lidar.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
+  delta_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
 
   // Convert to IMU frame
-  Eigen::Matrix4d BkBkm1 = _T_BL * delta * _T_LB;
-
+  gtsam::Pose3 delta_imu(_T_BL * delta_lidar * _T_LB);
+  
   //Add Pose between Factor
-  _graphMgr.addPoseBetweenFactor(old_key, new_key, BkBkm1);
+  _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
 
   //Update graph with factors and calculate new state
   _graphMgr.updateGraphAndState(new_ts, new_key);

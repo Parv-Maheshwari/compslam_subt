@@ -27,23 +27,23 @@ class GraphManager {
   GraphManager(){};
   ~GraphManager(){};
 
-  //
-  bool initializeGraph(const double ts, const gtsam::Rot3 init_attitude);
+  //Initialize Factor graph with Pose,Velocity and Bias states
+  bool initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3 init_pose);
 
-  //
-  bool initializeImuPreintegrator(const double g);
+  //Initialize IMU integrator
+  bool initImuIntegrator(const double g);
 
-  //
-  bool updateImuPreintegrator(const IMUMap& imu_meas);
+  //Update IMU integrator with new measurements - Resets bias
+  bool updateImuIntegrator(const IMUMap& imu_meas);
 
-  //
+  //Add IMU factor to graph
   bool addImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
 
-  //
-  bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const Eigen::Matrix4d& pose);
+  //Add a pose between factor
+  bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
 
-  //
-  void updateGraphAndState(const double new_ts, const gtsam::Key new_key);
+  //Update graph and get new state
+  void updateGraphAndState(const double new_ts, const gtsam::Key new_key, const bool debug = false);
 
   //Associate timestamp to each 'value key', e.g. for graph key 0, value keys (x0,v0,b0) need to be associated
   void valuesToKeyTimeStampMap(const gtsam::Values& values, const double ts, std::map<gtsam::Key, double>& key_timestamp_map) {
@@ -75,28 +75,28 @@ class GraphManager {
   std::shared_ptr<gtsam::imuBias::ConstantBias> _imuBiasPrior;
   std::shared_ptr<gtsam::PreintegratedCombinedMeasurements> _imuPreintegrator;
   gtsam::ISAM2Params _params;
-  gtsam::NonlinearFactorGraph _factors;
+  gtsam::NonlinearFactorGraph _newFactors;
   std::shared_ptr<gtsam::IncrementalFixedLagSmoother> _graph;
   State _state;
 
  private:
   //Member variables
   // IMU Preintegration
-  double _accNoiseDensity;
-  double _accBiasRandomWalk;
-  double _accBiasPrior;
-  double _gyrNoiseDensity;
-  double _gyrBiasRandomWalk;
-  double _gyrBiasPrior;
+  double _accNoiseDensity;    // continuous-time "Covariance" of accelerometer
+  double _accBiasRandomWalk;  // continuous-time "Covariance" describing accelerometer bias random walk
+  double _accBiasPrior;       // prior/starting value of accelerometer bias
+  double _gyrNoiseDensity;    // continuous-time "Covariance" of gyroscope measurements
+  double _gyrBiasRandomWalk;  // continuous-time "Covariance" describing gyroscope bias random walk
+  double _gyrBiasPrior;       // prior/starting value of gyroscope bias
   //Factor Graph
-  gtsam::Key _state_key;
-  double _smootherLag;
-  int _additonalIterations;
-  double _posReLinTh;
-  double _rotReLinTh;
-  double _velReLinTh;
-  double _accBiasReLinTh;
-  double _gyrBiasReLinTh;
+  gtsam::Key _state_key = 0;     //Current state key
+  double _smootherLag = 1;       // Lag of fixed lag smoother[seconds]
+  int _additonalIterations = 1;  //Additional iterations of graph optimizer after update with new factors
+  double _posReLinTh = 0.05;     //Position linearization threshold
+  double _rotReLinTh = 0.05;     //Rotation linearization threshold
+  double _velReLinTh = 0.1;      //Linear Velocity linearization threshold
+  double _accBiasReLinTh = 0.1;  //Accelerometer bias linearization threshold
+  double _gyrBiasReLinTh = 0.1;  //Gyroscope bias linearization threshold
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
 };

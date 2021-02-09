@@ -281,6 +281,10 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     setImuFrame(sParam);
   } else
     ROS_WARN("LaserOdometry - IMU frame not set for preintegrator");
+  if (privateNode.getParam("imuTimeOffset", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU time offset[s]: " << dParam);
+    setImuTimeOffset(dParam);
+  }
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
@@ -318,6 +322,8 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     _graphMgr._params.setCacheLinearizedFactors(bParam);
   if (privateNode.getParam("findUnusedFactorSlots", bParam))
     _graphMgr._params.findUnusedFactorSlots = bParam;
+  if (privateNode.getParam("enablePartialRelinearizationCheck", bParam))
+    _graphMgr._params.setEnablePartialRelinearizationCheck(bParam);
   if (privateNode.getParam("enableDetailedResults", bParam))
     _graphMgr._params.setEnableDetailedResults(bParam);
   //Pose between factor noise
@@ -325,8 +331,6 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("poseBetweenNoise", poseNoise)){
     _graphMgr.setPoseNoise(poseNoise);
   }
-   
-
   /** Graph Parameters **/
 
   //Verbose Ouput
@@ -367,7 +371,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
   _pubOptimizationStatus = node.advertise<OptStatus>("/laser_odom_optimization_status", 5);
   _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
-  _pubLaserGraphOdometry = node.advertise<nav_msgs::Odometry>("/laser_graph_odom", 5);
+  _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("/laser_odom_imu_bias", 20);
   //CUSTOMIZATION
   return true;
 }  // namespace loam
@@ -506,19 +510,19 @@ void LaserOdometry::publishResult() {
   _tfBroadcaster.sendTransform(_laserOdometryTrans_CORRECTED);
   // END ARL Coordinate Frame Facilitators
 
-  //Graph Odometry
-  nav_msgs::OdometryPtr laserGraphOdomPtr(new nav_msgs::Odometry);
-  laserGraphOdomPtr->header.frame_id = "/camera_init_CORRECTED";
-  laserGraphOdomPtr->child_frame_id = "/laser_odom_CORRECTED";
-  laserGraphOdomPtr->header.stamp = _timeSurfPointsLessFlat;
-  laserGraphOdomPtr->pose.pose.orientation.x = graphOdom().pose.pose.orientation.x;
-  laserGraphOdomPtr->pose.pose.orientation.y = graphOdom().pose.pose.orientation.y;
-  laserGraphOdomPtr->pose.pose.orientation.z = graphOdom().pose.pose.orientation.z;
-  laserGraphOdomPtr->pose.pose.orientation.w = graphOdom().pose.pose.orientation.w;
-  laserGraphOdomPtr->pose.pose.position.x = graphOdom().pose.pose.position.x;
-  laserGraphOdomPtr->pose.pose.position.y = graphOdom().pose.pose.position.y;
-  laserGraphOdomPtr->pose.pose.position.z = graphOdom().pose.pose.position.z;
-  _pubLaserGraphOdometry.publish(laserGraphOdomPtr);
+  //IMU Bias
+  if (_pubLaserImuBias.getNumSubscribers() > 0) {
+    sensor_msgs::Imu imuBiasMsg;
+    imuBiasMsg.header.frame_id = "/laser_odometry_imu";
+    imuBiasMsg.header.stamp = _timeSurfPointsLessFlat;
+    imuBiasMsg.linear_acceleration.x = graphIMUBias().linear_acceleration.x;
+    imuBiasMsg.linear_acceleration.y = graphIMUBias().linear_acceleration.y;
+    imuBiasMsg.linear_acceleration.z = graphIMUBias().linear_acceleration.z;
+    imuBiasMsg.angular_velocity.x = graphIMUBias().angular_velocity.x;
+    imuBiasMsg.angular_velocity.y = graphIMUBias().angular_velocity.y;
+    imuBiasMsg.angular_velocity.z = graphIMUBias().angular_velocity.z;
+    _pubLaserImuBias.publish(imuBiasMsg);
+  }
   //CUSTOMIZATION
   //Publish LaserOdometry Optimization Status
   if (_pubOptimizationStatus.getNumSubscribers() > 0) {

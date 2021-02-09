@@ -12,6 +12,7 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
+#include <sensor_msgs/Imu.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
 #include <fstream>
@@ -56,7 +57,7 @@ class BasicLaserOdometry {
   auto deltaTAbort() const { return _deltaTAbort; }
   auto deltaRAbort() const { return _deltaRAbort; }
 
-  auto const& graphOdom() const { return _graphOdomMsg; }
+  auto const& graphIMUBias() const { return _imuBiasMsg; }
 
   /** \brief Transform the given point cloud to the end of the sweep.
    *
@@ -153,6 +154,7 @@ class BasicLaserOdometry {
   auto const& getLiDARGravityInitAttitude() { return _gravityAttitude; }
   void setUndistortInputCloud(bool b) { _undistortInputCloud = b; }
   void setImuFrame(const std::string& s) { _imuFrame = s; }
+  void setImuTimeOffset(const double d) { _imuTimeOffset = d; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   loam::OptStatus _optStatusMsg;
@@ -253,11 +255,12 @@ class BasicLaserOdometry {
 
   //Graph Parameters
   std::string _imuFrame = "";                           // IMU frame name - used to lookup LiDAR-to-IMU Frame
+  double _imuTimeOffset = 0.0;                          //Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
   Eigen::Matrix4d _T_LB = Eigen::Matrix4d::Identity();  //IMU to LiDAR expressed in IMU frame, Read as Transforms LiDAR into IMU
   Eigen::Matrix4d _T_BL = Eigen::Matrix4d::Identity();  //LiDAR to IMU expressed in LiDAR frame, Read as Transforms IMU into LiDAR
   bool _gravityAttitudeInit = false;                    // Flag if attitude from gravity were initialized
   tf::Transform _gravityAttitude;                       // Attitude from initial gravity alignment
-  nav_msgs::Odometry _graphOdomMsg;
+  sensor_msgs::Imu _imuBiasMsg;                         // IMU bias publishing ROS message
   //CUSTOMIZATION
 };
 

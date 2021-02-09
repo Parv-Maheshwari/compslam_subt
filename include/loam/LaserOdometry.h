@@ -155,7 +155,7 @@ class LaserOdometry : public BasicLaserOdometry {
   // ARL Coordinate Frame Facilitators
   tf::StampedTransform _laserOdometryTrans_CORRECTED;  ///< laser odometry transformation CORRECTED
   ros::Publisher _pubLaserOdometry_CORRECTED;          ///< laser odometry message CORRECTED publisher
-  ros::Publisher _pubLaserGraphOdometry;               ///< factor graph smoothed laser odometry publisher
+  ros::Publisher _pubLaserImuBias;                     ///< laser odometry imu bias publisher
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION

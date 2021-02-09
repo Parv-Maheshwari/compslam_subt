@@ -21,7 +21,7 @@ class ImuManager {
  public:
   //Constructor
   ImuManager()
-      : _isIMUPoseInitialized(false), _gravityMagnitude(9.81), _imuRate(400), _imuPoseInitWaitSecs(1) {
+      : _imuRate(400), _imuPoseInitWaitSecs(1) {
     //Reset IMU Buffer
     _IMUBuffer.clear();
   }
@@ -34,7 +34,7 @@ class ImuManager {
     //Convert to gtsam type
     gtsam::Vector6 imuMeas;
     imuMeas << accX, accY, accZ, gyrX, gyrY, gyrZ;
-    
+
     //Add to buffer
     std::lock_guard<std::mutex> lock(_IMUBufferMutex);
     _IMUBuffer[ts] = imuMeas;
@@ -161,7 +161,7 @@ class ImuManager {
   }
 
   // Determine initial IMU pose w.r.t to gravity vector pointing up
-  bool estimatePoseFromImu(const double imu_pose_init_ts, gtsam::Rot3& init_attitude, double& gravity_magnitude) {
+  bool estimateAttitudeFromImu(const double imu_pose_init_ts, gtsam::Rot3& init_attitude, double& gravity_magnitude, bool output = false) {
     //Get timestamp of first message for lookup
     if (_IMUBuffer.size() < (_imuRate * _imuPoseInitWaitSecs)) {
       std::cout << "\033[33mIMU-Manager\033[0m NOT ENOUGH IMU MESSAGES TO INITIALIZE POSE\n";
@@ -187,23 +187,22 @@ class ImuManager {
         imu_pose_init_acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
         init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(imu_pose_init_acc_mean, g_unit_vec));
-        std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
-        std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << imu_pose_init_acc_mean.transpose()
-                  << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
-        std::cout << "\033[33mIMU-Manager\033[0m Yaw/Pitch/Roll(deg): " << init_attitude.ypr().transpose() * (180.0 / M_PI) << std::endl;
-        _isIMUPoseInitialized = true;
+        if (output) {
+          std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << imu_pose_init_acc_mean.transpose()
+                    << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Yaw/Pitch/Roll(deg): " << init_attitude.ypr().transpose() * (180.0 / M_PI) << std::endl;
+        }
       }
     }
     return true;
   }
 
  private:
-  std::mutex _IMUBufferMutex; //TODO Add description
-  IMUMap _IMUBuffer;
-  bool _isIMUPoseInitialized;
-  double _gravityMagnitude; //TODO Remove?
-  double _imuRate;          //TODO add accessors
-  double _imuPoseInitWaitSecs;
+  std::mutex _IMUBufferMutex;   //Mutex for reading writing IMU buffer
+  IMUMap _IMUBuffer;            //IMU buffer
+  double _imuRate;              //Frequency IMU - Used to calculate minimum measurements needed to calculate gravity and init attitude
+  double _imuPoseInitWaitSecs;  //Multiplied with imu rate
 };
 }  // namespace loam
 #endif
