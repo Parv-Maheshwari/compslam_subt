@@ -36,4 +36,8 @@
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
   </node>
 
+  <!-- Laser Graph Integrator Nodelet -->
+  <node pkg="nodelet" type="nodelet" name="laser_graph_integrator_nodelet" args="load laser_graph_integrator_nodelet loam_nodelet_manager" output="screen">
+    <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
+  </node>
 </launch>
