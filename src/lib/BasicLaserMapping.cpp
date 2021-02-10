@@ -54,6 +54,7 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _frameCount(0),
       _mapFrameCount(0),
       _maxIterations(maxIterations),
+      _minIterations(1),
       _deltaTAbort(0.05),
       _deltaRAbort(0.05),
       _mapDegenEigVal(100),
@@ -166,7 +167,7 @@ void BasicLaserMapping::transformAssociateToMap() {
   _transformTobeMapped.pos = _transformAftMapped.pos - v;
 
   //DEBUG
-  if (_verboseLevel > 0)
+  if (_verboseLevel > 1)
     std::cout << "\033[32mMAPPING\033[0m Motion Model (x,y,z): [" << _transformTobeMapped.pos.z() << " " << _transformTobeMapped.pos.x() << " " << _transformTobeMapped.pos.y()
               << "], (r,p,y): [" << _transformTobeMapped.rot_z.deg() << " " << _transformTobeMapped.rot_x.deg() << " " << _transformTobeMapped.rot_y.deg() << "]\n";
   //DEBUG
@@ -218,13 +219,17 @@ void BasicLaserMapping::transformAssociateToMap() {
     Eigen::Quaterniond q_up = q_loam * q_inc.inverse();  //LOCAL axis rotation
     Eigen::Vector3d t_up = t_loam - (q_loam * t_inc);
 
-    //Fix - Gimbal Lock
-    Eigen::Quaterniond q_fix = Eigen::AngleAxisd(deg2rad(5.0), Eigen::Vector3d::UnitZ()) *
-                               Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-                               Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-    q_up = q_fix * q_up;
-    Eigen::Vector3d e_up = q_up.toRotationMatrix().eulerAngles(2, 1, 0);  //ZYX order
-    e_up[0] -= 0.0872665;                                                 //5deg rotation fix
+    //Get euler RPY angles
+    tf::Transform tf_up;
+    tf_up.setRotation(tf::Quaternion(q_up.x(), q_up.y(), q_up.z(), q_up.w()));
+    Eigen::Vector3d e_up1, e_up2, e_up;
+    tf_up.getBasis().getRPY(e_up1[2], e_up1[1], e_up1[0]);
+    tf_up.getBasis().getRPY(e_up2[2], e_up2[1], e_up2[0], 2);
+    //Use smaller rotation solution
+    if (e_up1.norm() < e_up2.norm())
+      e_up = e_up1;
+    else
+      e_up = e_up2;
 
     //Store External Estimate
     _externalEstimate.pos.x() = t_up[1];
@@ -245,7 +250,7 @@ void BasicLaserMapping::transformAssociateToMap() {
     }
 
     //DEBUG
-    if (_verboseLevel > 0)
+    if (_verboseLevel > 1)
       std::cout << "\033[32mMAPPING\033[0m EXT PRIOR (x,y,z): [" << _externalEstimate.pos.z() << " " << _externalEstimate.pos.x() << " " << _externalEstimate.pos.y()
                 << "], (r,p,y): [" << _externalEstimate.rot_z.deg() << " " << _externalEstimate.rot_x.deg() << " " << _externalEstimate.rot_y.deg()
                 << "], Type: " << (primaryPrior ? "P" : "F")
@@ -306,12 +311,8 @@ bool BasicLaserMapping::createDownsizedMap() {
 }
 
 bool BasicLaserMapping::process(Time const& laserOdometryTime) {
-  // skip some frames?!? //smk: this will not do anything as _stackFrameNum is 1 so _frameCount++ will never be less than 1
+  // Update frame count and time
   _frameCount++;
-  if (_frameCount < _stackFrameNum) {
-    return false;
-  }
-  _frameCount = 0;
   _laserOdometryTime = laserOdometryTime;
 
   pcl::PointXYZI pointSel;
@@ -383,6 +384,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);  //smk: seems like we are reversing the pointcloud
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(0, j, k); //smk: fix from github.com/laboshinl/loam_velodyne/pull/110
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeI++;
@@ -398,6 +402,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(_laserCloudWidth - 1, j, k);
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeI--;
@@ -413,6 +420,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(i, 0, k);
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeJ++;
@@ -428,6 +438,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(i, _laserCloudHeight - 1, k);
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeJ--;
@@ -443,6 +456,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(i, j, 0);
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeK++;
@@ -458,6 +474,9 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           std::swap(_laserCloudCornerArray[indexA], _laserCloudCornerArray[indexB]);
           std::swap(_laserCloudSurfArray[indexA], _laserCloudSurfArray[indexB]);
         }
+        const size_t indexC = toIndex(i, j, _laserCloudDepth - 1);
+        _laserCloudCornerArray[indexC]->clear();
+        _laserCloudSurfArray[indexC]->clear();
       }
     }
     centerCubeK--;
@@ -924,7 +943,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
     deltaT = std::sqrt(std::pow(matX(3, 0) * 100, 2) +
                        std::pow(matX(4, 0) * 100, 2) +
                        std::pow(matX(5, 0) * 100, 2));
-    if (deltaR < _deltaRAbort && deltaT < _deltaTAbort) {
+    if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
       // //CUSTOMIZATION
       // //Calculation of the vairance of the solution
       // Eigen::VectorXf residual = (matA * matX) - matB;
@@ -937,6 +956,18 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
       break;
     }
   }
+
+  //DEBUG - Optimization Status
+  if (_verboseLevel > 0) {
+    auto t = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC * 1000.0;
+    std::cout << "\033[32mMAPPING:\033[0m - Converged:" << (error_converged ? " \033[32mTrue\033[0m" : "\033[31mFalse\033[0m")
+              << ", Degenerate:" << (isDegenerate ? " \033[31mTrue\033[0m" : "\033[32mFalse\033[0m")
+              << ", Iter:" << iterCount + 1
+              << ", Residual(T/R):" << deltaT << "/" << deltaR
+              << ", Time(ms):" << t
+              << (t < 100 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+  }
+  //DEBUG - Optimization Status
 
   //Update Optimization Status Message
   _optStatusMsg.converged = error_converged;
@@ -966,7 +997,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   //CUSTOMIZATION
 
   //DEBUG
-  if (_verboseLevel > 1) {
+  if (_verboseLevel > 2) {
     if (iterCount == _maxIterations - 1)
       std::cout << "\033[32mMAPPING:\033[0m - \033[31mMAX_ITERATIONS\033[0m, Iter:" << iterCount
                 << ", (dT/dR) FINAL: " << deltaT << "/" << deltaR
@@ -985,7 +1016,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   transformUpdate();
 
   //DEBUG
-  if (_verboseLevel > 0)
+  if (_verboseLevel > 1)
     std::cout << "\033[32mMAPPING\033[0m RESULT (x,y,z): [" << _transformAftMapped.pos.z() << " " << _transformAftMapped.pos.x() << " " << _transformAftMapped.pos.y()
               << "], (r,p,y): [" << _transformAftMapped.rot_z.deg() << " " << _transformAftMapped.rot_x.deg() << " " << _transformAftMapped.rot_y.deg() << "]\n";
   //DEBUG
@@ -1039,11 +1070,12 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
   static ros::Duration time_offset(_extOdomTimeOffset);
   static ros::Duration fallback_time_offset(_fallbackExtOdomTimeOffset);
 
-  if (_lastPCLTime.is_zero()) {
-    std::cout << "\033[32mMAPPING\033[0m FIRST MAP PCL RECEIVED" << std::endl;
+  //Skip first two pointclouds from external prior lookup as _transformAftMapped has not updated yet
+  if(_frameCount < 3){
+    std::cout << "\033[32mMAPPING\033[0m External Prior - Skip for PCL: "<< _frameCount<< std::endl;
     return false;
   }
-
+  
   if (!useFallback) {
     try {
       //Relative Transform
@@ -1098,14 +1130,15 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
   transPriorXYZ << prior.getOrigin().y(), prior.getOrigin().z(), prior.getOrigin().x();
 
   //Prior Rotation
-  Eigen::Quaterniond q(prior.getRotation().w(), prior.getRotation().x(), prior.getRotation().y(), prior.getRotation().z());
-  Eigen::Quaterniond q_fix = Eigen::AngleAxisd(deg2rad(5.0), Eigen::Vector3d::UnitZ()) *
-                             Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) *
-                             Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitX());
-  q = q_fix * q;
-  Eigen::Vector3d euler = q.toRotationMatrix().eulerAngles(2, 1, 0);  //ZYX order
-  euler[0] -= 0.0872665;                                              //5deg rotation fix
-  rotPriorXYZ << euler[1], euler[0], euler[2];                        //YZX
+  Eigen::Vector3d e1, e2;
+  prior.getBasis().getRPY(e1[2], e1[1], e1[0]);
+  prior.getBasis().getRPY(e2[2], e2[1], e2[0], 2);
+  //Set smaller rotation solution
+  if (e1.norm() < e2.norm())
+    rotPriorXYZ << e1[1], e1[0], e1[2];
+  else
+    rotPriorXYZ << e2[1], e2[0], e2[2];
+
   return true;
 }
 

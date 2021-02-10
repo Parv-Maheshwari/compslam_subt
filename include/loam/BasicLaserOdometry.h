@@ -48,12 +48,14 @@ class BasicLaserOdometry {
 
   void setScanPeriod(float val) { _scanPeriod = val; }
   void setMaxIterations(size_t val) { _maxIterations = val; }
+  void setMinIterations(size_t val) { _minIterations = val; }
   void setDeltaTAbort(float val) { _deltaTAbort = val; }
   void setDeltaRAbort(float val) { _deltaRAbort = val; }
 
   auto frameCount() const { return _frameCount; }
   auto scanPeriod() const { return _scanPeriod; }
   auto maxIterations() const { return _maxIterations; }
+  auto minIterations() const { return _minIterations; }
   auto deltaTAbort() const { return _deltaTAbort; }
   auto deltaRAbort() const { return _deltaRAbort; }
 
@@ -190,6 +192,7 @@ class BasicLaserOdometry {
   float _scanPeriod;      ///< time per scan
   long _frameCount;       ///< number of processed frames
   size_t _maxIterations;  ///< maximum number of iterations
+  size_t _minIterations;  ///< minimum number of iterations
   bool _systemInited;     ///< initialization flag
 
   float _deltaTAbort;  ///< optimization abort threshold for deltaT

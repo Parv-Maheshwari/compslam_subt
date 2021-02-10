@@ -151,6 +151,8 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   _pubSurfPointsLessFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_flat", 2);
   _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("/imu_trans", 5);
 
+  //Publishing frame name
+  _cameraFrameId= "camera";
   return true;
 }
 
@@ -181,19 +183,19 @@ void ScanRegistration::publishResult() {
   auto sweepStartTime = _rosPCLTimeStamp;  //smk: publish at same ros time stamp as input pcl cloud
 
   // publish full resolution and feature point clouds
-  publishCloudMsg(_pubLaserCloud, laserCloud(), sweepStartTime, "/camera");  //smk: contains all points but now ring-wise sorted
-  publishCloudMsg(_pubCornerPointsSharp, cornerPointsSharp(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubCornerPointsLessSharp, cornerPointsLessSharp(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubSurfPointsFlat, surfacePointsFlat(), sweepStartTime, "/camera");
-  publishCloudMsg(_pubSurfPointsLessFlat, surfacePointsLessFlat(), sweepStartTime, "/camera");
+  publishCloudMsg(_pubLaserCloud, laserCloud(), sweepStartTime, _cameraFrameId);  //smk: contains all points but now ring-wise sorted
+  publishCloudMsg(_pubCornerPointsSharp, cornerPointsSharp(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubCornerPointsLessSharp, cornerPointsLessSharp(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubSurfPointsFlat, surfacePointsFlat(), sweepStartTime, _cameraFrameId);
+  publishCloudMsg(_pubSurfPointsLessFlat, surfacePointsLessFlat(), sweepStartTime, _cameraFrameId);
 
   //CUSTOMIZATION - for dome LiDAR debug visualization
   if (_pubLaserCloudRGB.getNumSubscribers() > 0)
-    publishCloudMsg(_pubLaserCloudRGB, laserCloudRGB(), sweepStartTime, "/camera");
+    publishCloudMsg(_pubLaserCloudRGB, laserCloudRGB(), sweepStartTime, _cameraFrameId);
   //CUSTOMIZATION
 
   // publish corresponding IMU transformation information
-  publishCloudMsg(_pubImuTrans, imuTransform(), sweepStartTime, "/camera");
+  publishCloudMsg(_pubImuTrans, imuTransform(), sweepStartTime, _cameraFrameId);
 }
 
 }  // end namespace loam

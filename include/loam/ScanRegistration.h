@@ -96,6 +96,7 @@ class ScanRegistration : protected BasicScanRegistration {
   //This is the original un-modiifed timestamp from the input pointcloud
   ros::Publisher _pubLaserCloudRGB;         // Full resolution RGB cloud message publisher
   ros::Time _rosPCLTimeStamp;               // Timestamp of input clouds in ROS formate
+  std::string _cameraFrameId;               // Frame id of camera
   //CUSTOMIZATION
 };
 
