@@ -36,7 +36,7 @@ lessFlatFilterSize: 0.2                  #Leaf Size for downsampling remaing poi
 #LaserOdometry
 undistortInputCloud: false               #If true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
 odomMaxIterations: 25                    #Maximum Number of LO optimization iterations, default 25
-odomMinIterations: 4                     #Minimum Number of LO optimization iterations, default 4, (set 0 to perform only first iteration at minimum) 
+odomMinIterations: 1                     #Minimum Number of LO optimization iterations, default 4, (set 0 to perform only first iteration at minimum) 
 odomDeltaTAbort: 0.05                    #Translation threshold for optimization convergence, deafult 0.1 (m) 
 odomDeltaRAbort: 0.05                    #Rotation threshold for optimization convergence, deafult 0.1 (deg)
 odomDegenEigVal: 30                      #Minimum eignevalue threshold for determining degeneracy of LO optimization, default 30
@@ -85,4 +85,4 @@ findUnusedFactorSlots: true
 enablePartialRelinearizationCheck: true
 enableDetailedResults: false
 poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -ORDER RPY(rad) - XYZ(meters)
-zeroMotionDetection: false                        #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+zeroMotionDetection: true                         #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
