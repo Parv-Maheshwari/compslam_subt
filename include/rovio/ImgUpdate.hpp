@@ -653,7 +653,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         else
           meas.aux().pyr_[i].imgs_[0].convertTo(tmpImg, CV_8UC1);
         //Convert Image to color for drawing purposes
-        cvtColor(tmpImg, filterState.img_[i], CV_GRAY2RGB);
+        cvtColor(tmpImg, filterState.img_[i], cv::COLOR_GRAY2RGB);
         //CUSTOMIZATION
       }
     }
