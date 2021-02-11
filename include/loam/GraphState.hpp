@@ -29,14 +29,14 @@ class State {
   const auto& imuBias() const { return imuBias_; }
 
   //Update state Graph Key and Timestamp
-  void updateKeyAndTimestamp(const gtsam::Key& key, const double& ts) {
+  void updateKeyAndTimestamp(const gtsam::Key key, const double ts) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     key_ = key;
     ts_ = ts;
   }
 
   //Update state Graph Key, Timestamp and NavState(Pose+Velocity)
-  void updateNavState(const gtsam::Key& key, const double& ts, const gtsam::NavState& navState) {
+  void updateNavState(const gtsam::Key key, const double ts, const gtsam::NavState& navState) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     key_ = key;
     ts_ = ts;
@@ -44,7 +44,7 @@ class State {
   }
 
   //Update state Graph Key, Timestamp and IMU Bias estimate
-  void updateImuBias(const gtsam::Key& key, const double& ts, const gtsam::imuBias::ConstantBias& imuBias) {
+  void updateImuBias(const gtsam::Key key, const double ts, const gtsam::imuBias::ConstantBias& imuBias) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     key_ = key;
     ts_ = ts;
@@ -52,7 +52,7 @@ class State {
   }
 
   //Update state Graph Key, Timestamp, NavState(Pose+Velocity) and IMU Bias estimate
-  void updateNavStateAndBias(const gtsam::Key& key, const double& ts, const gtsam::NavState& navState, const gtsam::imuBias::ConstantBias& imuBias) {
+  void updateNavStateAndBias(const gtsam::Key key, const double ts, const gtsam::NavState& navState, const gtsam::imuBias::ConstantBias& imuBias) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     key_ = key;
     ts_ = ts;

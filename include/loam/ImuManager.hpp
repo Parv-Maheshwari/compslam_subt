@@ -6,7 +6,6 @@
 #include <mutex>
 
 //Eigen
-#include <Eigen/Core>
 #include <Eigen/Dense>
 
 //GTSAM

@@ -194,7 +194,7 @@ void BasicLaserOdometry::process() {
               << _T_BL << std::endl;
 
     //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
-    double g = 9.81;
+    double g;
     gtsam::Rot3 imu_attitude;
     _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g);
 
@@ -202,7 +202,7 @@ void BasicLaserOdometry::process() {
     _graphMgr.initImuIntegrator(g);
     _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), gtsam::Pose3(imu_attitude, gtsam::Point3()));
 
-    //Get LiDAR pose - FG gives pose in IMU frame
+    //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
     gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
 
     //Initialize pose in LOAM frame from LiDAR pose

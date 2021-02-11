@@ -72,7 +72,7 @@ add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
 target_link_libraries(multiScanRegistration loam)
 
 add_executable(laserOdometry src/laser_odometry_node.cpp)
-target_link_libraries(laserOdometry loam)                     
+target_link_libraries(laserOdometry loam)
 
 add_executable(laserMapping src/laser_mapping_node.cpp)
 target_link_libraries(laserMapping loam)
