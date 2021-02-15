@@ -20,13 +20,16 @@ class ImuManager {
  public:
   //Constructor
   ImuManager()
-      : _imuRate(400), _imuPoseInitWaitSecs(1) {
+      : _imuRate(400) {
     //Reset IMU Buffer
     _IMUBuffer.clear();
   }
 
   //Destructor
   ~ImuManager() {}
+
+  //Setters
+  void setImuRate(double d) { _imuRate = d; }
 
   // Add IMU measurement to buffer
   void addToIMUBuffer(double ts, double accX, double accY, double accZ, double gyrX, double gyrY, double gyrZ) {
@@ -81,7 +84,7 @@ class ImuManager {
       } else {
         //Add last actual IMU message
         interpolatedIMUMap[e_itr->first] = e_itr->second;  ////std::map insert doesn't insert last iterator so if e_itr->first > ts_end then it means we are at the end of IMU buffer and we need to insert the last IMU message to the return buffer
-        //Extapolate IMU message at timestamp(ts_end>k), e_itr(k), prev_e_itr(k-1)
+        //Extrapolate IMU message at timestamp(ts_end>k), e_itr(k), prev_e_itr(k-1)
         auto prev_e_itr = e_itr;
         --prev_e_itr;
         gtsam::Vector6 ts_end_meas = extrapolateIMUMeasurement(prev_e_itr->first,
@@ -198,10 +201,10 @@ class ImuManager {
   }
 
  private:
-  std::mutex _IMUBufferMutex;   //Mutex for reading writing IMU buffer
-  IMUMap _IMUBuffer;            //IMU buffer
-  double _imuRate;              //Frequency IMU - Used to calculate minimum measurements needed to calculate gravity and init attitude
-  double _imuPoseInitWaitSecs;  //Multiplied with imu rate
+  std::mutex _IMUBufferMutex;               //Mutex for reading writing IMU buffer
+  IMUMap _IMUBuffer;                        //IMU buffer
+  double _imuRate;                          //Rate of IMU input (Hz) - Used to calculate minimum measurements needed to calculate gravity and init attitude
+  const double _imuPoseInitWaitSecs = 1.0;  //Multiplied with _imuRate
 };
 }  // namespace loam
 #endif

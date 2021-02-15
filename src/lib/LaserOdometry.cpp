@@ -298,6 +298,10 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU time offset[s]: " << dParam);
     setImuTimeOffset(dParam);
   }
+  if (privateNode.getParam("imuRate", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU rate for preintegrator: " << dParam);
+    _imuBuffer.setImuRate(dParam);
+  }
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
