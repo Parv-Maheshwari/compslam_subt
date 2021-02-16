@@ -59,12 +59,16 @@ void BasicLaserOdometry::transformToStart(const pcl::PointXYZI& pi, pcl::PointXY
 
 size_t BasicLaserOdometry::transformToEnd(pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud) {
   size_t cloudSize = cloud->points.size();
+  float s;
 
   for (size_t i = 0; i < cloudSize; i++) {
     pcl::PointXYZI& point = cloud->points[i];
 
     //Project current point to the end of the scan
-    float s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
+    if (_undistortInputCloud)
+      s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
+    else
+      s = 1.0;
 
     point.x -= s * _transform.pos.x();
     point.y -= s * _transform.pos.y();
