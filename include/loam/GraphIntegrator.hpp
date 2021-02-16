@@ -34,7 +34,7 @@ class GraphIntegrator {
  private:
   //Fucntions
   //Callbacks
-  void mapOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
+  void laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void maplabPathCallback(const nav_msgs::Path::ConstPtr& pathPtr);
   const auto newStateKey() { return ++_state_key; }
   //Add prior
@@ -43,9 +43,15 @@ class GraphIntegrator {
   bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
 
   //Members
-  ros::Subscriber _subMapOdom;
-  ros::Subscriber _subMaplabPath;
+  ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
+  ros::Subscriber _subMaplabPath;    // Maplab published path subscriber
+  ros::Publisher _pubGraphPath;      // Graph path publisher
+  nav_msgs::Path _pathMsg;           // ROS path message for graph
 
+  //Transforms
+  gtsam::Pose3 _lidar2imu;
+
+  //Factor graph
   gtsam::ISAM2Params _params;
   gtsam::NonlinearFactorGraph _newFactors;
   std::shared_ptr<gtsam::ISAM2> _graph;
