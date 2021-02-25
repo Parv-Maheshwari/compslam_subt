@@ -30,12 +30,16 @@ find_package(GTSAM REQUIRED)
 message("GTSAM version: ${GTSAM_VERSION}")
 message("GTSAM path: ${GTSAM_DIR}")
 
+find_package(Boost REQUIRED COMPONENTS timer)
+message("Boost version: ${Boost_VERSION}")
+
 include_directories(
   include
 	${catkin_INCLUDE_DIRS}
 	#${EIGEN3_INCLUDE_DIR}
 	${PCL_INCLUDE_DIRS}
   ${GTSAM_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
 )
 
 add_message_files(
@@ -51,7 +55,7 @@ generate_messages(
 
 catkin_package(
   CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions message_runtime nodelet message_filters
-  DEPENDS EIGEN3 PCL
+  DEPENDS EIGEN3 PCL Boost
   INCLUDE_DIRS include
   LIBRARIES loam
 )
@@ -72,7 +76,7 @@ add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
 target_link_libraries(multiScanRegistration loam)
 
 add_executable(laserOdometry src/laser_odometry_node.cpp)
-target_link_libraries(laserOdometry loam)                     
+target_link_libraries(laserOdometry loam)
 
 add_executable(laserMapping src/laser_mapping_node.cpp)
 target_link_libraries(laserMapping loam)
