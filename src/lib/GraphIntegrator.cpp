@@ -7,8 +7,8 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
   _subMaplabPath = node.subscribe<nav_msgs::Path>("/maplab_server/global_sparse_graph", 2, &GraphIntegrator::maplabPathCallback, this);
 
   //Publisher
-  _pubGraphPath = node.advertise<nav_msgs::Path>("/compslam_path", 5);
-  _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
+  _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
+  _trajectoryMsg.nodes.reserve(20000);  //1 hour path @ 5Hz ~ 18000
 
   //Set factor graph params
   _params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
@@ -29,13 +29,12 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
   std::cout << "Graph Integrator - Pose Between Factor Noise - RPY(rad): " << _poseNoise[0] << "," << _poseNoise[1] << "," << _poseNoise[2]
             << ", XYZ(m): " << _poseNoise[3] << "," << _poseNoise[4] << "," << _poseNoise[5] << std::endl;
 
-
   //Intialize transforms //NOTE: fixed for now
   Eigen::Matrix4d T_BL;
-  T_BL << 1, 0, 0, 0.005303,   
-         0, 1, 0, 0.037340,
-         0, 0, 1, 0.063319,                                                   
-         0, 0, 0, 1;
+  T_BL << 1, 0, 0, 0.005303,
+      0, 1, 0, 0.037340,
+      0, 0, 1, 0.063319,
+      0, 0, 0, 1;
   _lidar2imu = gtsam::Pose3(T_BL);
 
   return true;
@@ -71,8 +70,8 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //Convert to Alphasense IMU frame
-  gtsam::Pose3 lidar_pose = _state.navState().pose(); //w_L
-  gtsam::Pose3 imu_pose = lidar_pose.compose(_lidar2imu); //w_L * B_L = w_B
+  gtsam::Pose3 lidar_pose = _state.navState().pose();      //w_L
+  gtsam::Pose3 imu_pose = lidar_pose.compose(_lidar2imu);  //w_L * B_L = w_B
 
   //Publish Graph path
   //Pose Message
@@ -88,12 +87,19 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   poseMsg.pose.orientation.y = imu_pose.rotation().toQuaternion().y();
   poseMsg.pose.orientation.z = imu_pose.rotation().toQuaternion().z();
   poseMsg.pose.orientation.w = imu_pose.rotation().toQuaternion().w();
-  //Path message
-  _pathMsg.header.frame_id = poseMsg.header.frame_id;
-  _pathMsg.header.stamp = poseMsg.header.stamp;
-  _pathMsg.poses.push_back(poseMsg);
+
+  //Node Message
+  maplab_msgs::TrajectoryNode nodeMsg;
+  nodeMsg.robot_name = "cerberus";
+  nodeMsg.pose = std::move(poseMsg);
+
+  //Path Message
+  _trajectoryMsg.header.frame_id = "odom";
+  _trajectoryMsg.header.stamp = poseMsg.header.stamp;
+  _trajectoryMsg.nodes.emplace_back(std::move(nodeMsg));
+
   //Publish Path
-  _pubGraphPath.publish(_pathMsg);
+  _pubGraphPath.publish(_trajectoryMsg);
 
   // DEBUG
   std::cout << "lidar_pose t(x,y,z): " << lidar_pose.translation().transpose() << ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)

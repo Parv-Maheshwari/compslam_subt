@@ -17,6 +17,10 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
+//MAPLAB
+#include <maplab_msgs/Trajectory.h>
+#include <maplab_msgs/TrajectoryNode.h>
+
 #include "loam/GraphState.hpp"
 
 using gtsam::symbol_shorthand::X;  // Pose3 (R,t)
@@ -43,10 +47,10 @@ class GraphIntegrator {
   bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
 
   //Members
-  ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
-  ros::Subscriber _subMaplabPath;    // Maplab published path subscriber
-  ros::Publisher _pubGraphPath;      // Graph path publisher
-  nav_msgs::Path _pathMsg;           // ROS path message for graph
+  ros::Subscriber _subLaserMapOdom;        // Laser mapping odometry subscriber
+  ros::Subscriber _subMaplabPath;          // Maplab published path subscriber
+  ros::Publisher _pubGraphPath;            // Graph path publisher
+  maplab_msgs::Trajectory _trajectoryMsg;  // ROS path message for graph
 
   //Transforms
   gtsam::Pose3 _lidar2imu;
