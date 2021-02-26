@@ -41,6 +41,11 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
 }
 
 void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr) {
+  if (odomPtr == nullptr) {
+    std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in the map odom callback. " << std::endl;
+    return;
+  }
+
   std::cout << std::fixed << "\033[31mODOMETRY\033[0m - ts: " << odomPtr->header.stamp.toSec()
             << ", t(x,y,z): " << odomPtr->pose.pose.position.x << "," << odomPtr->pose.pose.position.y << "," << odomPtr->pose.pose.position.z << std::endl;
 
@@ -109,12 +114,16 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
 }
 
 void GraphIntegrator::maplabPathCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
+  if (pathPtr == nullptr) {
+    std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in graph update callback." << std::endl;
+    return;
+  }
   std::cout << std::fixed << "\033[36mPATH\033[0m - seq:" << pathPtr->header.seq
             << ", ts: " << pathPtr->header.stamp.toSec()
             << ", Poses: " << pathPtr->poses.size() << std::endl;
 }
 
-bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
+bool GraphIntegrator::addPriorFactor(const gtsam::Key& key, const gtsam::Pose3& pose) {
   //Prior factor noise
   auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
   //Create prior factors
@@ -128,7 +137,7 @@ bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& p
   _newFactors.resize(0);  //Reset
 }
 
-bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
+bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key& old_key, const gtsam::Key& new_key, const gtsam::Pose3& pose) {
   //Calculate Pose delta
   gtsam::Pose3 pose_delta = _state.navState().pose().between(pose);
   //Create Pose BetweenFactor and add

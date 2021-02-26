@@ -42,9 +42,9 @@ class GraphIntegrator {
   void maplabPathCallback(const nav_msgs::Path::ConstPtr& pathPtr);
   const auto newStateKey() { return ++_state_key; }
   //Add prior
-  bool addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose);
+  bool addPriorFactor(const gtsam::Key& key, const gtsam::Pose3& pose);
   //Add a pose between factor
-  bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
+  bool addPoseBetweenFactor(const gtsam::Key& old_key, const gtsam::Key& new_key, const gtsam::Pose3& pose);
 
   //Members
   ros::Subscriber _subLaserMapOdom;        // Laser mapping odometry subscriber
