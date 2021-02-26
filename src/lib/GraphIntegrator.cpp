@@ -3,7 +3,7 @@
 namespace loam {
 bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
-  _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &GraphIntegrator::laserMapOdomCallback, this);
+  _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 10, &GraphIntegrator::laserMapOdomCallback, this);
   _subMaplabPath = node.subscribe<nav_msgs::Path>("/maplab_server/global_sparse_graph", 2, &GraphIntegrator::maplabPathCallback, this);
 
   //Publisher
