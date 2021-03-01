@@ -21,10 +21,6 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/PriorFactor.h>
 
-//MAPLAB
-#include <maplab_msgs/Trajectory.h>
-#include <maplab_msgs/TrajectoryNode.h>
-
 #include "loam/GraphState.hpp"
 
 using gtsam::symbol_shorthand::X;  // Pose3 (R,t)
