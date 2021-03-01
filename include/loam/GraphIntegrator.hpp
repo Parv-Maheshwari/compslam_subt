@@ -6,6 +6,7 @@
 
 //ROS
 #include <eigen_conversions/eigen_msg.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
@@ -38,21 +39,32 @@ class GraphIntegrator {
   //Callbacks
   void laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr);
+  void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
+
   const auto newStateKey() { return ++_state_key; }
   //Add prior
   bool addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose);
   //Add a pose between factor
   bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
-  bool findClosestKeyForTS(const double ts, gtsam::Key* key);
+  //Add prior factor from global graph
+  bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;
+  //Visualize the ISAM graph
+  void visualizeOnboardGraph() const;
+
+  //Utility methods
+  bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
 
   //Members
   ros::Subscriber _subLaserMapOdom;        // Laser mapping odometry subscriber
   ros::Subscriber _subMaplabAnchor;        // Maplab published path subscriber
+  ros::Subscriber _subAbsolutePose;        //
   ros::Publisher _pubGraphPath;            // Graph path publisher
+  ros::Publisher _pubUpdatedPath;          //
   maplab_msgs::Trajectory _trajectoryMsg;  // ROS path message for graph
 
   //Transforms
   gtsam::Pose3 _lidar2imu;
+  gtsam::Pose3 _cam2lidar;
 
   //Factor graph
   gtsam::ISAM2Params _params;

@@ -8,9 +8,11 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
   //Subscribers
   _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 10, &GraphIntegrator::laserMapOdomCallback, this);
   _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
+  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
   _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
+  _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
   _trajectoryMsg.nodes.reserve(20000);  //1 hour path @ 5Hz ~ 18000
 
   //Set factor graph params
@@ -39,6 +41,13 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
       0, 0, 1, 0.063319,
       0, 0, 0, 1;
   _lidar2imu = gtsam::Pose3(T_BL);
+  Eigen::Matrix4d T_BC;
+  T_BC << -0.99997428, -0.00461093, 0.00549433, 0.04563641,
+      -0.00553968, 0.00988012, -0.99993585, -0.07348082,
+      0.00455635, -0.99994056, -0.00990541, 0.02311059,
+      0.0, 0.0, 0.0, 1.0;
+  const Eigen::Matrix4d T_LC = T_BL.inverse() * T_BC;
+  _cam2lidar = gtsam::Pose3(T_LC);
 
   return true;
 }
@@ -89,13 +98,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   poseMsg.header.frame_id = "alphasense_imu";
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
-  poseMsg.pose.position.x = imu_pose.translation().x();
-  poseMsg.pose.position.y = imu_pose.translation().y();
-  poseMsg.pose.position.z = imu_pose.translation().z();
-  poseMsg.pose.orientation.x = imu_pose.rotation().toQuaternion().x();
-  poseMsg.pose.orientation.y = imu_pose.rotation().toQuaternion().y();
-  poseMsg.pose.orientation.z = imu_pose.rotation().toQuaternion().z();
-  poseMsg.pose.orientation.w = imu_pose.rotation().toQuaternion().w();
+  createPoseMessage(imu_pose, &poseMsg);
 
   //Node Message
   maplab_msgs::TrajectoryNode nodeMsg;
@@ -140,6 +143,18 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
   }
 }
 
+void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
+  if (posePtr == nullptr || _states.empty()) {
+    return;
+  }
+  const StatePtr& initial_state = _states.front();
+
+  const geometry_msgs::Pose& p = posePtr->pose.pose;
+  const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                          gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  addPriorFactor(initial_state->key(), pose);
+}
+
 bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
   //Prior factor noise
   auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
@@ -170,7 +185,7 @@ bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam
   _newFactors.resize(0);  //Reset
 }
 
-bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) {
+bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) const {
   auto comp = [](const StatePtr& lhs, const StatePtr& rhs) {
     if (lhs == nullptr || rhs == nullptr) {
       return false;
@@ -184,6 +199,46 @@ bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) {
   }
   static constexpr double const& eps = 0.05;  // not sure yet
   return std::abs((*it)->ts() - ts) <= eps;
+}
+
+void GraphIntegrator::visualizeOnboardGraph() const {
+  gtsam::Values result = _graph->calculateEstimate();
+  const std::size_t n_nodes = result.size();
+  const std::size_t n_states = _states.size();
+  if (n_nodes != n_states) {
+    std::cerr << "Graph nodes don't equal states: " << n_nodes << " vs. " << n_states << std::endl;
+    return;
+  }
+  /*
+  nav_msgs::Path pathMsg;
+  for (std::size_t i = 0u; i < n_states; ++i) {
+    const gtsam::Key& key = _states[i]->key();
+    gtsam::Pose3 pose = result.at<gtsam::Pose3>(key);
+
+    // Create pose message.
+    geometry_msgs::PoseStamped poseMsg;
+    poseMsg.header.frame_id = "alphasense_imu";
+    poseMsg.header.stamp = ros::Time::fromSec(_states[i]->ts());
+    createPoseMessage(pose, &poseMsg);
+
+    pathMsg.poses.emplace_back(poseMsg);
+  }
+  pathMsg.header.stamp = ros::Time::now();*/
+}
+
+bool GraphIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {
+  if (poseMsg == nullptr) {
+    return false;
+  }
+  poseMsg->pose.position.x = pose.translation().x();
+  poseMsg->pose.position.y = pose.translation().y();
+  poseMsg->pose.position.z = pose.translation().z();
+  poseMsg->pose.orientation.x = pose.rotation().toQuaternion().x();
+  poseMsg->pose.orientation.y = pose.rotation().toQuaternion().y();
+  poseMsg->pose.orientation.z = pose.rotation().toQuaternion().z();
+  poseMsg->pose.orientation.w = pose.rotation().toQuaternion().w();
+
+  return true;
 }
 
 }  // namespace loam
