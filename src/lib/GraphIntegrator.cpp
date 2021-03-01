@@ -1,10 +1,13 @@
 #include "loam/GraphIntegrator.hpp"
 
+#include <algorithm>
+
 namespace loam {
+
 bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
   _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 10, &GraphIntegrator::laserMapOdomCallback, this);
-  _subMaplabPath = node.subscribe<nav_msgs::Path>("/maplab_server/global_sparse_graph", 2, &GraphIntegrator::maplabPathCallback, this);
+  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
 
   //Publisher
   _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
@@ -50,10 +53,10 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
             << ", t(x,y,z): " << odomPtr->pose.pose.position.x << "," << odomPtr->pose.pose.position.y << "," << odomPtr->pose.pose.position.z << std::endl;
 
   //New timestampd and pose
-  double ts = odomPtr->header.stamp.toSec();
-  auto& p = odomPtr->pose.pose;
-  gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                    gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  const double ts = odomPtr->header.stamp.toSec();
+  const auto& p = odomPtr->pose.pose;
+  const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                          gtsam::Point3(p.position.x, p.position.y, p.position.z));
 
   //Build key timestamp map
 
@@ -65,18 +68,19 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
     addPriorFactor(new_key, pose);
     _isGraphInitialized = true;
   } else {
-    auto old_key = _state.key();
+    auto old_key = _states.back()->key();
     new_key = newStateKey();
     addPoseBetweenFactor(old_key, new_key, pose);
   }
   //Get result - LiDAR frame
   gtsam::Values result = _graph->calculateEstimate();
-  _state.updateNavState(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
+  StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
+  _states.emplace_back(std::move(state));
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //Convert to Alphasense IMU frame
-  gtsam::Pose3 lidar_pose = _state.navState().pose();      //w_L
-  gtsam::Pose3 imu_pose = lidar_pose.compose(_lidar2imu);  //w_L * B_L = w_B
+  gtsam::Pose3 lidar_pose = _states.back()->navState().pose();  //w_L
+  gtsam::Pose3 imu_pose = lidar_pose.compose(_lidar2imu);       //w_L * B_L = w_B
 
   //Publish Graph path
   //Pose Message
@@ -113,7 +117,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   // DEBUG
 }
 
-void GraphIntegrator::maplabPathCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
+void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
   if (pathPtr == nullptr) {
     std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in graph update callback." << std::endl;
     return;
@@ -121,9 +125,22 @@ void GraphIntegrator::maplabPathCallback(const nav_msgs::Path::ConstPtr& pathPtr
   std::cout << std::fixed << "\033[36mPATH\033[0m - seq:" << pathPtr->header.seq
             << ", ts: " << pathPtr->header.stamp.toSec()
             << ", Poses: " << pathPtr->poses.size() << std::endl;
+  const std::vector<geometry_msgs::PoseStamped>& poses = pathPtr->poses;
+  for (const geometry_msgs::PoseStamped& pose_msg : poses) {
+    const double ts = pose_msg.header.stamp.toSec();
+    gtsam::Key key;
+    if (!findClosestKeyForTS(ts, &key)) {
+      std::cout << std::fixed << "\033[36mPATH\033[0m - Found no closest key for ts: :" << ts << std::endl;
+      continue;
+    }
+    const auto& p = pose_msg.pose;
+    const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                            gtsam::Point3(p.position.x, p.position.y, p.position.z));
+    addPriorFactor(key, pose);
+  }
 }
 
-bool GraphIntegrator::addPriorFactor(const gtsam::Key& key, const gtsam::Pose3& pose) {
+bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
   //Prior factor noise
   auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
   //Create prior factors
@@ -137,9 +154,9 @@ bool GraphIntegrator::addPriorFactor(const gtsam::Key& key, const gtsam::Pose3& 
   _newFactors.resize(0);  //Reset
 }
 
-bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key& old_key, const gtsam::Key& new_key, const gtsam::Pose3& pose) {
+bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
   //Calculate Pose delta
-  gtsam::Pose3 pose_delta = _state.navState().pose().between(pose);
+  gtsam::Pose3 pose_delta = _states.back()->navState().pose().between(pose);
   //Create Pose BetweenFactor and add
   auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
   gtsam::BetweenFactor<gtsam::Pose3> poseBetweenFactor(X(old_key), X(new_key), pose_delta, poseNoiseModel);
@@ -151,6 +168,22 @@ bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key& old_key, const gtsa
   //Update graph
   _graph->update(_newFactors, estimate);
   _newFactors.resize(0);  //Reset
+}
+
+bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) {
+  auto comp = [ts](const StatePtr& lhs, const StatePtr& rhs) {
+    if (lhs == nullptr || rhs == nullptr) {
+      return false;
+    } else {
+      return lhs->ts() < rhs->ts();
+    }
+  };
+  auto it = std::min_element(_states.cbegin(), _states.cend(), comp);
+  if (it == _states.cend()) {
+    return false;
+  }
+  static constexpr double const& eps = 0.05;  // not sure yet
+  return std::abs((*it)->ts() - ts) <= eps;
 }
 
 }  // namespace loam
