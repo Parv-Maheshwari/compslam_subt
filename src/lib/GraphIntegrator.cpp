@@ -128,6 +128,8 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
   for (const geometry_msgs::PoseStamped& pose_msg : poses) {
     const double ts = pose_msg.header.stamp.toSec();
     gtsam::Key key;
+    // This is just a precaution as I need to verify whether the timestamp match perfectly.
+    // Consequently, I would leave the vector of states for now to be more flexible.
     if (!findClosestKeyForTS(ts, &key)) {
       std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
       continue;
@@ -135,7 +137,7 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
     const auto& p = pose_msg.pose;
     const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                             gtsam::Point3(p.position.x, p.position.y, p.position.z));
-    addPriorFactor(key, pose);
+    addPriorFactor(key, pose, false);
   }
 }
 
@@ -164,15 +166,19 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
   }
 }
 
-bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
+bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {
   //Prior factor noise
   auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
   //Create prior factors
   _newFactors.resize(0);
   _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), pose, poseNoise);  //POSE - PriorFactor format is (key,value,matrix) value is same type as type of PriorFactor
+
   //Initial estimate
-  gtsam::Values estimate;
-  estimate.insert(X(key), pose);
+  if (addEstimate) {
+    gtsam::Values estimate;
+    estimate.insert(X(key), pose);
+  }
+
   //Update graph
   _graph->update(_newFactors, estimate);
   _newFactors.resize(0);  //Reset
@@ -217,6 +223,9 @@ bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) cons
 }
 
 void GraphIntegrator::visualizeOnboardGraph() const {
+  // This is just a quick publisher to visualize the graph in RViz.
+  // It already publishes the graph in the correct frames and therefore,
+  // is quite convenient for debugging.
   gtsam::Values result = _graph->calculateEstimate();
   const std::size_t n_nodes = result.size();
   const std::size_t n_states = _states.size();

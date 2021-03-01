@@ -43,7 +43,7 @@ class GraphIntegrator {
 
   const auto newStateKey() { return ++_state_key; }
   //Add prior
-  bool addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose);
+  bool addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate = true);
   //Add a pose between factor
   bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
   //Add prior factor from global graph
