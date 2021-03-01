@@ -34,6 +34,10 @@ class State {
     return *this;
   }
 
+  bool operator<(const State& rhs) const {
+    return ts_ < rhs.ts_;
+  }
+
   //Accessors
   const auto key() const {
     std::lock_guard<std::mutex> lock(stateMutex_);

@@ -161,6 +161,7 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
   // Outlier rejection. This is a very quick and dirty way to do it.
   // The absolute poses are very noisy and need to be checked.
   // We'll have to find something better than this in the future.
+  // Perhaps average?
   if (p.position.z > 0.45 && p.position.z <= 0.8) {
     _T_G_M = T_G_B * T_M_B.inverse();
   }
@@ -174,8 +175,8 @@ bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& p
   _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), pose, poseNoise);  //POSE - PriorFactor format is (key,value,matrix) value is same type as type of PriorFactor
 
   //Initial estimate
+  gtsam::Values estimate;
   if (addEstimate) {
-    gtsam::Values estimate;
     estimate.insert(X(key), pose);
   }
 
@@ -201,25 +202,25 @@ bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam
 }
 
 bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) const {
-  auto comp = [ts](const StatePtr& lhs, const StatePtr& rhs) {
-    if (lhs == nullptr || rhs == nullptr) {
-      return false;
-    } else {
-      const double diff_lhs = std::abs(lhs->ts() - ts);
-      const double diff_rhs = std::abs(rhs->ts() - ts);
-
-      return diff_lhs < diff_rhs;
-    }
-  };
-  auto it = std::min_element(_states.cbegin(), _states.cend(), comp);
-  if (it == _states.cend()) {
+  if (key == nullptr || _states.empty()) {
     return false;
   }
   static constexpr double const& eps = 0.2;  // not sure yet
+  const double oldest_ts = (*_states.crbegin())->ts() + eps;
+  if (ts > oldest_ts) {
+    // The requested ts is older than the oldest one in the state vector.
+    return false;
+  }
+  auto comp = [eps](const StatePtr& lhs, const double ts) { return lhs->ts() + eps < ts; };
+  auto it = std::lower_bound(_states.cbegin(), _states.cend(), ts, comp);
+  if (it == _states.cend()) {
+    return false;
+  }
+
   std::cout << std::fixed << "\033[36mCLOSEST\033[0m - ts: " << ts
             << ", min ts: " << (*it)->ts() << ", diff: " << std::abs((*it)->ts() - ts) << std::endl;
   *key = (*it)->key();
-  return std::abs((*it)->ts() - ts) <= eps;
+  return true;
 }
 
 void GraphIntegrator::visualizeOnboardGraph() const {
