@@ -6,9 +6,9 @@ namespace loam {
 
 bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
-  _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 10, &GraphIntegrator::laserMapOdomCallback, this);
-  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
-  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
+  _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &GraphIntegrator::laserMapOdomCallback, this);
+  //_subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
+  //_subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
   _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
@@ -218,7 +218,7 @@ void GraphIntegrator::visualizeOnboardGraph() const {
   nav_msgs::Path pathMsg;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
-    gtsam::Pose3 pose = result.at<gtsam::Pose3>(key);
+    gtsam::Pose3 pose = result.at<gtsam::Pose3>(X(key));
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
@@ -228,6 +228,7 @@ void GraphIntegrator::visualizeOnboardGraph() const {
 
     pathMsg.poses.emplace_back(poseMsg);
   }
+  pathMsg.header.frame_id = "map";
   pathMsg.header.stamp = ros::Time::now();
   _pubUpdatedPath.publish(pathMsg);
 }

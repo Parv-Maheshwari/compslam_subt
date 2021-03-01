@@ -9,7 +9,7 @@
 
   <!-- Input topics remap -->
   <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered" />
-  <arg name="imu_topic_name" default="/alphasense_driver_ros/imu" />
+  <arg name="imu_topic_name" default="/sensors/imu" />
 
   <!-- LOAM Nodelet Manager -->
   <node pkg="nodelet" type="nodelet" name="loam_nodelet_manager" args="manager" output="screen" clear_params="true"/> #launch-prefix="gdb -ex run --args" />
