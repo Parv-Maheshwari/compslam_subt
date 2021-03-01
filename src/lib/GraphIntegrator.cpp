@@ -2,13 +2,15 @@
 
 #include <algorithm>
 
+#include <gtsam/navigation/GPSFactor.h>
+
 namespace loam {
 
 bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
   _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &GraphIntegrator::laserMapOdomCallback, this);
   //_subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
-  //_subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
+  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
   _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
@@ -35,19 +37,18 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
             << ", XYZ(m): " << _poseNoise[3] << "," << _poseNoise[4] << "," << _poseNoise[5] << std::endl;
 
   //Intialize transforms //NOTE: fixed for now
-  Eigen::Matrix4d T_BL;
-  T_BL << 1, 0, 0, 0.005303,
+  Eigen::Matrix4d T_B_L;
+  T_B_L << 1, 0, 0, 0.005303,
       0, 1, 0, 0.037340,
       0, 0, 1, 0.063319,
       0, 0, 0, 1;
-  _lidar2imu = gtsam::Pose3(T_BL);
-  Eigen::Matrix4d T_BC;
-  T_BC << -0.99997428, -0.00461093, 0.00549433, 0.04563641,
-      -0.00553968, 0.00988012, -0.99993585, -0.07348082,
-      0.00455635, -0.99994056, -0.00990541, 0.02311059,
+  _lidar2imu = gtsam::Pose3(T_B_L);
+  Eigen::Matrix4d T_B_C;
+  T_B_C << -0.9999962982, -0.000530768, 0.0026686827, 0.0471397497,
+      -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
+      0.0005317493, -0.9999997913, 0.0003670147, 0.0260845632,
       0.0, 0.0, 0.0, 1.0;
-  const Eigen::Matrix4d T_LC = T_BL.inverse() * T_BC;
-  _cam2lidar = gtsam::Pose3(T_LC);
+  _T_B_C = gtsam::Pose3(T_B_C);
 
   return true;
 }
@@ -57,7 +58,6 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
     std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in the map odom callback. " << std::endl;
     return;
   }
-
   std::cout << std::fixed << "\033[31mODOMETRY\033[0m - ts: " << odomPtr->header.stamp.toSec()
             << ", t(x,y,z): " << odomPtr->pose.pose.position.x << "," << odomPtr->pose.pose.position.y << "," << odomPtr->pose.pose.position.z << std::endl;
 
@@ -145,20 +145,30 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
 }
 
 void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
-  if (posePtr == nullptr || _states.empty()) {
+  if (posePtr == nullptr) {
     return;
   }
   const double ts = posePtr->header.stamp.toSec();
   gtsam::Key key;
   if (!findClosestKeyForTS(ts, &key)) {
-    std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - Found no closest key for ts: :" << ts << std::endl;
+    std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
     return;
   }
-  std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - ts: " << ts << std::endl;
+  gtsam::Values result = _graph->calculateEstimate();
+  gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
   const geometry_msgs::Pose& p = posePtr->pose.pose;
-  const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                          gtsam::Point3(p.position.x, p.position.y, p.position.z));
-  addPriorFactor(key, pose);
+  const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  auto T_G_B = T_G_C * _T_B_C.inverse();
+  if (p.position.z > 0.5 && p.position.z <= 0.6) _T_G_M = T_G_B * T_M_B.inverse();
+  std::cout << "T_G_B : " << T_G_B << std::endl;
+  std::cout << "-----------------------------" << std::endl;
+  std::cout << "T_G_C : " << T_G_C << std::endl;
+  std::cout << "-----------------------------" << std::endl;
+  std::cout << "T_G_M : " << _T_G_M << std::endl;
+  std::cout << "-----------------------------" << std::endl;
+  std::cout << "T_G_M * T_M_B : " << _T_G_M * T_M_B << std::endl;
+  _is_initialized2 = true;
 }
 
 bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
@@ -192,18 +202,24 @@ bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam
 }
 
 bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) const {
-  auto comp = [](const StatePtr& lhs, const StatePtr& rhs) {
+  auto comp = [ts](const StatePtr& lhs, const StatePtr& rhs) {
     if (lhs == nullptr || rhs == nullptr) {
       return false;
     } else {
-      return lhs->ts() < rhs->ts();
+      const double diff_lhs = std::abs(lhs->ts() - ts);
+      const double diff_rhs = std::abs(rhs->ts() - ts);
+
+      return diff_lhs < diff_rhs;
     }
   };
   auto it = std::min_element(_states.cbegin(), _states.cend(), comp);
   if (it == _states.cend()) {
     return false;
   }
-  static constexpr double const& eps = 0.05;  // not sure yet
+  static constexpr double const& eps = 0.2;  // not sure yet
+  std::cout << std::fixed << "\033[36mCLOSEST\033[0m - ts: " << ts
+            << ", min ts: " << (*it)->ts() << ", diff: " << std::abs((*it)->ts() - ts) << std::endl;
+  *key = (*it)->key();
   return std::abs((*it)->ts() - ts) <= eps;
 }
 
@@ -218,13 +234,14 @@ void GraphIntegrator::visualizeOnboardGraph() const {
   nav_msgs::Path pathMsg;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
-    gtsam::Pose3 pose = result.at<gtsam::Pose3>(X(key));
+    gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
+    gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = "alphasense_imu";
     poseMsg.header.stamp.fromSec(_states[i]->ts());
-    createPoseMessage(pose, &poseMsg);
+    createPoseMessage(T_G_B, &poseMsg);
 
     pathMsg.poses.emplace_back(poseMsg);
   }

@@ -64,7 +64,9 @@ class GraphIntegrator {
 
   //Transforms
   gtsam::Pose3 _lidar2imu;
-  gtsam::Pose3 _cam2lidar;
+  gtsam::Pose3 _T_B_C;
+  gtsam::Pose3 _T_G_B;
+  gtsam::Pose3 _T_G_M;
 
   //Factor graph
   gtsam::ISAM2Params _params;
@@ -75,6 +77,7 @@ class GraphIntegrator {
   gtsam::Key _state_key = 0;  //Current state key
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
+  bool _is_initialized2 = false;
 };
 
 }  // namespace loam
