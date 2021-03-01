@@ -171,7 +171,7 @@ bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam
 }
 
 bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) {
-  auto comp = [ts](const StatePtr& lhs, const StatePtr& rhs) {
+  auto comp = [](const StatePtr& lhs, const StatePtr& rhs) {
     if (lhs == nullptr || rhs == nullptr) {
       return false;
     } else {
