@@ -117,15 +117,16 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   std::cout << "lidar_pose t(x,y,z): " << lidar_pose.translation().transpose() << ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
             << "\nimu_pose  t(x,y,z): " << imu_pose.translation().transpose() << ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+  visualizeOnboardGraph();
   // DEBUG
 }
 
 void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
   if (pathPtr == nullptr) {
-    std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in graph update callback." << std::endl;
+    std::cerr << std::fixed << "\033[31mANCHOR\033[0m - Passed nullptr in graph update callback." << std::endl;
     return;
   }
-  std::cout << std::fixed << "\033[36mPATH\033[0m - seq:" << pathPtr->header.seq
+  std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq
             << ", ts: " << pathPtr->header.stamp.toSec()
             << ", Poses: " << pathPtr->poses.size() << std::endl;
   const std::vector<geometry_msgs::PoseStamped>& poses = pathPtr->poses;
@@ -133,7 +134,7 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
     const double ts = pose_msg.header.stamp.toSec();
     gtsam::Key key;
     if (!findClosestKeyForTS(ts, &key)) {
-      std::cout << std::fixed << "\033[36mPATH\033[0m - Found no closest key for ts: :" << ts << std::endl;
+      std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
       continue;
     }
     const auto& p = pose_msg.pose;
@@ -147,12 +148,17 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
   if (posePtr == nullptr || _states.empty()) {
     return;
   }
-  const StatePtr& initial_state = _states.front();
-
+  const double ts = posePtr->header.stamp.toSec();
+  gtsam::Key key;
+  if (!findClosestKeyForTS(ts, &key)) {
+    std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - Found no closest key for ts: :" << ts << std::endl;
+    return;
+  }
+  std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - ts: " << ts << std::endl;
   const geometry_msgs::Pose& p = posePtr->pose.pose;
   const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
-  addPriorFactor(initial_state->key(), pose);
+  addPriorFactor(key, pose);
 }
 
 bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
@@ -209,7 +215,6 @@ void GraphIntegrator::visualizeOnboardGraph() const {
     std::cerr << "Graph nodes don't equal states: " << n_nodes << " vs. " << n_states << std::endl;
     return;
   }
-  /*
   nav_msgs::Path pathMsg;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
@@ -218,12 +223,13 @@ void GraphIntegrator::visualizeOnboardGraph() const {
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = "alphasense_imu";
-    poseMsg.header.stamp = ros::Time::fromSec(_states[i]->ts());
+    poseMsg.header.stamp.fromSec(_states[i]->ts());
     createPoseMessage(pose, &poseMsg);
 
     pathMsg.poses.emplace_back(poseMsg);
   }
-  pathMsg.header.stamp = ros::Time::now();*/
+  pathMsg.header.stamp = ros::Time::now();
+  _pubUpdatedPath.publish(pathMsg);
 }
 
 bool GraphIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {

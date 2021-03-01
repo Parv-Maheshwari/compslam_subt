@@ -17,18 +17,40 @@ class State {
   double ts_ = 0.0;                       // timestamp
   gtsam::NavState navState_;              //pose, velocity
   gtsam::imuBias::ConstantBias imuBias_;  //imu bias
-  std::mutex stateMutex_;
+  mutable std::mutex stateMutex_;
 
  public:
   State() = default;
   explicit State(const gtsam::Key key, const double ts, const gtsam::NavState& navState)
       : key_(key), ts_(ts), navState_(navState) {}
+  State(const State& other)
+      : key_(other.key_), ts_(other.ts_), navState_(other.navState_), imuBias_(other.imuBias_) {}
+  //Overload assignment operator
+  State& operator=(const State& other) {
+    key_ = other.key_;
+    ts_ = other.ts_;
+    navState_ = other.navState_;
+    imuBias_ = other.imuBias_;
+    return *this;
+  }
 
   //Accessors
-  const auto key() const { return key_; }
-  const auto ts() const { return ts_; }
-  const auto& navState() const { return navState_; }
-  const auto& imuBias() const { return imuBias_; }
+  const auto key() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return key_;
+  }
+  const auto ts() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return ts_;
+  }
+  const auto& navState() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return navState_;
+  }
+  const auto& imuBias() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return imuBias_;
+  }
 
   //Update state Graph Key and Timestamp
   void updateKeyAndTimestamp(const gtsam::Key& key, const double& ts) {
