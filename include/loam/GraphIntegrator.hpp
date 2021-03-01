@@ -55,15 +55,15 @@ class GraphIntegrator {
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
 
   //Members
-  ros::Subscriber _subLaserMapOdom;        // Laser mapping odometry subscriber
-  ros::Subscriber _subMaplabAnchor;        // Maplab published path subscriber
-  ros::Subscriber _subAbsolutePose;        //
-  ros::Publisher _pubGraphPath;            // Graph path publisher
-  ros::Publisher _pubUpdatedPath;          //
-  maplab_msgs::Trajectory _trajectoryMsg;  // ROS path message for graph
+  ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
+  ros::Subscriber _subMaplabAnchor;  // Maplab published path subscriber
+  ros::Subscriber _subAbsolutePose;  //
+  ros::Publisher _pubGraphPath;      // Graph path publisher
+  ros::Publisher _pubUpdatedPath;    //
+  nav_msgs::Path _pathMsg;           // ROS path message for graph
 
   //Transforms
-  gtsam::Pose3 _lidar2imu;
+  gtsam::Pose3 _T_B_L;
   gtsam::Pose3 _T_B_C;
   gtsam::Pose3 _T_G_B;
   gtsam::Pose3 _T_G_M;

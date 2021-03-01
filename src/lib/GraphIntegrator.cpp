@@ -13,9 +13,10 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
-  _pubGraphPath = node.advertise<maplab_msgs::Trajectory>("/trajectory", 5);
+  _pubGraphPath = node.advertise<nav_msgs::Path>("/trajectory", 5);
   _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
-  _trajectoryMsg.nodes.reserve(20000);  //1 hour path @ 5Hz ~ 18000
+  _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
+  _pathMsg.header.frame_id = "cerberus";
 
   //Set factor graph params
   _params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
@@ -42,7 +43,8 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
       0, 1, 0, 0.037340,
       0, 0, 1, 0.063319,
       0, 0, 0, 1;
-  _lidar2imu = gtsam::Pose3(T_B_L);
+  _T_B_L = gtsam::Pose3(T_B_L);
+
   Eigen::Matrix4d T_B_C;
   T_B_C << -0.9999962982, -0.000530768, 0.0026686827, 0.0471397497,
       -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
@@ -66,7 +68,6 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   const auto& p = odomPtr->pose.pose;
   const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
-
   //Build key timestamp map
 
   //Add to Graph
@@ -88,8 +89,8 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //Convert to Alphasense IMU frame
-  gtsam::Pose3 lidar_pose = _states.back()->navState().pose();  //w_L
-  gtsam::Pose3 imu_pose = lidar_pose.compose(_lidar2imu);       //w_L * B_L = w_B
+  gtsam::Pose3 T_M_L = _states.back()->navState().pose();
+  gtsam::Pose3 T_M_B = T_M_L * _T_B_L.inverse();
 
   //Publish Graph path
   //Pose Message
@@ -98,24 +99,18 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   poseMsg.header.frame_id = "alphasense_imu";
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
-  createPoseMessage(imu_pose, &poseMsg);
+  createPoseMessage(T_M_B, &poseMsg);
 
   //Node Message
-  maplab_msgs::TrajectoryNode nodeMsg;
-  nodeMsg.robot_name = "cerberus";
-  nodeMsg.pose = std::move(poseMsg);
-
-  //Path Message
-  _trajectoryMsg.header.frame_id = "odom";
-  _trajectoryMsg.header.stamp = poseMsg.header.stamp;
-  _trajectoryMsg.nodes.emplace_back(std::move(nodeMsg));
+  _pathMsg.header.stamp = poseMsg.header.stamp;
+  _pathMsg.poses.emplace_back(std::move(poseMsg));
 
   //Publish Path
-  _pubGraphPath.publish(_trajectoryMsg);
+  _pubGraphPath.publish(_pathMsg);
 
   // DEBUG
-  std::cout << "lidar_pose t(x,y,z): " << lidar_pose.translation().transpose() << ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << "\nimu_pose  t(x,y,z): " << imu_pose.translation().transpose() << ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
+  std::cout << "lidar_pose t(x,y,z): " << T_M_L.translation().transpose() << ", RPY(deg): " << T_M_L.rotation().rpy().transpose() * (180.0 / M_PI)
+            << "\nimu_pose  t(x,y,z): " << T_M_B.translation().transpose() << ", RPY(deg): " << T_M_B.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
   visualizeOnboardGraph();
   // DEBUG
@@ -148,6 +143,9 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
   if (posePtr == nullptr) {
     return;
   }
+  const geometry_msgs::Pose& p = posePtr->pose.pose;
+  const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
   const double ts = posePtr->header.stamp.toSec();
   gtsam::Key key;
   if (!findClosestKeyForTS(ts, &key)) {
@@ -156,19 +154,14 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
   }
   gtsam::Values result = _graph->calculateEstimate();
   gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
-  const geometry_msgs::Pose& p = posePtr->pose.pose;
-  const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
-  auto T_G_B = T_G_C * _T_B_C.inverse();
-  if (p.position.z > 0.5 && p.position.z <= 0.6) _T_G_M = T_G_B * T_M_B.inverse();
-  std::cout << "T_G_B : " << T_G_B << std::endl;
-  std::cout << "-----------------------------" << std::endl;
-  std::cout << "T_G_C : " << T_G_C << std::endl;
-  std::cout << "-----------------------------" << std::endl;
-  std::cout << "T_G_M : " << _T_G_M << std::endl;
-  std::cout << "-----------------------------" << std::endl;
-  std::cout << "T_G_M * T_M_B : " << _T_G_M * T_M_B << std::endl;
-  _is_initialized2 = true;
+  gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
+
+  // Outlier rejection. This is a very quick and dirty way to do it.
+  // The absolute poses are very noisy and need to be checked.
+  // We'll have to find something better than this in the future.
+  if (p.position.z > 0.45 && p.position.z <= 0.8) {
+    _T_G_M = T_G_B * T_M_B.inverse();
+  }
 }
 
 bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
