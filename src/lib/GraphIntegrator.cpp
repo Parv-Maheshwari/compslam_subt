@@ -9,11 +9,11 @@ namespace loam {
 bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
   _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &GraphIntegrator::laserMapOdomCallback, this);
-  //_subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
+  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &GraphIntegrator::maplabAnchorCallback, this);
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
-  _pubGraphPath = node.advertise<nav_msgs::Path>("/trajectory", 5);
+  _pubGraphPath = node.advertise<nav_msgs::Path>("/trajectory_path", 5);
   _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pathMsg.header.frame_id = "cerberus";
@@ -60,8 +60,10 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
     std::cerr << std::fixed << "\033[31mODOMETRY\033[0m - Passed nullptr in the map odom callback. " << std::endl;
     return;
   }
+  /*
   std::cout << std::fixed << "\033[31mODOMETRY\033[0m - ts: " << odomPtr->header.stamp.toSec()
             << ", t(x,y,z): " << odomPtr->pose.pose.position.x << "," << odomPtr->pose.pose.position.y << "," << odomPtr->pose.pose.position.z << std::endl;
+            */
 
   //New timestampd and pose
   const double ts = odomPtr->header.stamp.toSec();
@@ -109,9 +111,11 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   _pubGraphPath.publish(_pathMsg);
 
   // DEBUG
+  /*
   std::cout << "lidar_pose t(x,y,z): " << T_M_L.translation().transpose() << ", RPY(deg): " << T_M_L.rotation().rpy().transpose() * (180.0 / M_PI)
             << "\nimu_pose  t(x,y,z): " << T_M_B.translation().transpose() << ", RPY(deg): " << T_M_B.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+            */
   visualizeOnboardGraph();
   // DEBUG
 }
@@ -124,6 +128,7 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
   std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq
             << ", ts: " << pathPtr->header.stamp.toSec()
             << ", Poses: " << pathPtr->poses.size() << std::endl;
+  return;
   const std::vector<geometry_msgs::PoseStamped>& poses = pathPtr->poses;
   for (const geometry_msgs::PoseStamped& pose_msg : poses) {
     const double ts = pose_msg.header.stamp.toSec();
@@ -135,9 +140,20 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
       continue;
     }
     const auto& p = pose_msg.pose;
-    const gtsam::Pose3 pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                            gtsam::Point3(p.position.x, p.position.y, p.position.z));
-    addPriorFactor(key, pose, false);
+    const gtsam::Pose3 T_G_B(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                             gtsam::Point3(p.position.x, p.position.y, p.position.z));
+    const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B;
+    //addPriorFactor(key, T_M_B, false);
+    auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-1, 1e-1, 1e-1, 1e-1, 1e-1, 1e-1).finished());  // rad,rad,rad,m, m, m
+    //Create prior factors
+    _newFactors.resize(0);
+    _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, poseNoise);
+
+    //Update graph
+    gtsam::Values estimate;
+    _graph->update(_newFactors, estimate);
+    _newFactors.resize(0);  //Reset
+    break;
   }
 }
 
@@ -217,8 +233,6 @@ bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) cons
     return false;
   }
 
-  std::cout << std::fixed << "\033[36mCLOSEST\033[0m - ts: " << ts
-            << ", min ts: " << (*it)->ts() << ", diff: " << std::abs((*it)->ts() - ts) << std::endl;
   *key = (*it)->key();
   return true;
 }
