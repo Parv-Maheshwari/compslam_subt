@@ -8,7 +8,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
 lidarFrame: lidar                        #LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
-extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+extPriorAvailable: false                 #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
