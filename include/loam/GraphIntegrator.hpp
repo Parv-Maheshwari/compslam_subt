@@ -73,7 +73,6 @@ class GraphIntegrator {
   gtsam::Key _state_key = 0;  //Current state key
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
-  bool _is_initialized2 = false;
 };
 
 }  // namespace loam

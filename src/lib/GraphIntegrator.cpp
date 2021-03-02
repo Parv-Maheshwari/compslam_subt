@@ -128,7 +128,6 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
   std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq
             << ", ts: " << pathPtr->header.stamp.toSec()
             << ", Poses: " << pathPtr->poses.size() << std::endl;
-  return;
   const std::vector<geometry_msgs::PoseStamped>& poses = pathPtr->poses;
   for (const geometry_msgs::PoseStamped& pose_msg : poses) {
     const double ts = pose_msg.header.stamp.toSec();
@@ -144,7 +143,7 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
                              gtsam::Point3(p.position.x, p.position.y, p.position.z));
     const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B;
     //addPriorFactor(key, T_M_B, false);
-    auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-1, 1e-1, 1e-1, 1e-1, 1e-1, 1e-1).finished());  // rad,rad,rad,m, m, m
+    auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-5, 1e-5, 1e-5, 1e-8, 1e-8, 1e-8).finished());  // rad,rad,rad,m, m, m
     //Create prior factors
     _newFactors.resize(0);
     _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, poseNoise);
@@ -153,7 +152,6 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
     gtsam::Values estimate;
     _graph->update(_newFactors, estimate);
     _newFactors.resize(0);  //Reset
-    break;
   }
 }
 
