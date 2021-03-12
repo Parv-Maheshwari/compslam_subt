@@ -40,7 +40,7 @@ class GraphManager {
   bool addImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
 
   //Add a pose between factor
-  bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
+  void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
 
   //Update graph and get new state
   void updateGraphAndState(const double new_ts, const gtsam::Key new_key, const bool debug = false);
