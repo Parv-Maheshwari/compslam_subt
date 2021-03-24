@@ -2,8 +2,9 @@
   <param name="use_sim_time" value="true" /> #be sure to run --clock
 
   # CERBERUS - Frame Connector - Only needed if localization manager is not running
-  <!-- <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map camera_init_CORRECTED 10"/>
-  <node pkg="tf" type="static_transform_publisher" name="corrected_init_tf" respawn="true" args="0 0 0 1.570796327 0 1.570796327 camera_init_CORRECTED camera_init 10 "/> -->
+  <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map cerberus 10"/>
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map camera_init_CORRECTED 10"/> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="corrected_init_tf" respawn="true" args="0 0 0 1.570796327 0 1.570796327 camera_init_CORRECTED camera_init 10 "/> -->
   <node pkg="tf" type="static_transform_publisher" name="lidar_imu_transform_publisher" respawn="true" args="0.005303 0.037340 0.063319 0 0 0 imu_link lidar 10 "/> -->
   # CERBERUS - Frame Connector
 
@@ -15,27 +16,27 @@
   <node pkg="nodelet" type="nodelet" name="loam_nodelet_manager" args="manager" output="screen" clear_params="true"/> #launch-prefix="gdb -ex run --args" />
 
   <!-- Laser Multiscan Registration Nodelet -->
-  <node pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet loam_nodelet_manager" output="screen">
+  <!-- <node pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <remap from="/multi_scan_points" to="$(arg pointcloud_topic_name)" />
-  </node>
+  </node> -->
 
   <!-- Laser Odometry Nodelet -->
-  <node pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet loam_nodelet_manager" output="screen">
+  <!-- <node pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <remap from="/imu" to="$(arg imu_topic_name)" />
-  </node>
+  </node> -->
 
   <!-- Laser Mapping Nodelet -->
-  <node pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet loam_nodelet_manager" output="screen">
+  <!-- <node pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <param name="saved_submaps_filepath" value="$(find loam)"/>
-  </node>
+  </node> -->
 
   <!-- Laser Transform Maintenance Nodelet -->
-  <node pkg="nodelet" type="nodelet" name="laser_transform_maintenance_nodelet" args="load laser_transform_maintenance_nodelet loam_nodelet_manager" output="screen">
+  <!-- <node pkg="nodelet" type="nodelet" name="laser_transform_maintenance_nodelet" args="load laser_transform_maintenance_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
-  </node>
+  </node> -->
 
   <!-- Laser Graph Integrator Nodelet -->
   <node pkg="nodelet" type="nodelet" name="laser_graph_integrator_nodelet" args="load laser_graph_integrator_nodelet loam_nodelet_manager" output="screen">

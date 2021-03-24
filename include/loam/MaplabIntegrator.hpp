@@ -1,8 +1,9 @@
 #ifndef GRAPH_INTEGRATOR_HPP
 #define GRAPH_INTEGRATOR_HPP
 
-//STDLIB
+//C++
 #include <vector>
+#include <unordered_map>
 
 //ROS
 #include <eigen_conversions/eigen_msg.h>
@@ -26,22 +27,22 @@
 using gtsam::symbol_shorthand::X;  // Pose3 (R,t)
 
 namespace loam {
-class GraphIntegrator {
+class MaplabIntegrator {
  public:
   //Setup - Read Params
   bool setup(ros::NodeHandle& node, ros::NodeHandle& privateNode);
 
  private:
   //Callbacks
-  void laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
+  void lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr);
   void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
 
   const auto newStateKey() { return ++_state_key; }
   //Add prior
-  bool addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate = true);
+  void addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate = true);
   //Add a pose between factor
-  bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
+  void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose_delta, const gtsam::Pose3& pose_estimate);
   //Add prior factor from global graph
   bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;
   //Visualize the ISAM graph
@@ -49,6 +50,10 @@ class GraphIntegrator {
 
   //Utility methods
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
+
+  //Update 
+  void updateKeyFactorIdxMap(const gtsam::Key key) { _keyFactorIdxMap[key] = _graph->getFactorsUnsafe().size()-1; }
+  void printKeyFactorIdxMap();
 
   //Members
   ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
@@ -59,12 +64,13 @@ class GraphIntegrator {
   nav_msgs::Path _pathMsg;           // ROS path message for graph
 
   //Transforms
-  gtsam::Pose3 _T_B_L;
-  gtsam::Pose3 _T_B_C;
-  gtsam::Pose3 _T_G_B;
-  gtsam::Pose3 _T_G_M;
+  gtsam::Pose3 _T_B_L; //LiDAR(L) to alphasense IMU(B)
+  gtsam::Pose3 _T_B_C; //alphasense camera(C) to alphasense IMU(B)
+  gtsam::Pose3 _T_G_B; //alphasense IMU(B) to DARPA(G)
+  gtsam::Pose3 _T_G_M; //DARPA(G) to Robot (Local) Map(M) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
 
   //Factor graph
+  std::mutex _graphMutex;                   //For adding new factors and graph update
   gtsam::ISAM2Params _params;
   gtsam::NonlinearFactorGraph _newFactors;
   std::shared_ptr<gtsam::ISAM2> _graph;
@@ -73,6 +79,17 @@ class GraphIntegrator {
   gtsam::Key _state_key = 0;  //Current state key
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
+  //LIDAR odometry
+  bool _firstLidarPose = true;
+  gtsam::Pose3 _lastLidarPose;
+  
+  //
+  std::map<double, gtsam::Key> _timestampKeyMap;
+  std::map<gtsam::Key, int> _keyFactorIdxMap;
+  
+  //
+  size_t _lastNumAnchorPoses = 0;
+
 };
 
 }  // namespace loam
