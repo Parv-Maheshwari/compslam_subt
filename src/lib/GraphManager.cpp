@@ -9,7 +9,7 @@ bool GraphManager::initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3
   relinTh['v'] = (gtsam::Vector(3) << _velReLinTh, _velReLinTh, _velReLinTh).finished();
   relinTh['b'] = (gtsam::Vector(6) << _accBiasReLinTh, _accBiasReLinTh, _accBiasReLinTh, _gyrBiasReLinTh, _gyrBiasReLinTh, _gyrBiasReLinTh).finished();
   _params.relinearizeThreshold = relinTh;
-  _params.factorization = gtsam::ISAM2Params::CHOLESKY;  //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
+  _params.factorization = gtsam::ISAM2Params::QR;  //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
 
   //Create Prior factor and Initialize factor graph
   //Prior factor noise

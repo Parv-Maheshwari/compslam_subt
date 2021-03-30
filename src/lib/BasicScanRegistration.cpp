@@ -176,11 +176,9 @@ void BasicScanRegistration::extractFeatures(const uint16_t &beginIdx) {
     size_t scanStartIdx = _scanIndices[i].first;
     size_t scanEndIdx = _scanIndices[i].second;
 
-    // skip empty scans
+    // skip empty scans - Check if minimum number of points to calculate curvature are available
     if (scanEndIdx <= scanStartIdx + 2 * _config.curvatureRegion)
-    {
       continue;
-    }
 
     // Quick&Dirty fix for relative point time calculation without IMU data
     /*float scanSize = scanEndIdx - scanStartIdx + 1;
