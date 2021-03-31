@@ -54,7 +54,7 @@ mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving int
 mapDimensionsInCubes: [101,51,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
 mapStartLocationInCubes: [50,25,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
 numNeighborSubmapCubes: 4                #Number of Neigboring cubes in +/- direction along each axis to build submap for matching 
-mapDegenEigVal: 40                       #Minimum eignevalue threshold for determining degeneracy of LM optimization, default 30
+mapDegenEigVal: 80                       #Minimum eignevalue threshold for determining degeneracy of LM optimization, default 30
 mapPriorNormThresh: 0.4                  #Max translation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
 useSavedSubmapsForInitialization: false  #Use saved submap on disc for initialization
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
@@ -86,4 +86,4 @@ findUnusedFactorSlots: false
 enablePartialRelinearizationCheck: true
 enableDetailedResults: false
 poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -ORDER RPY(rad) - XYZ(meters)
-zeroMotionDetection: false                         #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+zeroMotionDetection: false                        #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)

@@ -48,6 +48,9 @@ class GraphManager {
   //Check if zero motion has occured and add zero pose/velocity factor
   bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
 
+  //Add gravity-aligned roll/ptich when no motion
+  bool addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude);
+
   //Associate timestamp to each 'value key', e.g. for graph key 0, value keys (x0,v0,b0) need to be associated
   void valuesToKeyTimeStampMap(const gtsam::Values& values, const double ts, std::map<gtsam::Key, double>& key_timestamp_map) {
     for (const auto& value : values)
@@ -93,7 +96,7 @@ class GraphManager {
   double _gyrBiasPrior;       // prior/starting value of gyroscope bias
   //Factor Graph
   gtsam::Key _state_key = 0;     //Current state key
-  double _smootherLag = 1;       // Lag of fixed lag smoother[seconds]
+  double _smootherLag = 1;       //Lag of fixed lag smoother[seconds]
   int _additonalIterations = 1;  //Additional iterations of graph optimizer after update with new factors
   double _posReLinTh = 0.05;     //Position linearization threshold
   double _rotReLinTh = 0.05;     //Rotation linearization threshold
@@ -104,7 +107,7 @@ class GraphManager {
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
   //Zero Velocity Factor
   double _zeroMotionTh = 0.01;              //Zero motion threshold meters
-  double _minDetections = 4;                //Number of consective zero motions detected before zero motion factors are added
+  double _minDetections = 10;               //Number of consective zero motions detected before zero motion factors are added
   double _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
 };
 }  //namespace loam

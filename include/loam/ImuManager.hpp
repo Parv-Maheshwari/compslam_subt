@@ -114,20 +114,31 @@ class ImuManager {
     e_itr = _IMUBuffer.lower_bound(ts_end);
 
     //Check if it is first value in the buffer which means there is no value before to interpolate with
-    if (s_itr == _IMUBuffer.begin())
-      std::cout << "\033[33mIMU-Manager\033[0m IMU Lookup requiring first message of the buffer s_itr == _IMUBuffer.begin() --- Might be during IMU Pose Initialization\n";
+    if (s_itr == _IMUBuffer.begin()) {
+      std::cout << "\033[33mIMU-Manager\033[0m Lookup requires first message of IMU buffer, cannot Interpolate back, Lookup Start/End: "
+                << std::fixed << ts_start << "/" << ts_end << ", Buffer Start/End: "
+                << _IMUBuffer.begin()->first << "/" << _IMUBuffer.rbegin()->first << std::endl;
+      return false;
+    }
+
+    //Check if lookup start time is ahead of buffer start time
+    if (s_itr == _IMUBuffer.end()) {
+      std::cout << "\033[33mIMU-Manager\033[0m IMU Lookup start time ahead latest IMU message in the buffer, lookup: " << ts_start
+                << ", latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
+      return false;
+    }
 
     //Check if last value is valid
     if (e_itr == _IMUBuffer.end()) {
-      std::cout << "\033[33mIMU-Manager\033[0m Lookup is past IMU buffer, with lookup Start/End ts: " << std::fixed << ts_start
-                << "/" << ts_end << " and latest IMU ts: " << _IMUBuffer.rbegin()->first << std::endl;
+      std::cout << "\033[33mIMU-Manager\033[0m Lookup is past IMU buffer, with lookup Start/End: " << std::fixed << ts_start
+                << "/" << ts_end << " and latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
       e_itr = _IMUBuffer.end();
       --e_itr;
     }
 
     //Check if two IMU messages are different
     if (s_itr == e_itr) {
-      std::cout << "\033[33mIMU-Manager\033[0m Not Enough IMU values between timestamps , with Start/End Timestamps: " << std::fixed << ts_start << "/" << ts_end
+      std::cout << "\033[33mIMU-Manager\033[0m Not Enough IMU values between timestamps , with Start/End: " << std::fixed << ts_start << "/" << ts_end
                 << ", with diff: " << ts_end - ts_start << std::endl;
       return false;
     }
@@ -195,7 +206,8 @@ class ImuManager {
                     << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m Yaw/Pitch/Roll(deg): " << init_attitude.ypr().transpose() * (180.0 / M_PI) << std::endl;
         }
-      }
+      } else
+        return false;
     }
     return true;
   }

@@ -172,6 +172,14 @@ void BasicLaserOdometry::process() {
 
     //CUSTOMIZATION
     //FACTOR-GRAPH
+    //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
+    double g;
+    gtsam::Rot3 imu_attitude;
+    if (!_imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g)) {
+      ROS_WARN("LaserOdometry Failed to Initialize Attitude from IMU - RETRYING ...");
+      return;
+    }
+
     //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
     tf::StampedTransform T_LB, T_BL;
     try {
@@ -192,11 +200,6 @@ void BasicLaserOdometry::process() {
               << _T_LB << std::endl;
     std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
               << _T_BL << std::endl;
-
-    //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
-    double g;
-    gtsam::Rot3 imu_attitude;
-    _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g);
 
     //Initialize IMU Preintegrator and Factor Graph
     _graphMgr.initImuIntegrator(g);
@@ -882,15 +885,23 @@ bool BasicLaserOdometry::updateFactorGraph() {
   delta_lidar.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
   delta_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
 
-  // Convert to IMU frame
+  //Convert to IMU frame
   gtsam::Pose3 delta_imu(_T_BL * delta_lidar * _T_LB);
   
   //Add Pose between Factor
   _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
 
-  // Check and Add Zero Motion Factor
+  //Check and Add Zero Motion Factor
+  bool zeroMotion = false;
   if (_zeroMotionDetection)
-    bool zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+    zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+
+  //Add IMU attitute prior if Zero Motion
+  if(zeroMotion){
+    double g;
+    gtsam::Rot3 imu_attitude;
+    _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g, true);
+  }
 
   //Update graph with factors and calculate new state
   _graphMgr.updateGraphAndState(new_ts, new_key);

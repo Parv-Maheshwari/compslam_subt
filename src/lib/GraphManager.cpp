@@ -192,12 +192,26 @@ bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key n
   //Add Zero Pose Factor
   _newFactors.add(gtsam::BetweenFactor<gtsam::Pose3>(X(old_key), 
                                                      X(new_key), 
-                                                     gtsam::Pose3(), 
-                                                     gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3).finished())));
+                                                     gtsam::Pose3::identity(), 
+                                                     gtsam::noiseModel::Isotropic::Sigma(6, 1e-3)));
   //Add Zero Velocity Factor
   _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key), 
                                                      gtsam::Vector3::Zero(), 
                                                      gtsam::noiseModel::Isotropic::Sigma(3, 1e-3)));
+
+  //Re-detect Zero Motion
+  _detectionCount = _minDetections / 2;
+  
+  //DEBUG
+  std::cout << "Zero Motion Factor added between: " << old_key << "/" << new_key << std::endl;
+  //DEBUG
+
   return true;
 }
+
+
+bool GraphManager::addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude){
+  return true;
+}
+
 }  //namespace loam
