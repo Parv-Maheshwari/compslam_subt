@@ -211,6 +211,10 @@ bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key n
 
 
 bool GraphManager::addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude){
+  static auto imuEstNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e+10, 1e+10, 1e+10, 1e+10).finished());  // rad,rad,rad,m, m, m
+  _newFactors.add(gtsam::PriorFactor<gtsam::Pose3>(X(key), 
+                                                    gtsam::Pose3(imu_attitude, gtsam::Point3::Zero()),
+                                                    imuEstNoise));
   return true;
 }
 

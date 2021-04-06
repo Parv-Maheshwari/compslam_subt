@@ -897,11 +897,12 @@ bool BasicLaserOdometry::updateFactorGraph() {
     zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
 
   //Add IMU attitute prior if Zero Motion
-  if(zeroMotion){
-    double g;
-    gtsam::Rot3 imu_attitude;
-    _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g, true);
-  }
+  // if(zeroMotion){
+  //   double g;
+  //   gtsam::Rot3 imu_attitude;
+  //   _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g, true);
+  //   _graphMgr.addGravityRollPitchFactor(old_key, imu_attitude);
+  // }
 
   //Update graph with factors and calculate new state
   _graphMgr.updateGraphAndState(new_ts, new_key);
