@@ -66,10 +66,10 @@ imuFrame: imu_link                       #Frame of IMU used in integrator - Used
 imuRate: 400                             #Rate of IMU input (Hz)
 imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
 accNoiseDensity: 1.3e-04                 #Continuous-time "Covariance" of accelerometer
-accBiasRandomWalk: 1.0e-06               #Continuous-time "Covariance" describing accelerometer bias random walk
+accBiasRandomWalk: 1.0e-05               #Continuous-time "Covariance" describing accelerometer bias random walk
 accBiasPrior: 0.0                        #Prior/starting value of accelerometer bias
 gyrNoiseDensity: 5.398e-06               #Continuous-time "Covariance" of gyroscope measurements
-gyrBiasRandomWalk: 9.33e-08              #Continuous-time "Covariance" describing gyroscope bias random walk
+gyrBiasRandomWalk: 9.33e-06              #Continuous-time "Covariance" describing gyroscope bias random walk
 gyrBiasPrior: 0.0                        #Prior/starting value of gyroscope bias
 smootherLag: 3.0                         #Lag of fixed lag smoother[seconds]
 additonalIterations: 3                   #Additional iterations of graph optimizer after update with new factors
@@ -87,3 +87,6 @@ enablePartialRelinearizationCheck: true
 enableDetailedResults: false
 poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -ORDER RPY(rad) - XYZ(meters)
 zeroMotionDetection: false                        #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+zeroMotionThreshold: 0.01                         #Zero motion threshold in meters (Currently only motion detection is translation only)
+minZeroMoitionDetections: 20                      #Minimum number of consective zero motions detected before factors are added
+gravityRollPitchFactors: false                    #Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)

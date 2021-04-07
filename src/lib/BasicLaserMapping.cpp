@@ -82,6 +82,8 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
   // setup down size filters
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
+  // //Logging
+  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/mapEigen.csv", std::ios::out);
 }
 
 void BasicLaserMapping::resetMapParamsAndContainers() {
@@ -910,7 +912,11 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
       matP = matV.inverse() * matV2;
 
       //CUSTOMIZATION
-      //Enable External Estimate passthrough if solution was degenerate
+      // //Logging
+      // _mappingLogFile << (_currentPCLTime.toSec() + _currentPCLTime.toNSec() * 1e-9) << ","
+      //                 << matE(0, 0) << "," << matE(0, 1) << "," << matE(0, 2) << ","
+      //                 << matE(0, 3) << "," << matE(0, 4) << "," << matE(0, 5) << "\n";
+      //Enable External Estimate passthrough if solution was degenerate      
       if (isDegenerate && _isExternalPriorHealthy) {
         ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
         _transformTobeMapped.pos.x() = _externalEstimate.pos.x();

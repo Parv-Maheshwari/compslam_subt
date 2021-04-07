@@ -48,7 +48,7 @@ class GraphManager {
   //Check if zero motion has occured and add zero pose/velocity factor
   bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
 
-  //Add gravity-aligned roll/ptich when no motion
+  //Add gravity-aligned roll/ptich from IMU when no motion
   bool addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude);
 
   //Associate timestamp to each 'value key', e.g. for graph key 0, value keys (x0,v0,b0) need to be associated
@@ -72,6 +72,8 @@ class GraphManager {
   void setAccBiasReLinTh(double val) { _accBiasReLinTh = val; }
   void setGyrBiasReLinTh(double val) { _gyrBiasReLinTh = val; }
   void setPoseNoise(const std::vector<double>& v) {_poseNoise = v;}
+  void setZeroMotionTh(double val) { _zeroMotionTh = val; }
+  void setMinZeroMotionDetections(int val) {_minDetections = _detectionCount = val;}
   //Accessors - Getters
   auto iterations() const { return _additonalIterations; }
   const auto newStateKey() { return ++_state_key; }
@@ -106,9 +108,9 @@ class GraphManager {
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
   //Zero Velocity Factor
-  double _zeroMotionTh = 0.01;              //Zero motion threshold meters
-  double _minDetections = 10;               //Number of consective zero motions detected before zero motion factors are added
-  double _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
+  double _zeroMotionTh = 0.01;           //Zero motion threshold in meters (Currently only motion detection is translation only)
+  int _minDetections = 20;               //Minimum number of consective zero motions detected before factors are added
+  int _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
 };
 }  //namespace loam
 

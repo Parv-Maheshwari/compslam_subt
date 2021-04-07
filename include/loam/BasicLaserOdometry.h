@@ -158,6 +158,7 @@ class BasicLaserOdometry {
   void setImuFrame(const std::string& s) { _imuFrame = s; }
   void setImuTimeOffset(const double d) { _imuTimeOffset = d; }
   void setZeroMotionDetection(const bool b) { _zeroMotionDetection = b; }
+  void setUseGravityRollPitchFactors(const bool b) { _gravityRollPitchFactors = b; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   loam::OptStatus _optStatusMsg;
@@ -266,6 +267,7 @@ class BasicLaserOdometry {
   tf::Transform _gravityAttitude;                       //Attitude from initial gravity alignment
   sensor_msgs::Imu _imuBiasMsg;                         //IMU bias publishing ROS message
   bool _zeroMotionDetection = false;                    //Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+  bool _gravityRollPitchFactors = false;                //Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)
   //CUSTOMIZATION
 };
 

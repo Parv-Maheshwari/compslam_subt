@@ -348,12 +348,28 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("poseBetweenNoise", poseNoise)){
     _graphMgr.setPoseNoise(poseNoise);
   }
-  //Zero Motion Factor
+  //Zero Motion Factor & Gravity Roll/Pitch Factor
   if (privateNode.getParam("zeroMotionDetection", bParam)) {
     setZeroMotionDetection(bParam);
-    if (bParam)
-      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Velocity and Zero Delta Pose Factors will be added");
-    else
+    if (bParam) {
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Delta Pose & Velocity Factors added");
+      //Zero motion detection threshold
+      if (privateNode.getParam("zeroMotionThreshold", dParam)) {
+        _graphMgr.setZeroMotionTh(dParam);
+        ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection Threshold(m): " << dParam);
+      }
+      //Minimum consective zero motion detection
+      if (privateNode.getParam("minZeroMoitionDetections", iParam)) {
+        _graphMgr.setMinZeroMotionDetections(iParam);
+        ROS_INFO_STREAM("LaserOdometry - Min consective Zero Motion Detections: " << iParam);
+      }
+      //Check if Gravity-algined Roll-Pitch factor should be added
+      if (privateNode.getParam("gravityRollPitchFactors", bParam)) {
+        setUseGravityRollPitchFactors(bParam);
+        if (bParam)
+          ROS_INFO_STREAM("LaserOdometry - Gravity-aligned Roll-Pitch Factors added when in Zero Motion");
+      }
+    } else
       ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED");
   }
   /** Graph Parameters **/

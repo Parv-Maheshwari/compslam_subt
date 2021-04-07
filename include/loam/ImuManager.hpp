@@ -174,37 +174,36 @@ class ImuManager {
   }
 
   // Determine initial IMU pose w.r.t to gravity vector pointing up
-  bool estimateAttitudeFromImu(const double imu_pose_init_ts, gtsam::Rot3& init_attitude, double& gravity_magnitude, bool output = false) {
+  bool estimateAttitudeFromImu(const double ts, const Eigen::Vector3d& acc_bias, gtsam::Rot3& init_attitude, double& gravity_magnitude, bool output = false) {
     //Get timestamp of first message for lookup
     if (_IMUBuffer.size() < (_imuRate * _imuPoseInitWaitSecs)) {
       std::cout << "\033[33mIMU-Manager\033[0m NOT ENOUGH IMU MESSAGES TO INITIALIZE POSE\n";
       return false;
     } else {
       //Get IMU Message iterators in the interval
-      IMUMap init_imu_map;
-      double prev_ts = imu_pose_init_ts - _imuPoseInitWaitSecs;
-      bool success = getInterpolatedImuMeasurements(prev_ts, imu_pose_init_ts, init_imu_map);
+      IMUMap imu_meas;
+      double prev_ts = ts - _imuPoseInitWaitSecs;
+      bool success = getInterpolatedImuMeasurements(prev_ts, ts, imu_meas);
       if (success) {
         //Accumulate Acceleration part of IMU Messages
-        double imu_pose_init_msg_count = 0.0;                   //Counter for messages needed for  initializing Pose from IMU
-        Eigen::Vector3d imu_pose_init_acc_mean(0.0, 0.0, 0.0);  //vector accumulating and imag
-        for (auto itr = init_imu_map.begin(); itr != init_imu_map.end(); ++itr) {
-          imu_pose_init_acc_mean += itr->second.head<3>();
-          ++imu_pose_init_msg_count;
-        }
-        //Average IMU measurements and set assumed gravity direction
-        imu_pose_init_acc_mean /= imu_pose_init_msg_count;
-        gravity_magnitude = imu_pose_init_acc_mean.norm();
-        Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);  //ROS convention
+        Eigen::Vector3d imu_acc_mean(0.0, 0.0, 0.0);
+        for (auto itr = imu_meas.begin(); itr != imu_meas.end(); ++itr)
+          imu_acc_mean += itr->second.head<3>();
+        //Average IMU measurements and remove bias
+        imu_acc_mean /= imu_meas.size();
+        imu_acc_mean -= acc_bias;  //remove bias
+        //Set gravity direction (Z-Up same as ROS convention)
+        gravity_magnitude = imu_acc_mean.norm();
+        Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);
         //Normalize gravity vectors to remove the affect of gravity magnitude from place-to-place
-        imu_pose_init_acc_mean.normalize();
+        imu_acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
-        init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(imu_pose_init_acc_mean, g_unit_vec));
+        init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(imu_acc_mean, g_unit_vec));
         if (output) {
-          std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << imu_pose_init_acc_mean.transpose()
-                    << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Yaw/Pitch/Roll(deg): " << init_attitude.ypr().transpose() * (180.0 / M_PI) << std::endl;
+          // std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
+          // std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << imu_acc_mean.transpose()
+          //           << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Roll/Pitch/Yaw(deg): " << init_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
         }
       } else
         return false;

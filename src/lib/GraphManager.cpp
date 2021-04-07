@@ -195,26 +195,29 @@ bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key n
                                                      gtsam::Pose3::identity(), 
                                                      gtsam::noiseModel::Isotropic::Sigma(6, 1e-3)));
   //Add Zero Velocity Factor
-  _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key), 
-                                                     gtsam::Vector3::Zero(), 
+  _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key),
+                                                     gtsam::Vector3::Zero(),
                                                      gtsam::noiseModel::Isotropic::Sigma(3, 1e-3)));
 
   //Re-detect Zero Motion
-  _detectionCount = _minDetections / 2;
-  
-  //DEBUG
-  std::cout << "Zero Motion Factor added between: " << old_key << "/" << new_key << std::endl;
-  //DEBUG
+  _detectionCount = _minDetections - 5;  //TODO - what should be the reset?
+
+  // //DEBUG
+  // std::cout << "\033[33mZero Motion Factor\033[0m added between: " << old_key << "/" << new_key << std::endl;
+  // //DEBUG
 
   return true;
 }
 
+bool GraphManager::addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude) {
+  static auto imuEstNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, _poseNoise[2], 1e+10, 1e+10, 1e+10).finished());  // rad,rad,rad,m, m, m
+  _newFactors.add(gtsam::PriorFactor<gtsam::Pose3>(X(key),
+                                                   gtsam::Pose3(imu_attitude, gtsam::Point3::Zero()),
+                                                   imuEstNoise));
 
-bool GraphManager::addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude){
-  static auto imuEstNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-6, 1e-6, 1e+10, 1e+10, 1e+10, 1e+10).finished());  // rad,rad,rad,m, m, m
-  _newFactors.add(gtsam::PriorFactor<gtsam::Pose3>(X(key), 
-                                                    gtsam::Pose3(imu_attitude, gtsam::Point3::Zero()),
-                                                    imuEstNoise));
+  // //DEBUG
+  // std::cout << "\033[33mGravity Factor\033[0m - RPY(deg): " << imu_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
+  // //DEBUG
   return true;
 }
 
