@@ -9,8 +9,9 @@ namespace loam {
 bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Subscribers
   _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &MaplabIntegrator::lidarOdomCallback, this);
-  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &MaplabIntegrator::maplabAnchorCallback, this);
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &MaplabIntegrator::absolutePoseCallback, this);
+  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &MaplabIntegrator::maplabAnchorCallback, this);
+  _subMaplabSubmap = node.subscribe<nav_msgs::Path>("/graph_client/intra_constraints", 2, &MaplabIntegrator::maplabSubmapCallback, this);
 
   //Publisher
   _pubGraphPath = node.advertise<nav_msgs::Path>("/incremental_trajectory", 5);
@@ -78,7 +79,6 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
       new_key = _state_key;
       addPriorFactor(_state_key, gtsam::Pose3(), true);
       updateKeyFactorIdxMap(new_key);
-      printKeyFactorIdxMap();
       _firstLidarPose = false;
     } else {
       //Add pose delta
@@ -132,6 +132,35 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
   // DEBUG
 }
 
+void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
+  if (posePtr == nullptr) {
+    return;
+  }
+  
+  //Get T_G_C i.e. Camera(C) pose in DARPA(G)
+  const geometry_msgs::Pose& p = posePtr->pose.pose;
+  const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  //Calculate IMU(B) pose in DARPA(G)
+  gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
+
+  //Add absolute priors at FIRST key i.e. key=0
+  {
+    std::lock_guard<std::mutex> lock(_graphMutex);
+    static auto absoluteNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-6);  // rad,rad,rad,m, m, m
+    _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(0), T_G_B, absoluteNoise);
+    _graph->update(_newFactors);
+    _newFactors.resize(0);
+  }
+
+  //DEBUG
+  std::cout << std::fixed << "\033[33mABSOLUTE\033[0m, ts: " << posePtr->header.stamp.toSec()
+            << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
+            << ", imu t(x,y,z): " << T_G_B.translation().transpose()     //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
+            << std::endl;
+  //DEBUG
+}
+
 void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
   //Check if empty message
   if (pathPtr == nullptr) {
@@ -139,20 +168,13 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
     return;
   }
 
-  //Check if same message repeated again based on number of poses - //TODO dirty check for now
-  if(_lastNumAnchorPoses == pathPtr->poses.size()){
-    std::cerr << std::fixed << "\033[31mANCHOR\033[0m - SKIPPING - Repeated number of poses received, ts: "  << pathPtr->header.stamp.toSec() 
-              << ", Poses: " << pathPtr->poses.size() << std::endl;
-    return;
-  }
-  _lastNumAnchorPoses = pathPtr->poses.size();
-
   std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq << ", ts: " << pathPtr->header.stamp.toSec() << ", Poses: " << pathPtr->poses.size() << std::endl;
 
   //Loop through all pose updates and add prior factor on graph nodes
   {
     std::lock_guard<std::mutex> lock(_graphMutex);
     auto t1 = std::chrono::high_resolution_clock::now();
+    gtsam::FactorIndices removeFactorIdx;
     for (const geometry_msgs::PoseStamped& pose_msg : pathPtr->poses) {
       //Update timestamp
       const double ts = pose_msg.header.stamp.toSec();
@@ -167,100 +189,108 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       } else
         std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
 
-      //Skip Anchor on Key 0 as it has Absolutes
+      //Skip Anchor on Key 0 as it has Absolute poses attached to it
       if (key == 0) {
         std::cout << std::fixed << " - Skipping Key 0" << std::endl;
         continue;
       }
-
-      // TODO: mismatch between timestamps
-      // auto itr = _timestampKeyMap.find(ts);
-      // if(itr == _timestampKeyMap.end())
-      //   std::cout << std::fixed << "\033[35mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
-      // else
-      //   std::cout << std::fixed << "\033[35mANCHOR\033[0m - Found Key: " << itr->second << ", ts: " << ts << std::endl;
-
-      //Find if Prior factor exists at Key and get Factor Index
-      auto itr = _keyFactorIdxMap.find(key);
-      gtsam::FactorIndices removeFactorIdx;
-      if (itr != _keyFactorIdxMap.end()) {
-        std::cout << " - Removing Prior with Index: " << itr->second << ", at Key: " << key << std::endl;
-        removeFactorIdx.push_back(itr->second);
-      } else
-        std::cout << " - New Prior Added" << std::endl;
 
       //Create Update pose
       const auto& p = pose_msg.pose;
       const gtsam::Pose3 T_G_B(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                                gtsam::Point3(p.position.x, p.position.y, p.position.z));
       const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B;
-      static auto anchorNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-5, 1e-5, 1e-5, 1e-8, 1e-8, 1e-8).finished());  // rad,rad,rad,m, m, m
 
-      //Create prior factor and add to graph
+      //Check if key already exists
+      auto anchor_itr = _keyAnchorPoseMap.find(key);
+      //If match found compare difference
+      if(anchor_itr != _keyAnchorPoseMap.end()){
+        bool equal = anchor_itr->second.equals(T_M_B, 1.0e-02);
+        std::cout << ", t(old): " << anchor_itr->second.translation().transpose() 
+                                                          << ", t(new): " << T_M_B.translation().transpose()
+                                                          << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") << std::endl;
+        if(equal)          
+          continue;
+      }
+
+      //Find if Prior factor exists at Key and get Factor Index
+      auto itr = _keyFactorIdxMap.find(key);
+      if (itr != _keyFactorIdxMap.end()) {
+        std::cout << " - Removing Prior with Index: " << itr->second << ", at Key: " << key << std::endl;
+        removeFactorIdx.push_back(itr->second);
+      } else
+        std::cout << " - New Prior Added" << std::endl;
+
+      //Create prior factor
+      static auto anchorNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-5);  // rad,rad,rad,m, m, m
       _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, anchorNoise);
+      
+      //Update maps for lookup //NOTE Need to remove/add factor each time to track factor indices
       _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
-      _newFactors.resize(0);       //Reset
-      updateKeyFactorIdxMap(key);  //Assosicate index of new prior factor to graph key
+      _newFactors.resize(0);               //Reset
+      updateKeyFactorIdxMap(key);          //Assosicate index of new prior factor to graph key
+      updateKeyAnchorPoseMap(key, T_M_B);  //Associate Anchor pose to key
     }
+
     //Perform additional graph optimization
     for (size_t i = 0; i < 3; ++i)
       _graph->update();
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout<<"\033[35mGRAPH-MAPLAB-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
-    
+    std::cout << "\033[35mGRAPH-MAPLAB-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+
     //DEBUG //TODO Move outside Mutex
     visualizeOnboardGraph();
   }
-  // printKeyFactorIdxMap();
 }
 
-void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
-  if (posePtr == nullptr) {
+void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
+  //Check if empty message
+  if (pathPtr == nullptr) {
+    std::cerr << std::fixed << "\033[34mSUBMAP\033[0m - Passed nullptr in graph update callback." << std::endl;
     return;
   }
-  
-  //Get T_G_C i.e. Camera(C) pose in DARPA(G)
-  const geometry_msgs::Pose& p = posePtr->pose.pose;
-  const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
-  //Calculate IMU(B) pose in DARPA(G)
-  gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
 
-  //Add absolute priors at FIRST key i.e. key=0
-  static auto absoluteNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-5, 1e-5, 1e-5, 1e-8, 1e-8, 1e-8).finished());  // rad,rad,rad,m, m, m
-  {
-    std::lock_guard<std::mutex> lock(_graphMutex);
-    _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(0), T_G_B, absoluteNoise);
-    _graph->update(_newFactors);
-    _newFactors.resize(0);
+  //Find corresponding key in graph
+  const auto& parent_ts = pathPtr->header.stamp.toSec();
+  gtsam::Key parent_key;
+  if (!findClosestKeyForTS(parent_ts, &parent_key)) {
+    std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no closest key for parent --- SKIPPING CHILDERN, ts:" << parent_ts << std::endl;
+    return;
+  } else {
+    std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Found parent Key : " << parent_key << ", ts: " << parent_ts << std::endl;
+    //Loop through submap-submap constraints
+    {
+      std::lock_guard<std::mutex> lock(_graphMutex);
+      for (size_t i = 0; i < pathPtr->poses.size(); ++i) {
+        const auto& pose_msg = pathPtr->poses[i];
+        const auto& child_ts = pose_msg.header.stamp.toSec();
+        gtsam::Key child_key;
+        //Check if child is associated to a key
+        if (!findClosestKeyForTS(child_ts, &child_key)) {
+          std::cout << std::fixed << "Found no closest key for child " << child_ts << std::endl;
+          continue;
+        } else {
+          std::cout << std::fixed << "Found child Key : " << child_key << ", ts: " << child_ts
+                    << ", detla_t(x,y,z): " << pose_msg.pose.position.x << "," << pose_msg.pose.position.y << "," << pose_msg.pose.position.z << std::endl;
+
+          //Add between Factor
+          static auto submapNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-3);  // rad,rad,rad,m,m,m
+          const auto& p = pose_msg.pose;
+          const gtsam::Pose3 T_Parent_Child(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                                            gtsam::Point3(p.position.x, p.position.y, p.position.z));
+          gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_Parent_Child, submapNoise);
+          _newFactors.add(submapBF);
+        }
+      }
+      //Update Graph
+      _graph->update(_newFactors);
+      _newFactors.resize(0);  //Reset
+      
+      //DEBUG //TODO Move outside Mutex
+      visualizeOnboardGraph();
+    }
   }
-
-  //DEBUG
-  std::cout << std::fixed << "\033[33mABSOLUTE\033[0m, ts: " << posePtr->header.stamp.toSec()
-            << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", imu t(x,y,z): " << T_G_B.translation().transpose()     //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << std::endl;
-  //DEBUG
-  
-  // const double ts = posePtr->header.stamp.toSec();
-  // gtsam::Key key;
-  // if (!findClosestKeyForTS(ts, &key)) {
-  //   std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - Found no closest key for ts: :" << ts << std::endl;
-  //   return;
-  // }else 
-  //   std::cout << std::fixed << "\033[36mABSOLUTE\033[0m - Found Key: " << key << ", ts: " << ts << std::endl;
-  
-  // gtsam::Values result = _graph->calculateEstimate();
-  // gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
-  // gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
-
-  // Outlier rejection. This is a very quick and dirty way to do it.
-  // The absolute poses are very noisy and need to be checked.
-  // We'll have to find something better than this in the future.
-  // // Perhaps average?
-  // if (p.position.z > 0.45 && p.position.z <= 0.8) {
-  //   _T_G_M = T_G_B * T_M_B.inverse();
-  // }
+  std::cout << "----------------------------------------------------------------------" << std::endl;
 }
 
 void MaplabIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {

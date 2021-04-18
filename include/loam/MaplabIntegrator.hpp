@@ -35,8 +35,9 @@ class MaplabIntegrator {
  private:
   //Callbacks
   void lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
-  void maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr);
   void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
+  void maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr);
+  void maplabSubmapCallback(const nav_msgs::Path::ConstPtr& pathPtr);  
 
   const auto newStateKey() { return ++_state_key; }
   //Add prior
@@ -54,11 +55,14 @@ class MaplabIntegrator {
   //Update 
   void updateKeyFactorIdxMap(const gtsam::Key key) { _keyFactorIdxMap[key] = _graph->getFactorsUnsafe().size()-1; }
   void printKeyFactorIdxMap();
+  void updateKeyAnchorPoseMap(const gtsam::Key key, const gtsam::Pose3& pose) { _keyAnchorPoseMap[key] = pose; }
 
   //Members
   ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
-  ros::Subscriber _subMaplabAnchor;  // Maplab published path subscriber
-  ros::Subscriber _subAbsolutePose;  //
+  ros::Subscriber _subAbsolutePose;  // Absolute pose constraints from Apriltags
+  ros::Subscriber _subMaplabAnchor;  // Maplab published Anchor constraints
+  ros::Subscriber _subMaplabSubmap;  // Maplab published Submap-to-Submap contraints
+
   ros::Publisher _pubGraphPath;      // Graph path publisher
   ros::Publisher _pubUpdatedPath;    //
   nav_msgs::Path _pathMsg;           // ROS path message for graph
@@ -83,13 +87,10 @@ class MaplabIntegrator {
   bool _firstLidarPose = true;
   gtsam::Pose3 _lastLidarPose;
   
-  //
-  std::map<double, gtsam::Key> _timestampKeyMap;
-  std::map<gtsam::Key, int> _keyFactorIdxMap;
-  
-  //
-  size_t _lastNumAnchorPoses = 0;
-
+  //Lookup map objects
+  std::map<double, gtsam::Key> _timestampKeyMap;                   //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
+  std::map<gtsam::Key, int> _keyFactorIdxMap;                      //Key-PriorFactorIndex map for lookup of prior factor's index at Key
+  std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;  //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Ket
 };
 
 }  // namespace loam
