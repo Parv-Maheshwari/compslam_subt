@@ -41,16 +41,16 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   //Intialize transforms //TODO: fixed for now
   Eigen::Matrix4d T_B_L;
   T_B_L << 1, 0, 0, 0.005303,
-           0, 1, 0, 0.037340,
-           0, 0, 1, 0.063319,
-           0, 0, 0, 1;
+      0, 1, 0, 0.037340,
+      0, 0, 1, 0.063319,
+      0, 0, 0, 1;
   _T_B_L = gtsam::Pose3(T_B_L);
 
   Eigen::Matrix4d T_B_C;
   T_B_C << -0.9999962982, -0.000530768, 0.0026686827, 0.0471397497,
-           -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
-            0.0005317493, -0.9999997913, 0.0003670147, 0.0260845632,
-            0.0, 0.0, 0.0, 1.0;
+      -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
+      0.0005317493, -0.9999997913, 0.0003670147, 0.0260845632,
+      0.0, 0.0, 0.0, 1.0;
   _T_B_C = gtsam::Pose3(T_B_C);
 
   return true;
@@ -78,7 +78,6 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
       //Initialize
       new_key = _state_key;
       addPriorFactor(_state_key, gtsam::Pose3(), true);
-      updateKeyFactorIdxMap(new_key);
       _firstLidarPose = false;
     } else {
       //Add pose delta
@@ -136,7 +135,7 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   if (posePtr == nullptr) {
     return;
   }
-  
+
   //Get T_G_C i.e. Camera(C) pose in DARPA(G)
   const geometry_msgs::Pose& p = posePtr->pose.pose;
   const gtsam::Pose3 T_G_C(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
@@ -147,9 +146,19 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   //Add absolute priors at FIRST key i.e. key=0
   {
     std::lock_guard<std::mutex> lock(_graphMutex);
+    //Create prior factor
     static auto absoluteNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-6);  // rad,rad,rad,m, m, m
     _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(0), T_G_B, absoluteNoise);
-    _graph->update(_newFactors);
+
+    gtsam::FactorIndices removeFactorIdx;
+    if (_firstAbsolutePose) {
+      removeFactorIdx.push_back(0);
+      _firstAbsolutePose = false;
+      std::cout << "\033[33mABSOLUTE\033[0m First ABSOLUTE POSE received - removing old absolute pose" << std::endl;
+    }
+
+    //Update graph
+    _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
     _newFactors.resize(0);
   }
 
@@ -204,18 +213,18 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       //Check if key already exists
       auto anchor_itr = _keyAnchorPoseMap.find(key);
       //If match found compare difference
-      if(anchor_itr != _keyAnchorPoseMap.end()){
+      if (anchor_itr != _keyAnchorPoseMap.end()) {
         bool equal = anchor_itr->second.equals(T_M_B, 1.0e-02);
-        std::cout << ", t(old): " << anchor_itr->second.translation().transpose() 
-                                                          << ", t(new): " << T_M_B.translation().transpose()
-                                                          << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") << std::endl;
-        if(equal)          
+        std::cout << ", t(old): " << anchor_itr->second.translation().transpose()
+                  << ", t(new): " << T_M_B.translation().transpose()
+                  << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") << std::endl;
+        if (equal)
           continue;
       }
 
       //Find if Prior factor exists at Key and get Factor Index
-      auto itr = _keyFactorIdxMap.find(key);
-      if (itr != _keyFactorIdxMap.end()) {
+      auto itr = _keyAnchorFactorIdxMap.find(key);
+      if (itr != _keyAnchorFactorIdxMap.end()) {
         std::cout << " - Removing Prior with Index: " << itr->second << ", at Key: " << key << std::endl;
         removeFactorIdx.push_back(itr->second);
       } else
@@ -224,19 +233,15 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       //Create prior factor
       static auto anchorNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-5);  // rad,rad,rad,m, m, m
       _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, anchorNoise);
-      
+
       //Update maps for lookup //NOTE Need to remove/add factor each time to track factor indices
       _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
       _newFactors.resize(0);               //Reset
-      updateKeyFactorIdxMap(key);          //Assosicate index of new prior factor to graph key
+      updateKeyAnchorFactorIdxMap(key);    //Assosicate index of new prior factor to graph key
       updateKeyAnchorPoseMap(key, T_M_B);  //Associate Anchor pose to key
     }
-
-    //Perform additional graph optimization
-    for (size_t i = 0; i < 3; ++i)
-      _graph->update();
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "\033[35mGRAPH-MAPLAB-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+    std::cout << "\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
 
     //DEBUG //TODO Move outside Mutex
     visualizeOnboardGraph();
@@ -257,35 +262,45 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
     std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no closest key for parent --- SKIPPING CHILDERN, ts:" << parent_ts << std::endl;
     return;
   } else {
-    std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Found parent Key : " << parent_key << ", ts: " << parent_ts << std::endl;
+    std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Parent Key : " << parent_key << ", ts: " << parent_ts;
     //Loop through submap-submap constraints
     {
       std::lock_guard<std::mutex> lock(_graphMutex);
+      auto t1 = std::chrono::high_resolution_clock::now();
       for (size_t i = 0; i < pathPtr->poses.size(); ++i) {
-        const auto& pose_msg = pathPtr->poses[i];
-        const auto& child_ts = pose_msg.header.stamp.toSec();
+        const auto& child_ts = pathPtr->poses[i].header.stamp.toSec();
         gtsam::Key child_key;
         //Check if child is associated to a key
         if (!findClosestKeyForTS(child_ts, &child_key)) {
-          std::cout << std::fixed << "Found no closest key for child " << child_ts << std::endl;
+          std::cout << std::fixed << " but found NO key for child at: " << child_ts << std::endl;
           continue;
         } else {
-          std::cout << std::fixed << "Found child Key : " << child_key << ", ts: " << child_ts
-                    << ", detla_t(x,y,z): " << pose_msg.pose.position.x << "," << pose_msg.pose.position.y << "," << pose_msg.pose.position.z << std::endl;
+          const auto& p = pathPtr->poses[i].pose;
+          std::cout << std::fixed << ", Child Key : " << child_key << ", ts: " << child_ts
+                    << ", detla_t(x,y,z): " << p.position.x << "," << p.position.y << "," << p.position.z << std::endl;
 
-          //Add between Factor
+          //Check if a previous BetweenFactor exists between two keys
+          gtsam::FactorIndices removeFactorIdx;
+          int rmIdx = findSubmapFactorIdx(parent_key, child_key, true);
+          if (rmIdx != -1) {
+            removeFactorIdx.push_back(rmIdx);
+            std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
+          }
+
+          //Add BetweenFactor
           static auto submapNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-3);  // rad,rad,rad,m,m,m
-          const auto& p = pose_msg.pose;
           const gtsam::Pose3 T_Parent_Child(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                                             gtsam::Point3(p.position.x, p.position.y, p.position.z));
           gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_Parent_Child, submapNoise);
           _newFactors.add(submapBF);
+          //Update Graph
+          _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
+          _newFactors.resize(0);  //Reset
+          updateKeySubmapFactorIdxMap(parent_key, child_key);
         }
       }
-      //Update Graph
-      _graph->update(_newFactors);
-      _newFactors.resize(0);  //Reset
-      
+      auto t2 = std::chrono::high_resolution_clock::now();
+      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
       //DEBUG //TODO Move outside Mutex
       visualizeOnboardGraph();
     }
@@ -295,7 +310,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
 
 void MaplabIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {
   //Prior factor noise
-  static auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
+  static auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 1e-2).finished());  // rad,rad,rad,m, m, m
 
   //Initial estimate - Use pose as estimate (For prior factors at graph init)
   gtsam::Values estimate;
@@ -388,9 +403,49 @@ bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs
   return true;
 }
 
-void MaplabIntegrator::printKeyFactorIdxMap(){
-  std::cout<<"--- Printing Key-PriorFactorIndex Map ---\n";
-  for(auto itr = _keyFactorIdxMap.begin(); itr!=_keyFactorIdxMap.end(); ++itr)
-    std::cout<<"Key: "<<itr->first<<", FactorIdx: "<<itr->second<<std::endl;
+void MaplabIntegrator::printKeyFactorIdxMap() {
+  std::cout << "--- Printing Key-PriorFactorIndex Map ---\n";
+  for (auto itr = _keyAnchorFactorIdxMap.begin(); itr != _keyAnchorFactorIdxMap.end(); ++itr)
+    std::cout << "Key: " << itr->first << ", FactorIdx: " << itr->second << std::endl;
+}
+
+void MaplabIntegrator::updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, const gtsam::Key child_key) {
+  _keySubmapFactorIdxMap[parent_key].emplace(_graph->getFactorsUnsafe().size() - 1);
+  _keySubmapFactorIdxMap[child_key].emplace(_graph->getFactorsUnsafe().size() - 1);
+  std::cout << "\033[34mSUBMAP\033[0m NEW Factor added at Index: " << _graph->getFactorsUnsafe().size() - 1
+            << ", between keys: " << parent_key << "/" << child_key << std::endl;
+}
+
+int MaplabIntegrator::findSubmapFactorIdx(const gtsam::Key parent_key, const gtsam::Key child_key, bool erase) {
+  //Get sets of constraint indices at graph keys
+  auto& p_set = _keySubmapFactorIdxMap[parent_key];
+  auto& c_set = _keySubmapFactorIdxMap[child_key];
+
+  //Find common constraint index between two graph Keys i.e. a BetweenFactor should have same factor index at two graph keys(nodes)
+  std::set<size_t> result;
+  std::set_intersection(p_set.begin(), p_set.end(),
+                        c_set.begin(), c_set.end(),
+                        std::inserter(result, result.begin()));
+
+  //Check if success
+  int output = -1;
+  if (result.size() > 0) {
+    output = *result.begin();
+
+    //CUSTOMIZATION
+    std::cout << "\033[34mSUBMAP\033[0m Indices found: ";
+    for (auto& e : result)
+      std::cout << e << ",";
+    std::cout << ", between keys: " << parent_key << "/" << child_key << std::endl;
+    //CUSTOMIZATION
+
+    //Remove common constraint indices from both sets
+    if (erase) {
+      p_set.erase(output);
+      c_set.erase(output);
+    }
+  }
+
+  return output;
 }
 }  // namespace loam

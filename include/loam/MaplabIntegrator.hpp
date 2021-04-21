@@ -53,9 +53,13 @@ class MaplabIntegrator {
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
 
   //Update 
-  void updateKeyFactorIdxMap(const gtsam::Key key) { _keyFactorIdxMap[key] = _graph->getFactorsUnsafe().size()-1; }
+  void updateKeyAnchorFactorIdxMap(const gtsam::Key key) { _keyAnchorFactorIdxMap[key] = _graph->getFactorsUnsafe().size()-1; }
   void printKeyFactorIdxMap();
   void updateKeyAnchorPoseMap(const gtsam::Key key, const gtsam::Pose3& pose) { _keyAnchorPoseMap[key] = pose; }
+
+  
+  void updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, const gtsam::Key child_key);
+  int findSubmapFactorIdx(const gtsam::Key parent_key, const gtsam::Key child_key, bool erase = false);
 
   //Members
   ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
@@ -86,11 +90,15 @@ class MaplabIntegrator {
   //LIDAR odometry
   bool _firstLidarPose = true;
   gtsam::Pose3 _lastLidarPose;
+  //Absolute poses
+  bool _firstAbsolutePose = true;
   
   //Lookup map objects
   std::map<double, gtsam::Key> _timestampKeyMap;                   //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
-  std::map<gtsam::Key, int> _keyFactorIdxMap;                      //Key-PriorFactorIndex map for lookup of prior factor's index at Key
-  std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;  //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Ket
+  std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;             //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
+  std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;  //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
+
+  std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;  //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
 };
 
 }  // namespace loam
