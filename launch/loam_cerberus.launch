@@ -2,10 +2,10 @@
   <param name="use_sim_time" value="true" /> #be sure to run --clock
 
   # CERBERUS - Frame Connector - Only needed if localization manager is not running
-  <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map cerberus 10"/>
+  <!-- <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map cerberus 10"/> -->
   <!-- <node pkg="tf" type="static_transform_publisher" name="map_corrected_tf" respawn="true" args="0 0 0 0 0 0 map camera_init_CORRECTED 10"/> -->
   <!-- <node pkg="tf" type="static_transform_publisher" name="corrected_init_tf" respawn="true" args="0 0 0 1.570796327 0 1.570796327 camera_init_CORRECTED camera_init 10 "/> -->
-  <node pkg="tf" type="static_transform_publisher" name="lidar_imu_transform_publisher" respawn="true" args="0.005303 0.037340 0.063319 0 0 0 imu_link lidar 10 "/> -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="lidar_imu_transform_publisher" respawn="true" args="0.005303 0.037340 0.063319 0 0 0 imu_link lidar 10 "/> --> -->
   # CERBERUS - Frame Connector
 
   <!-- Input topics remap -->
@@ -41,7 +41,9 @@
   <!-- Laser Graph Integrator Nodelet -->
   <node pkg="nodelet" type="nodelet" name="laser_graph_integrator_nodelet" args="load laser_graph_integrator_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
-    <remap from="/graph_client/anchor_nodes" to="/graph_client/anchor_nodes" />
+    <remap from="odometry" to="/loam_recorded_odometry" />
+    <remap from="pointcloud" to="/lidar/point_cloud" />
+    <remap from="/graph_client/anchor_nodes" to="/graph_client/anchor_nodes_IGNORE" />
     <remap from="/anymal/absolute_reference" to="/anymal/absolute_reference_POST" />
   </node>
 </launch>

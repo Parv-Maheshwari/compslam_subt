@@ -7,17 +7,27 @@
 namespace loam {
 
 bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
+  //Frames
+  _world_frame = "absolute_darpa";
+  _map_frame = "robot_map";
+  _base_frame = "alphasense_imu";
+  
   //Subscribers
-  _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("/loam_recorded_odometry", 10, &MaplabIntegrator::lidarOdomCallback, this);
+  // _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("odometry", 10, &MaplabIntegrator::lidarOdomCallback, this);
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &MaplabIntegrator::absolutePoseCallback, this);
   _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &MaplabIntegrator::maplabAnchorCallback, this);
   _subMaplabSubmap = node.subscribe<nav_msgs::Path>("/graph_client/intra_constraints", 2, &MaplabIntegrator::maplabSubmapCallback, this);
+  //Synced subscriber
+  _subOdom.subscribe(node, "odometry", 10);
+  _subCloud.subscribe(node, "pointcloud", 10);
+  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subOdom, _subCloud));
+  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2));
 
   //Publisher
   _pubGraphPath = node.advertise<nav_msgs::Path>("/incremental_trajectory", 5);
   _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
-  _pathMsg.header.frame_id = "cerberus";
+  _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser/map_optimized", 5);
 
   //Set factor graph params
   _params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
@@ -56,12 +66,12 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   return true;
 }
 
-void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr) {
-  if (odomPtr == nullptr) {
-    std::cerr << std::fixed << "\033[35mODOMETRY\033[0m - Passed nullptr in the map odom callback. " << std::endl;
-    return;
-  }
+void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr){
+  int key =  lidarOdomCallback(OdomPtr);
+  cloudCallback(key, cloudPtr);
+}
 
+int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr) {
   //Current timestamp and LiDAR pose
   const double ts = odomPtr->header.stamp.toSec();
   const auto& p = odomPtr->pose.pose;
@@ -71,6 +81,7 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
   //Add delta pose factor to graph
   gtsam::Key new_key;
   gtsam::Values result;
+   _saveCloud = false;
   {
     //If first lidar pose initialize graph
     std::lock_guard<std::mutex> lock(_graphMutex);
@@ -78,6 +89,7 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
       //Initialize
       new_key = _state_key;
       addPriorFactor(_state_key, gtsam::Pose3(), true);
+      _saveCloud = true;
       _firstLidarPose = false;
     } else {
       //Add pose delta
@@ -101,21 +113,33 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
   //Update last LiDAR pose
   _lastLidarPose = lidar_pose;
 
+  //Check motion since last cloud saved
+  gtsam::Pose3 cloud_delta = _lastCloudSavePose.between(lidar_pose);
+  std::cout << "\033[35mODOMETRY\033[0m - cloud motion, t: " << cloud_delta.translation().norm() << ", r: " << cloud_delta.rotation().rpy().norm() << std::endl;
+  if (cloud_delta.translation().norm() > 0.5 || cloud_delta.rotation().rpy().norm() > 0.2) { //0.5meter and 0.2rad (10deg)
+    _lastCloudSavePose = lidar_pose;
+    _saveCloud = true;
+  }
+
   //Publish Graph path
   //Pose Message
   static size_t poseMsgCount = 0;
   geometry_msgs::PoseStamped poseMsg;
-  poseMsg.header.frame_id = "alphasense_imu";
+  poseMsg.header.frame_id = _world_frame;
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
   createPoseMessage(imu_pose, &poseMsg);
 
   //Node Message
+   _pathMsg.header.frame_id = _world_frame;
   _pathMsg.header.stamp = poseMsg.header.stamp;
   _pathMsg.poses.emplace_back(std::move(poseMsg));
 
   //Publish Path
   _pubGraphPath.publish(_pathMsg);
+
+  //Publish Transforms
+  publishTransforms(odomPtr->header.stamp);
 
   // DEBUG
   // std::cout << std::fixed << "\033[31mODOMETRY\033[0m - key: " << new_key
@@ -129,10 +153,15 @@ void MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odo
             << ", Factors: " << _graph->getFactorsUnsafe().size()
             << std::endl;
   // DEBUG
+
+  if (_saveCloud)
+    return new_key;
+  else
+    return -1;
 }
 
 void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
-  if (posePtr == nullptr) {
+  if (posePtr == nullptr || _graph->size() == 0 ) {
     return;
   }
 
@@ -160,12 +189,21 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
     //Update graph
     _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
     _newFactors.resize(0);
+
+    //Update DARPA(G) to Robot (Local) Map(M)
+    static int count = 0;
+    if (count > 5) {
+      gtsam::Values result = _graph->calculateEstimate();
+      _T_G_M = result.at<gtsam::Pose3>(X(0));
+    } else
+      ++count;
   }
 
   //DEBUG
   std::cout << std::fixed << "\033[33mABSOLUTE\033[0m, ts: " << posePtr->header.stamp.toSec()
             << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", imu t(x,y,z): " << T_G_B.translation().transpose()     //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
+            << ", DARPA-MAP t:" << _T_G_M.translation().transpose()
             << std::endl;
   //DEBUG
 }
@@ -291,7 +329,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           static auto submapNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-3);  // rad,rad,rad,m,m,m
           const gtsam::Pose3 T_Parent_Child(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                                             gtsam::Point3(p.position.x, p.position.y, p.position.z));
-          gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_Parent_Child, submapNoise);
+          gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_Parent_Child, submapNoise); //TODO
           _newFactors.add(submapBF);
           //Update Graph
           _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
@@ -306,6 +344,54 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
     }
   }
   std::cout << "----------------------------------------------------------------------" << std::endl;
+}
+
+void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
+  if (key < 0)
+    return;
+
+  std::cout << std::fixed << "\033[32mPOINTCLOUD\033[0m - received at : " << cloudPtr->header.stamp.toSec(); 
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+  //New pointcloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::fromROSMsg(*cloudPtr, *cloud);
+  std::cout << ", Org: " << cloud->points.size();
+
+  // Passthrough filter
+  pcl::PassThrough<pcl::PointXYZ> pass;
+  // Filter - X
+  pass.setInputCloud(cloud);
+  pass.setFilterFieldName("x");
+  pass.setFilterLimits(-30, 30);
+  pass.setFilterLimitsNegative(false);
+  pass.filter(*cloud);
+  // Filter - Y
+  pass.setInputCloud(cloud);
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(-30, 30);
+  pass.setFilterLimitsNegative(false);
+  pass.filter(*cloud);
+  // Filter - Z
+  pass.setInputCloud(cloud);
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(-15, 15);
+  pass.setFilterLimitsNegative(false);
+  pass.filter(*cloud);
+  std::cout << ", passthrough: " << cloud->points.size();
+
+  // VoxelGrid Filter
+  pcl::VoxelGrid<pcl::PointXYZ> voxGrid;
+  voxGrid.setLeafSize(0.3, 0.3, 0.3);
+  voxGrid.setInputCloud(cloud);
+  voxGrid.filter(*cloud);
+  std::cout << ", voxGrid: " << cloud->points.size();
+
+  //Add cloud
+  _keyCloudMap[key] = cloud;
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+  std::cout << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
 }
 
 void MaplabIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {
@@ -358,7 +444,7 @@ bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) con
   return true;
 }
 
-void MaplabIntegrator::visualizeOnboardGraph() const {
+void MaplabIntegrator::visualizeOnboardGraph() {
   // This is just a quick publisher to visualize the graph in RViz.
   // It already publishes the graph in the correct frames and therefore,
   // is quite convenient for debugging.
@@ -370,22 +456,74 @@ void MaplabIntegrator::visualizeOnboardGraph() const {
     return;
   }
   nav_msgs::Path pathMsg;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZ>);
+  int cloud_count = 0;
+  bool publish_cloud = (_states.back()->ts() - _lastCloudPublishTime) > 2.0;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
-    gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
-    gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
+    gtsam::Pose3 T_G_B = result.at<gtsam::Pose3>(X(key)); //Absolute constraints added in the graph
+    // gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
-    poseMsg.header.frame_id = "alphasense_imu";
+    poseMsg.header.frame_id = _world_frame;
     poseMsg.header.stamp.fromSec(_states[i]->ts());
     createPoseMessage(T_G_B, &poseMsg);
 
     pathMsg.poses.emplace_back(poseMsg);
+
+    //Create Map
+    if (_pubMap.getNumSubscribers() > 0 && publish_cloud) {
+      auto itr = _keyCloudMap.find(key);
+      if (itr != _keyCloudMap.end()) {
+        //Get global lidar pose
+        gtsam::Pose3 T_G_L = T_G_B * _T_B_L;
+        //Transform cloud
+        pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::transformPointCloud(*itr->second, *transformedCloud, T_G_L.matrix());
+        *mapCloud += *transformedCloud;
+        ++cloud_count;
+      }
+    }
   }
-  pathMsg.header.frame_id = "map";
-  pathMsg.header.stamp = ros::Time::now();
+  pathMsg.header.frame_id = _world_frame;
+  pathMsg.header.stamp = ros::Time(_states.back()->ts());
   _pubUpdatedPath.publish(pathMsg);
+
+  //Publish Map
+  if (_pubMap.getNumSubscribers() > 0 && publish_cloud) {
+    //Downsample Map
+    std::cout << "mapCloud org_size: " << mapCloud->points.size();
+    pcl::VoxelGrid<pcl::PointXYZ> voxGrid;
+    voxGrid.setLeafSize(0.3, 0.3, 0.3);
+    voxGrid.setInputCloud(mapCloud);
+    voxGrid.filter(*mapCloud);
+    std::cout << ", Cloud accumulated: "<<cloud_count <<", voxGrid: " << mapCloud->points.size() << std::endl;
+    //Publish
+    sensor_msgs::PointCloud2 rosCloud;
+    pcl::toROSMsg(*mapCloud, rosCloud);
+    rosCloud.header.frame_id = _world_frame;
+    rosCloud.header.stamp = ros::Time(_states.back()->ts());
+    _pubMap.publish(rosCloud);
+    //Update timestamp
+    _lastCloudPublishTime = _states.back()->ts();
+  }
+}
+
+void MaplabIntegrator::publishTransforms(const ros::Time& ts){
+  // Absolute(DARPA)-to-RobotMap
+  geometry_msgs::TransformStamped T_G_M;  ///< geometry_msg of mapping odometry message CORRECTED
+  T_G_M.header.stamp = ts;
+  T_G_M.header.frame_id = _world_frame;
+  T_G_M.child_frame_id = _map_frame;
+  T_G_M.transform.rotation.x = _T_G_M.rotation().toQuaternion().x();
+  T_G_M.transform.rotation.y = _T_G_M.rotation().toQuaternion().y();
+  T_G_M.transform.rotation.z = _T_G_M.rotation().toQuaternion().z();
+  T_G_M.transform.rotation.w = _T_G_M.rotation().toQuaternion().w();
+  T_G_M.transform.translation.x = _T_G_M.translation().x();
+  T_G_M.transform.translation.y = _T_G_M.translation().y();
+  T_G_M.transform.translation.z = _T_G_M.translation().z();
+   _tb.sendTransform(T_G_M);
 }
 
 bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {
