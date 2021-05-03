@@ -2,32 +2,32 @@
 #define GRAPH_INTEGRATOR_HPP
 
 //C++
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 //ROS
 #include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/synchronizer.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
+#include <pcl/io/pcd_io.h>
 #include <ros/ros.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <pcl/io/pcd_io.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/sync_policies/exact_time.h>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/synchronizer.h>
 
 //PCL
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
 #include <pcl/common/transforms.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 //GTSAM
 #define SLOW_BUT_CORRECT_BETWEENFACTOR  // increases accuracy in handling rotations
@@ -57,61 +57,64 @@ class MaplabIntegrator {
 
   const auto newStateKey() { return ++_state_key; }
   //Add prior
-  void addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate = true);
+  void addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose);
   //Add a pose between factor
   void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose_delta, const gtsam::Pose3& pose_estimate);
   //Add prior factor from global graph
   bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;
   //Visualize the ISAM graph
-  void visualizeOnboardGraph();
+  void visualizeResults();
   //
   void publishTransforms(const ros::Time& ts);
 
   //Utility methods
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
+  void updateResultsForVisualization();
 
-  //Update 
-  void updateKeyAnchorFactorIdxMap(const gtsam::Key key) { _keyAnchorFactorIdxMap[key] = _graph->getFactorsUnsafe().size()-1; }
-  void printKeyFactorIdxMap();
+  //Lookup maps
+  void updateKeyAnchorFactorIdxMap(const gtsam::Key key) { _keyAnchorFactorIdxMap[key] = _factor_counter - 1; }
   void updateKeyAnchorPoseMap(const gtsam::Key key, const gtsam::Pose3& pose) { _keyAnchorPoseMap[key] = pose; }
-
-  
   void updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, const gtsam::Key child_key);
   int findSubmapFactorIdx(const gtsam::Key parent_key, const gtsam::Key child_key, bool erase = false);
 
+  void incFactorCount() { ++_factor_counter; }
+  size_t getFactorCount() { return _factor_counter; }
+
   //Members
-  ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
+
+  //Subscribers
   ros::Subscriber _subAbsolutePose;  // Absolute pose constraints from Apriltags
   ros::Subscriber _subMaplabAnchor;  // Maplab published Anchor constraints
   ros::Subscriber _subMaplabSubmap;  // Maplab published Submap-to-Submap contraints
-
+  //Synced subscriber
   message_filters::Subscriber<nav_msgs::Odometry> _subOdom;
   message_filters::Subscriber<sensor_msgs::PointCloud2> _subCloud;
   // typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object //TODO chose policy
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
-  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                       // ROS  Sync Policy Message Filter
+  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                             // ROS  Sync Policy Message Filter
 
-  ros::Publisher _pubGraphPath;      // Graph path publisher
-  ros::Publisher _pubUpdatedPath;    //
-  nav_msgs::Path _pathMsg;           // ROS path message for graph
-  ros::Publisher _pubMap;            //Publish corrected Map
+  //Publishers
+  ros::Publisher _pubGraphPath;    // Current state (Incremental) of graph
+  ros::Publisher _pubUpdatedPath;  // Optimized graph path
+  nav_msgs::Path _pathMsg;         // ROS path message for graph
+  ros::Publisher _pubMap;          // Publish corrected Map
 
-  
-  std::string _world_frame;
-  std::string _map_frame;
-  std::string _base_frame;
-  tf::TransformBroadcaster _tb;  // transform broadcaster
+  //Frame names and transforms
+  std::string _world_frame = "world";
+  std::string _map_frame = "map";
+  std::string _base_frame = "imu";
+  tf::TransformBroadcaster _tb;              // transform broadcaster
   geometry_msgs::TransformStamped _optPose;  // Optimized Pose
   geometry_msgs::TransformStamped _incPose;  // incremental Pose
 
   //Transforms
-  gtsam::Pose3 _T_B_L; //LiDAR(L) to alphasense IMU(B)
-  gtsam::Pose3 _T_B_C; //alphasense camera(C) to alphasense IMU(B)
-  gtsam::Pose3 _T_G_B; //alphasense IMU(B) to DARPA(G)
-  gtsam::Pose3 _T_G_M; //DARPA(G) to Robot (Local) Map(M) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
+  gtsam::Pose3 _T_B_L;  //LiDAR(L) to alphasense IMU(B)
+  gtsam::Pose3 _T_B_C;  //alphasense camera(C) to alphasense IMU(B)
+  gtsam::Pose3 _T_G_B;  //alphasense IMU(B) to DARPA(G)
+  gtsam::Pose3 _T_G_M;  //DARPA(G) to Robot (Local) Map(M) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
 
   //Factor graph
-  std::mutex _graphMutex;                   //For adding new factors and graph update
+  std::mutex _graphMutex;  //For adding new factors and graph update
   gtsam::ISAM2Params _params;
   gtsam::NonlinearFactorGraph _newFactors;
   std::shared_ptr<gtsam::ISAM2> _graph;
@@ -121,11 +124,11 @@ class MaplabIntegrator {
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
   //LIDAR odometry
-  bool _firstLidarPose = true;
-  gtsam::Pose3 _lastLidarPose;
+  bool _firstOdomMsg = true;
+  gtsam::Pose3 _lastIMUPose;
   //Absolute poses
   bool _firstAbsolutePose = true;
-  
+
   //Lookup map objects
   std::map<double, gtsam::Key> _timestampKeyMap;                   //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
   std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;             //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
@@ -133,10 +136,20 @@ class MaplabIntegrator {
 
   std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;  //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
 
+  //Timer-based results publisher
+  bool _new_results = false;
+  gtsam::Values _results;
+  ros::Timer _timerVisualizeResults;
+  
+
   bool _saveCloud;
+  double _cloudSavePosDelta = 1.0;  //meters
+  double _cloudSaveRotDelta = 0.2;    //radians
   gtsam::Pose3 _lastCloudSavePose;
   double _lastCloudPublishTime;
   std::unordered_map<gtsam::Key, pcl::PointCloud<pcl::PointXYZ>::Ptr> _keyCloudMap;  //Key-Cloud map for lookup of pointclouds at keys to build map
+
+  size_t _factor_counter = 0;
 };
 
 }  // namespace loam

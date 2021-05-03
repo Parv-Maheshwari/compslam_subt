@@ -7,16 +7,24 @@
 namespace loam {
 
 bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
+  //Parameters
   //Frames
-  _world_frame = "absolute_darpa";
-  _map_frame = "robot_map";
-  _base_frame = "alphasense_imu";
-  
+  if (privateNode.getParam("world_frame", _world_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - World/Global frame set to: " << _world_frame);
+  if (privateNode.getParam("map_frame", _map_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - Robot Map frame set to: " << _map_frame);
+  if (privateNode.getParam("base_frame", _base_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - Robot Base frame set to: " << _base_frame);
+  //Pointcloud save delta
+  if (privateNode.getParam("cloudSavePosDelta", _cloudSavePosDelta))
+    ROS_INFO_STREAM("MaplabIntegrator - Minimum Position(m) delta Norm for saving pointcloud: " << _cloudSavePosDelta);
+    if (privateNode.getParam("cloudSaveRotDelta", _cloudSaveRotDelta))
+    ROS_INFO_STREAM("MaplabIntegrator - Minimum Rotation(rad) delta Norm for saving pointcloud: " << _cloudSaveRotDelta);
+
   //Subscribers
-  // _subLaserMapOdom = node.subscribe<nav_msgs::Odometry>("odometry", 10, &MaplabIntegrator::lidarOdomCallback, this);
-  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &MaplabIntegrator::absolutePoseCallback, this);
-  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("/graph_client/anchor_nodes", 2, &MaplabIntegrator::maplabAnchorCallback, this);
-  _subMaplabSubmap = node.subscribe<nav_msgs::Path>("/graph_client/intra_constraints", 2, &MaplabIntegrator::maplabSubmapCallback, this);
+  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 2, &MaplabIntegrator::absolutePoseCallback, this);
+  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("anchor_constraints", 2, &MaplabIntegrator::maplabAnchorCallback, this);
+  _subMaplabSubmap = node.subscribe<nav_msgs::Path>("submap_constraints", 2, &MaplabIntegrator::maplabSubmapCallback, this);
   //Synced subscriber
   _subOdom.subscribe(node, "odometry", 10);
   _subCloud.subscribe(node, "pointcloud", 10);
@@ -29,10 +37,13 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser/map_optimized", 5);
 
+  //
+  _timerVisualizeResults = node.createTimer(ros::Duration(2.0), std::bind(&MaplabIntegrator::visualizeResults, this));
+
   //Set factor graph params
   _params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
-  _params.factorization = gtsam::ISAM2Params::QR;  //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
-  gtsam::FastMap<char, gtsam::Vector> relinTh;     //Set graph relinearization thresholds - must be lower case letters, check:gtsam::symbol_shorthand
+  _params.factorization = gtsam::ISAM2Params::QR;        //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
+  gtsam::FastMap<char, gtsam::Vector> relinTh;           //Set graph relinearization thresholds - must be lower case letters, check:gtsam::symbol_shorthand
   relinTh['x'] = (gtsam::Vector(6) << 0.05, 0.05, 0.05, 0.05, 0.05, 0.05).finished();
   _params.relinearizeThreshold = relinTh;
   _params.setEnableRelinearization(true);
@@ -66,8 +77,8 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   return true;
 }
 
-void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr){
-  int key =  lidarOdomCallback(OdomPtr);
+void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
+  int key = lidarOdomCallback(OdomPtr);
   cloudCallback(key, cloudPtr);
 }
 
@@ -77,27 +88,27 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   const auto& p = odomPtr->pose.pose;
   const gtsam::Pose3 lidar_pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                                 gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  gtsam::Pose3 imu_pose = _T_B_L.compose(lidar_pose);
+  gtsam::Pose3 imu_delta = _lastIMUPose.between(imu_pose);
 
   //Add delta pose factor to graph
   gtsam::Key new_key;
   gtsam::Values result;
-   _saveCloud = false;
+  _saveCloud = false;
   {
     //If first lidar pose initialize graph
     std::lock_guard<std::mutex> lock(_graphMutex);
-    if (_firstLidarPose) {
-      //Initialize
+    if (_firstOdomMsg) {
+      //Initialize - Add identity prior factor
       new_key = _state_key;
-      addPriorFactor(_state_key, gtsam::Pose3(), true);
+      addPriorFactor(_state_key, imu_pose);
       _saveCloud = true;
-      _firstLidarPose = false;
+      _firstOdomMsg = false;
     } else {
       //Add pose delta
       auto old_key = _states.back()->key();
       new_key = newStateKey();
-      gtsam::Pose3 pose_delta = _lastLidarPose.between(lidar_pose);
-      gtsam::Pose3 pose_estimate = _T_B_L.compose(lidar_pose);
-      addPoseBetweenFactor(old_key, new_key, pose_delta, pose_estimate);
+      addPoseBetweenFactor(old_key, new_key, imu_delta, imu_pose);
     }
     //Update Timestamp-Key Map
     _timestampKeyMap[ts] = new_key;
@@ -105,18 +116,18 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
     result = _graph->calculateEstimate();
   }
 
+  //Update last IMU pose
+  _lastIMUPose = imu_pose;
+
   //Update vector of states in (B) frame
   StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
   _states.emplace_back(std::move(state));
-  const auto& imu_pose = _states.back()->navState().pose();
+  const auto& graph_pose = _states.back()->navState().pose();
 
-  //Update last LiDAR pose
-  _lastLidarPose = lidar_pose;
-
-  //Check motion since last cloud saved
+  //Check motion difference to know if incoming cloud should be saved
   gtsam::Pose3 cloud_delta = _lastCloudSavePose.between(lidar_pose);
-  std::cout << "\033[35mODOMETRY\033[0m - cloud motion, t: " << cloud_delta.translation().norm() << ", r: " << cloud_delta.rotation().rpy().norm() << std::endl;
-  if (cloud_delta.translation().norm() > 0.5 || cloud_delta.rotation().rpy().norm() > 0.2) { //0.5meter and 0.2rad (10deg)
+  if (cloud_delta.translation().norm() > _cloudSavePosDelta ||
+      cloud_delta.rotation().rpy().norm() > _cloudSaveRotDelta) {
     _lastCloudSavePose = lidar_pose;
     _saveCloud = true;
   }
@@ -128,10 +139,10 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   poseMsg.header.frame_id = _world_frame;
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
-  createPoseMessage(imu_pose, &poseMsg);
+  createPoseMessage(graph_pose, &poseMsg);
 
   //Node Message
-   _pathMsg.header.frame_id = _world_frame;
+  _pathMsg.header.frame_id = _world_frame;
   _pathMsg.header.stamp = poseMsg.header.stamp;
   _pathMsg.poses.emplace_back(std::move(poseMsg));
 
@@ -150,10 +161,12 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 
   std::cout << std::fixed << "\033[35mODOMETRY\033[0m - key: " << new_key
             << ", ts: " << odomPtr->header.stamp.toSec()
-            << ", Factors: " << _graph->getFactorsUnsafe().size()
+            // << ", Factors: " << _graph->getFactorsUnsafe().size() 
+            << ", Factor Count: " << getFactorCount()
             << std::endl;
   // DEBUG
 
+  //return key to associate pointcloud
   if (_saveCloud)
     return new_key;
   else
@@ -161,7 +174,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 }
 
 void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {
-  if (posePtr == nullptr || _graph->size() == 0 ) {
+  if (posePtr == nullptr || _firstOdomMsg) {
+    std::cout << std::fixed << "\033[33mABSOLUTE\033[0m - Passed nullptr or graph not initialized from odometry yet" << std::endl;
     return;
   }
 
@@ -179,6 +193,7 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
     static auto absoluteNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-6);  // rad,rad,rad,m, m, m
     _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(0), T_G_B, absoluteNoise);
 
+    //If first aboslute pose - remove any previous priors at FIRST key
     gtsam::FactorIndices removeFactorIdx;
     if (_firstAbsolutePose) {
       removeFactorIdx.push_back(0);
@@ -189,6 +204,7 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
     //Update graph
     _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
     _newFactors.resize(0);
+    incFactorCount();
 
     //Update DARPA(G) to Robot (Local) Map(M)
     static int count = 0;
@@ -210,8 +226,8 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
 
 void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
   //Check if empty message
-  if (pathPtr == nullptr) {
-    std::cerr << std::fixed << "\033[31mANCHOR\033[0m - Passed nullptr in graph update callback." << std::endl;
+  if (pathPtr == nullptr || _firstOdomMsg) {
+    std::cout << std::fixed << "\033[31mANCHOR\033[0m - Passed nullptr or graph not initialized from odometry yet" << std::endl;
     return;
   }
 
@@ -226,9 +242,7 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       //Update timestamp
       const double ts = pose_msg.header.stamp.toSec();
 
-      //Find corresponding key in graph
-      // This is just a precaution as I need to verify whether the timestamp match perfectly.
-      // Consequently, I would leave the vector of states for now to be more flexible.
+      //Find corresponding key in graph //TODO use map lookup after fixing timestamps & remove _states vector
       gtsam::Key key;
       if (!findClosestKeyForTS(ts, &key)) {
         std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
@@ -236,26 +250,21 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       } else
         std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
 
-      //Skip Anchor on Key 0 as it has Absolute poses attached to it
-      if (key == 0) {
-        std::cout << std::fixed << " - Skipping Key 0" << std::endl;
+      //Only Absolute poses can be attached to Key 0
+      if (key == 0)
         continue;
-      }
 
       //Create Update pose
       const auto& p = pose_msg.pose;
       const gtsam::Pose3 T_G_B(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                                gtsam::Point3(p.position.x, p.position.y, p.position.z));
-      const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B;
+      // const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B; //NOTE not required as absolute poses maintain IMU position in global(darpa) frame
 
-      //Check if key already exists
+      //Compare if anchor pose on same key has changed
       auto anchor_itr = _keyAnchorPoseMap.find(key);
-      //If match found compare difference
       if (anchor_itr != _keyAnchorPoseMap.end()) {
-        bool equal = anchor_itr->second.equals(T_M_B, 1.0e-02);
-        std::cout << ", t(old): " << anchor_itr->second.translation().transpose()
-                  << ", t(new): " << T_M_B.translation().transpose()
-                  << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") << std::endl;
+        bool equal = anchor_itr->second.equals(T_G_B, 1.0e-02);
+        std::cout << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") <<std::endl;
         if (equal)
           continue;
       }
@@ -268,32 +277,31 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       } else
         std::cout << " - New Prior Added" << std::endl;
 
-      //Create prior factor
-      static auto anchorNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-5);  // rad,rad,rad,m, m, m
-      _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, anchorNoise);
-
-      //Update maps for lookup //NOTE Need to remove/add factor each time to track factor indices
+      //Update graph
+      static auto anchorNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-4);  // rad,rad,rad,m, m, m
+      _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_G_B, anchorNoise);
       _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
-      _newFactors.resize(0);               //Reset
+      _newFactors.resize(0);  //Reset
+      incFactorCount();
+
+      //Update lookup maps
       updateKeyAnchorFactorIdxMap(key);    //Assosicate index of new prior factor to graph key
-      updateKeyAnchorPoseMap(key, T_M_B);  //Associate Anchor pose to key
+      updateKeyAnchorPoseMap(key, T_G_B);  //Associate Anchor pose to key
     }
+    updateResultsForVisualization();
     auto t2 = std::chrono::high_resolution_clock::now();
     std::cout << "\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
-
-    //DEBUG //TODO Move outside Mutex
-    visualizeOnboardGraph();
   }
 }
 
 void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& pathPtr) {
   //Check if empty message
-  if (pathPtr == nullptr) {
-    std::cerr << std::fixed << "\033[34mSUBMAP\033[0m - Passed nullptr in graph update callback." << std::endl;
+  if (pathPtr == nullptr || _firstOdomMsg) {
+    std::cerr << std::fixed << "\033[34mSUBMAP\033[0m - Passed nullptr or graph not initialized from odometry yet" << std::endl;
     return;
   }
 
-  //Find corresponding key in graph
+  //Find corresponding parent key in graph
   const auto& parent_ts = pathPtr->header.stamp.toSec();
   gtsam::Key parent_key;
   if (!findClosestKeyForTS(parent_ts, &parent_key)) {
@@ -325,22 +333,22 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
             std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
           }
 
-          //Add BetweenFactor
+          //Add submap-submap BetweenFactor
           static auto submapNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-3);  // rad,rad,rad,m,m,m
-          const gtsam::Pose3 T_Parent_Child(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                                            gtsam::Point3(p.position.x, p.position.y, p.position.z));
-          gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_Parent_Child, submapNoise); //TODO
+          gtsam::Pose3 T_B1B2(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                              gtsam::Point3(p.position.x, p.position.y, p.position.z));
+          gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_B1B2, submapNoise);
           _newFactors.add(submapBF);
           //Update Graph
           _graph->update(_newFactors, gtsam::Values(), removeFactorIdx);
-          _newFactors.resize(0);  //Reset
+          _newFactors.resize(0);
+          incFactorCount();
           updateKeySubmapFactorIdxMap(parent_key, child_key);
         }
       }
+      updateResultsForVisualization();
       auto t2 = std::chrono::high_resolution_clock::now();
       std::cout << "\033[34mSUBMAP-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
-      //DEBUG //TODO Move outside Mutex
-      visualizeOnboardGraph();
     }
   }
   std::cout << "----------------------------------------------------------------------" << std::endl;
@@ -350,7 +358,7 @@ void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2Cons
   if (key < 0)
     return;
 
-  std::cout << std::fixed << "\033[32mPOINTCLOUD\033[0m - received at : " << cloudPtr->header.stamp.toSec(); 
+  std::cout << std::fixed << "\033[32mPOINTCLOUD\033[0m - received at : " << cloudPtr->header.stamp.toSec();
 
   auto t1 = std::chrono::high_resolution_clock::now();
   //New pointcloud
@@ -394,25 +402,25 @@ void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2Cons
   std::cout << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
 }
 
-void MaplabIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {
+void MaplabIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose) {
   //Prior factor noise
-  static auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 1e-2).finished());  // rad,rad,rad,m, m, m
+  static auto priorNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 1e-2).finished());  // rad,rad,rad,m, m, m
 
   //Initial estimate - Use pose as estimate (For prior factors at graph init)
   gtsam::Values estimate;
-  if (addEstimate)
-    estimate.insert(X(key), pose);
+  estimate.insert(X(key), pose);
 
   //Add prior factor and update graph
-  _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), pose, poseNoise);  //POSE - PriorFactor format is (key,value,matrix) value is same type as type of PriorFactor
+  _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), pose, priorNoise);
   _graph->update(_newFactors, estimate);
   _newFactors.resize(0);  //Reset
+  incFactorCount();
 }
 
 void MaplabIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose_delta, const gtsam::Pose3& pose_estimate) {
   //Create Pose BetweenFactor
-  static auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
-  gtsam::BetweenFactor<gtsam::Pose3> poseBF(X(old_key), X(new_key), pose_delta, poseNoiseModel);
+  static auto poseBFNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
+  gtsam::BetweenFactor<gtsam::Pose3> poseBF(X(old_key), X(new_key), pose_delta, poseBFNoise);
 
   //Pose estimate
   gtsam::Values estimate;
@@ -422,6 +430,7 @@ void MaplabIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsa
   _newFactors.add(poseBF);
   _graph->update(_newFactors, estimate);
   _newFactors.resize(0);  //Reset
+  incFactorCount();
 }
 
 bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) const {
@@ -444,37 +453,41 @@ bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) con
   return true;
 }
 
-void MaplabIntegrator::visualizeOnboardGraph() {
-  // This is just a quick publisher to visualize the graph in RViz.
-  // It already publishes the graph in the correct frames and therefore,
-  // is quite convenient for debugging.
-  gtsam::Values result = _graph->calculateEstimate();
-  const std::size_t n_nodes = result.size();
-  const std::size_t n_states = _states.size();
-  if (n_nodes != n_states) {
-    std::cerr << "Graph nodes don't equal states: " << n_nodes << " vs. " << n_states << std::endl;
-    return;
+void MaplabIntegrator::updateResultsForVisualization() {
+  //Check if previous results have been visualized
+  if (!_new_results) {
+    _results = _graph->calculateBestEstimate();
+    _new_results = true;
+    std::cout << "----- \033[34mVisualization Results Updated\033[0m-----" << std::endl;
   }
+}
+
+void MaplabIntegrator::visualizeResults() {
+  if(!_new_results)
+    return;
+  
+  // gtsam::Values result = _results; //Make local copy
+  auto t1 = std::chrono::high_resolution_clock::now();
+  ros::Time current_ts = ros::Time::now();  //TODO find solution for correct timestamp
   nav_msgs::Path pathMsg;
   pcl::PointCloud<pcl::PointXYZ>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZ>);
   int cloud_count = 0;
-  bool publish_cloud = (_states.back()->ts() - _lastCloudPublishTime) > 2.0;
-  for (std::size_t i = 0u; i < n_states; ++i) {
-    const gtsam::Key& key = _states[i]->key();
-    gtsam::Pose3 T_G_B = result.at<gtsam::Pose3>(X(key)); //Absolute constraints added in the graph
-    // gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
+
+  //Loop through result values
+  for (std::size_t i = 0; i < _results.size(); ++i) {
+    gtsam::Pose3 T_G_B = _results.at<gtsam::Pose3>(X(i));  //Absolute constraints added in the graph
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = _world_frame;
-    poseMsg.header.stamp.fromSec(_states[i]->ts());
+    poseMsg.header.stamp = current_ts;
     createPoseMessage(T_G_B, &poseMsg);
 
     pathMsg.poses.emplace_back(poseMsg);
 
     //Create Map
-    if (_pubMap.getNumSubscribers() > 0 && publish_cloud) {
-      auto itr = _keyCloudMap.find(key);
+    if (_pubMap.getNumSubscribers() > 0) {
+      auto itr = _keyCloudMap.find(i);
       if (itr != _keyCloudMap.end()) {
         //Get global lidar pose
         gtsam::Pose3 T_G_L = T_G_B * _T_B_L;
@@ -487,30 +500,37 @@ void MaplabIntegrator::visualizeOnboardGraph() {
     }
   }
   pathMsg.header.frame_id = _world_frame;
-  pathMsg.header.stamp = ros::Time(_states.back()->ts());
+  pathMsg.header.stamp = current_ts;
   _pubUpdatedPath.publish(pathMsg);
 
   //Publish Map
-  if (_pubMap.getNumSubscribers() > 0 && publish_cloud) {
+  if (_pubMap.getNumSubscribers() > 0) {
     //Downsample Map
     std::cout << "mapCloud org_size: " << mapCloud->points.size();
     pcl::VoxelGrid<pcl::PointXYZ> voxGrid;
     voxGrid.setLeafSize(0.3, 0.3, 0.3);
     voxGrid.setInputCloud(mapCloud);
     voxGrid.filter(*mapCloud);
-    std::cout << ", Cloud accumulated: "<<cloud_count <<", voxGrid: " << mapCloud->points.size() << std::endl;
+    std::cout << ", Cloud accumulated: " << cloud_count << ", voxGrid: " << mapCloud->points.size() << std::endl;
     //Publish
     sensor_msgs::PointCloud2 rosCloud;
     pcl::toROSMsg(*mapCloud, rosCloud);
     rosCloud.header.frame_id = _world_frame;
-    rosCloud.header.stamp = ros::Time(_states.back()->ts());
+    rosCloud.header.stamp = current_ts;
     _pubMap.publish(rosCloud);
-    //Update timestamp
-    _lastCloudPublishTime = _states.back()->ts();
   }
+
+  //Reset results flag
+  _new_results = false;
+
+  //DEBUG
+  auto t2 = std::chrono::high_resolution_clock::now();
+  std::cout << "Map accumulated clouds: " << cloud_count << ", points: " << mapCloud->points.size() << std::endl;
+  std::cout << "VISUALIZATION time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+  //DEBUG
 }
 
-void MaplabIntegrator::publishTransforms(const ros::Time& ts){
+void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   // Absolute(DARPA)-to-RobotMap
   geometry_msgs::TransformStamped T_G_M;  ///< geometry_msg of mapping odometry message CORRECTED
   T_G_M.header.stamp = ts;
@@ -523,7 +543,7 @@ void MaplabIntegrator::publishTransforms(const ros::Time& ts){
   T_G_M.transform.translation.x = _T_G_M.translation().x();
   T_G_M.transform.translation.y = _T_G_M.translation().y();
   T_G_M.transform.translation.z = _T_G_M.translation().z();
-   _tb.sendTransform(T_G_M);
+  _tb.sendTransform(T_G_M);
 }
 
 bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {
@@ -541,16 +561,11 @@ bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs
   return true;
 }
 
-void MaplabIntegrator::printKeyFactorIdxMap() {
-  std::cout << "--- Printing Key-PriorFactorIndex Map ---\n";
-  for (auto itr = _keyAnchorFactorIdxMap.begin(); itr != _keyAnchorFactorIdxMap.end(); ++itr)
-    std::cout << "Key: " << itr->first << ", FactorIdx: " << itr->second << std::endl;
-}
-
 void MaplabIntegrator::updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, const gtsam::Key child_key) {
-  _keySubmapFactorIdxMap[parent_key].emplace(_graph->getFactorsUnsafe().size() - 1);
-  _keySubmapFactorIdxMap[child_key].emplace(_graph->getFactorsUnsafe().size() - 1);
-  std::cout << "\033[34mSUBMAP\033[0m NEW Factor added at Index: " << _graph->getFactorsUnsafe().size() - 1
+  size_t factor_idx = getFactorCount()-1; //_graph->getFactorsUnsafe().size() - 1;
+  _keySubmapFactorIdxMap[parent_key].emplace(factor_idx);
+  _keySubmapFactorIdxMap[child_key].emplace(factor_idx);
+  std::cout << "\033[34mSUBMAP\033[0m NEW Factor added at Index: " << factor_idx
             << ", between keys: " << parent_key << "/" << child_key << std::endl;
 }
 
@@ -570,12 +585,12 @@ int MaplabIntegrator::findSubmapFactorIdx(const gtsam::Key parent_key, const gts
   if (result.size() > 0) {
     output = *result.begin();
 
-    //CUSTOMIZATION
+    //DEBUG
     std::cout << "\033[34mSUBMAP\033[0m Indices found: ";
     for (auto& e : result)
       std::cout << e << ",";
     std::cout << ", between keys: " << parent_key << "/" << child_key << std::endl;
-    //CUSTOMIZATION
+    //DEBUG
 
     //Remove common constraint indices from both sets
     if (erase) {

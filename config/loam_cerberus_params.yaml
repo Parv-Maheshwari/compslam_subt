@@ -86,3 +86,10 @@ enablePartialRelinearizationCheck: true
 enableDetailedResults: false
 poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -ORDER RPY(rad) - XYZ(meters)
 zeroMotionDetection: false                        #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+
+#MaplabIntegrator
+world_frame: absolute_darpa
+map_frame: robot_map
+base_frame: alphasense_imu
+cloudSavePosDelta: 1.0
+cloudSaveRotDelta: 0.2

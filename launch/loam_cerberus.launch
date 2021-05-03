@@ -9,11 +9,11 @@
   # CERBERUS - Frame Connector
 
   <!-- Input topics remap -->
-  <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered" />
+  <arg name="pointcloud_topic_name" default="/lidar/point_cloud" /> #/point_cloud_filter/lidar/point_cloud_filtered
   <arg name="imu_topic_name" default="/sensors/imu" />
 
   <!-- LOAM Nodelet Manager -->
-  <node pkg="nodelet" type="nodelet" name="loam_nodelet_manager" args="manager" output="screen" clear_params="true"/> #launch-prefix="gdb -ex run --args" />
+  <node pkg="nodelet" type="nodelet" name="loam_nodelet_manager" args="manager" output="screen" clear_params="true" launch-prefix="gdb -ex run --args" />
 
   <!-- Laser Multiscan Registration Nodelet -->
   <!-- <node pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet loam_nodelet_manager" output="screen">
@@ -31,6 +31,7 @@
   <!-- <node pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <param name="saved_submaps_filepath" value="$(find loam)"/>
+    <remap from="/aft_mapped_to_init_CORRECTED" to="/loam/odometry" />
   </node> -->
 
   <!-- Laser Transform Maintenance Nodelet -->
@@ -41,9 +42,10 @@
   <!-- Laser Graph Integrator Nodelet -->
   <node pkg="nodelet" type="nodelet" name="laser_graph_integrator_nodelet" args="load laser_graph_integrator_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
-    <remap from="odometry" to="/loam_recorded_odometry" />
+    <remap from="odometry" to="/loam_recorded_odometry" /> #/loam_recorded_odometry #/integrated_to_init_CORRECTED
     <remap from="pointcloud" to="/lidar/point_cloud" />
-    <remap from="/graph_client/anchor_nodes" to="/graph_client/anchor_nodes_IGNORE" />
-    <remap from="/anymal/absolute_reference" to="/anymal/absolute_reference_POST" />
+    <remap from="absolute_constraints" to="/anymal/absolute_reference_POST" />
+    <remap from="anchor_constraints" to="/graph_client/anchor_nodes" />
+    <remap from="submap_constraints" to="/graph_client/intra_constraints_IGNORE" />
   </node>
 </launch>
