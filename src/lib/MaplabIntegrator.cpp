@@ -109,17 +109,17 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
 }
 
 void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
-  if (OdomPtr == nullptr || cloudPtr == nullptr) {
-    ROS_WARN("MaplabIntegrator - nullptr passed to Odometry/Pointcloud Synced callback");
-    return;
-  }
-
   //Add odometry factor and check if pointcloud needs to be stored
   int key = lidarOdomCallback(OdomPtr);
   cloudCallback(key, cloudPtr);
 }
 
 int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr) {
+  if (odomPtr == nullptr) {
+    ROS_WARN("MaplabIntegrator - nullptr passed to Odometry callback");
+    return -1;
+  }
+
   //Current timestamp and LiDAR pose
   const double ts = odomPtr->header.stamp.toSec();
   const auto& p = odomPtr->pose.pose;
@@ -205,10 +205,15 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 }
 
 void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
+  if (cloudPtr == nullptr) {
+    ROS_WARN("MaplabIntegrator - nullptr passed to Pointcloud callback");
+    return;
+  }
+  
+  //Check if pointcloud needs to be stored
   if (key < 0)
     return;
 
-  auto t1 = std::chrono::high_resolution_clock::now();
   //New pointcloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*cloudPtr, *cloud);
@@ -242,10 +247,6 @@ void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2Cons
 
   //Add cloud
   _keyCloudMap[key] = cloud;
-
-  // //Debug
-  // auto t2 = std::chrono::high_resolution_clock::now();
-  // std::cout << "MaplabIntegrator - Pointcloud filtering time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
 }
 
 void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr) {

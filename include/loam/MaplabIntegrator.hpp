@@ -1,5 +1,5 @@
-#ifndef GRAPH_INTEGRATOR_HPP
-#define GRAPH_INTEGRATOR_HPP
+#ifndef MAPLAB_INTEGRATOR_HPP
+#define MAPLAB_INTEGRATOR_HPP
 
 //C++
 #include <algorithm>
