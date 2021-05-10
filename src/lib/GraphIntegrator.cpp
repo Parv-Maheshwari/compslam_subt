@@ -3,6 +3,10 @@
 #include <algorithm>
 
 #include <gtsam/navigation/GPSFactor.h>
+#include <gtsam/nonlinear/Marginals.h>
+
+#include "loam/Graph.h"
+#include "loam/GraphNode.h"
 
 namespace loam {
 
@@ -13,8 +17,7 @@ bool GraphIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode)
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/anymal/absolute_reference", 2, &GraphIntegrator::absolutePoseCallback, this);
 
   //Publisher
-  _pubGraphPath = node.advertise<nav_msgs::Path>("/trajectory_path", 5);
-  _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
+  _pubUpdatedPath = node.advertise<Graph>("/updated_trajectory", 5);
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pathMsg.header.frame_id = "cerberus";
 
@@ -90,33 +93,16 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   _states.emplace_back(std::move(state));
   auto t2 = std::chrono::high_resolution_clock::now();
 
+  // DEBUG
+  /*
   //Convert to Alphasense IMU frame
   gtsam::Pose3 T_M_L = _states.back()->navState().pose();
   gtsam::Pose3 T_M_B = T_M_L * _T_B_L.inverse();
-
-  //Publish Graph path
-  //Pose Message
-  static size_t poseMsgCount = 0;
-  geometry_msgs::PoseStamped poseMsg;
-  poseMsg.header.frame_id = "alphasense_imu";
-  poseMsg.header.stamp = odomPtr->header.stamp;
-  poseMsg.header.seq = ++poseMsgCount;
-  createPoseMessage(T_M_B, &poseMsg);
-
-  //Node Message
-  _pathMsg.header.stamp = poseMsg.header.stamp;
-  _pathMsg.poses.emplace_back(std::move(poseMsg));
-
-  //Publish Path
-  _pubGraphPath.publish(_pathMsg);
-
-  // DEBUG
-  /*
   std::cout << "lidar_pose t(x,y,z): " << T_M_L.translation().transpose() << ", RPY(deg): " << T_M_L.rotation().rpy().transpose() * (180.0 / M_PI)
             << "\nimu_pose  t(x,y,z): " << T_M_B.translation().transpose() << ", RPY(deg): " << T_M_B.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
             */
-  visualizeOnboardGraph();
+  publishLatestOnboardGraph();
   // DEBUG
 }
 
@@ -225,7 +211,7 @@ bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) cons
     // The requested ts is older than the oldest one in the state vector.
     return false;
   }
-  auto comp = [eps](const StatePtr& lhs, const double ts) { return lhs->ts() + eps < ts; };
+  auto comp = [](const StatePtr& lhs, const double ts) { return lhs->ts() + eps < ts; };
   auto it = std::lower_bound(_states.cbegin(), _states.cend(), ts, comp);
   if (it == _states.cend()) {
     return false;
@@ -235,10 +221,14 @@ bool GraphIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) cons
   return true;
 }
 
-void GraphIntegrator::visualizeOnboardGraph() const {
+void GraphIntegrator::publishLatestOnboardGraph() const {
   // This is just a quick publisher to visualize the graph in RViz.
   // It already publishes the graph in the correct frames and therefore,
   // is quite convenient for debugging.
+  if (_graph == nullptr) {
+    return;
+  }
+
   gtsam::Values result = _graph->calculateEstimate();
   const std::size_t n_nodes = result.size();
   const std::size_t n_states = _states.size();
@@ -246,11 +236,13 @@ void GraphIntegrator::visualizeOnboardGraph() const {
     std::cerr << "Graph nodes don't equal states: " << n_nodes << " vs. " << n_states << std::endl;
     return;
   }
-  nav_msgs::Path pathMsg;
+  gtsam::Marginals marginals(_graph->getFactorsUnsafe(), result);
+  Graph graphMsg;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
     gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
     gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
+    const Eigen::Matrix3d cov = marginals.marginalCovariance(X(key));
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
@@ -258,11 +250,15 @@ void GraphIntegrator::visualizeOnboardGraph() const {
     poseMsg.header.stamp.fromSec(_states[i]->ts());
     createPoseMessage(T_G_B, &poseMsg);
 
-    pathMsg.poses.emplace_back(poseMsg);
+    // Add estimation to graph message.
+    GraphNode node;
+    node.pose = poseMsg;
+    node.covariance = std::vector<float>(cov.data(), cov.data() + cov.size());
+    graphMsg.nodes.emplace_back(node);
   }
-  pathMsg.header.frame_id = "map";
-  pathMsg.header.stamp = ros::Time::now();
-  _pubUpdatedPath.publish(pathMsg);
+  graphMsg.header.frame_id = "map";
+  graphMsg.header.stamp = ros::Time::now();
+  _pubUpdatedPath.publish(graphMsg);
 }
 
 bool GraphIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {
