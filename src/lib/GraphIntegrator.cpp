@@ -77,7 +77,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
 
   //Add to Graph
   gtsam::Key new_key;
-  auto t1 = std::chrono::high_resolution_clock::now();
+  const auto t1 = std::chrono::high_resolution_clock::now();
   if (!_isGraphInitialized) {
     new_key = _state_key;  //start at zero
     addPriorFactor(new_key, pose);
@@ -91,7 +91,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   gtsam::Values result = _graph->calculateEstimate();
   StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
   _states.emplace_back(std::move(state));
-  auto t2 = std::chrono::high_resolution_clock::now();
+  const auto t2 = std::chrono::high_resolution_clock::now();
 
   // DEBUG
   /*
@@ -101,7 +101,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   std::cout << "lidar_pose t(x,y,z): " << T_M_L.translation().transpose() << ", RPY(deg): " << T_M_L.rotation().rpy().transpose() * (180.0 / M_PI)
             << "\nimu_pose  t(x,y,z): " << T_M_B.translation().transpose() << ", RPY(deg): " << T_M_B.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
-            */
+  */
   publishLatestOnboardGraph();
   // DEBUG
 }
@@ -129,7 +129,7 @@ void GraphIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathP
                              gtsam::Point3(p.position.x, p.position.y, p.position.z));
     const gtsam::Pose3 T_M_B = _T_G_M.inverse() * T_G_B;
     //addPriorFactor(key, T_M_B, false);
-    auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-5, 1e-5, 1e-5, 1e-8, 1e-8, 1e-8).finished());  // rad,rad,rad,m, m, m
+    const auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-5, 1e-5, 1e-5, 1e-8, 1e-8, 1e-8).finished());  // rad,rad,rad,m, m, m
     //Create prior factors
     _newFactors.resize(0);
     _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), T_M_B, poseNoise);
@@ -155,8 +155,8 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
     return;
   }
   gtsam::Values result = _graph->calculateEstimate();
-  gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
-  gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
+  const gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
+  const gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
 
   // Outlier rejection. This is a very quick and dirty way to do it.
   // The absolute poses are very noisy and need to be checked.
@@ -169,7 +169,7 @@ void GraphIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovarian
 
 bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& pose, const bool addEstimate) {
   //Prior factor noise
-  auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
+  const auto poseNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-6, 1e-6, 1e-6).finished());  // rad,rad,rad,m, m, m
   //Create prior factors
   _newFactors.resize(0);
   _newFactors.emplace_shared<gtsam::PriorFactor<gtsam::Pose3>>(X(key), pose, poseNoise);  //POSE - PriorFactor format is (key,value,matrix) value is same type as type of PriorFactor
@@ -187,9 +187,9 @@ bool GraphIntegrator::addPriorFactor(const gtsam::Key key, const gtsam::Pose3& p
 
 bool GraphIntegrator::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
   //Calculate Pose delta
-  gtsam::Pose3 pose_delta = _states.back()->navState().pose().between(pose);
+  const gtsam::Pose3 pose_delta = _states.back()->navState().pose().between(pose);
   //Create Pose BetweenFactor and add
-  auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
+  const auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
   gtsam::BetweenFactor<gtsam::Pose3> poseBetweenFactor(X(old_key), X(new_key), pose_delta, poseNoiseModel);
   _newFactors.resize(0);  //Reset
   _newFactors.add(poseBetweenFactor);
@@ -240,9 +240,9 @@ void GraphIntegrator::publishLatestOnboardGraph() const {
   Graph graphMsg;
   for (std::size_t i = 0u; i < n_states; ++i) {
     const gtsam::Key& key = _states[i]->key();
-    gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
-    gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
-    const Eigen::Matrix3d cov = marginals.marginalCovariance(X(key));
+    const gtsam::Pose3 T_M_B = result.at<gtsam::Pose3>(X(key));
+    const gtsam::Pose3 T_G_B = _T_G_M * T_M_B;
+    const Eigen::MatrixXf cov = marginals.marginalCovariance(X(key)).cast<float>();
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
