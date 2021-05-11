@@ -285,7 +285,6 @@ bool GraphIntegrator::shouldPublish(const gtsam::Pose3& T_M_L) const {
   const Eigen::Vector3d t = T_L_old_L_cur.translation();
 
   static constexpr double const& eps = 3;
-  std::cout << "translation difference is " << t.sum() << std::endl;
   return std::abs(t.sum()) > eps;
 }
 
