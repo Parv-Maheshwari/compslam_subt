@@ -15,8 +15,8 @@ class State {
  private:
   gtsam::Key key_ = 0;                    // key
   double ts_ = 0.0;                       // timestamp
-  gtsam::NavState navState_;              //pose, velocity
-  gtsam::imuBias::ConstantBias imuBias_;  //imu bias
+  gtsam::NavState navState_;              // pose, velocity
+  gtsam::imuBias::ConstantBias imuBias_;  // imu bias
   mutable std::mutex stateMutex_;
 
  public:
@@ -25,6 +25,7 @@ class State {
       : key_(key), ts_(ts), navState_(navState) {}
   State(const State& other)
       : key_(other.key_), ts_(other.ts_), navState_(other.navState_), imuBias_(other.imuBias_) {}
+  
   //Overload assignment operator
   State& operator=(const State& other) {
     key_ = other.key_;
@@ -34,6 +35,7 @@ class State {
     return *this;
   }
 
+  //Overload < operator
   bool operator<(const State& rhs) const {
     return ts_ < rhs.ts_;
   }

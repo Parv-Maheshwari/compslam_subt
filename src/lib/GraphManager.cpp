@@ -53,6 +53,7 @@ bool GraphManager::initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3
   // auto& ns = _state.navState();
   // std::cout << "Init t(x,y,z): " << ns.position().transpose()<< ", RPY(deg): " << ns.attitude().rpy().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ns.velocity().transpose()  << "\n";
   // //DEBUG
+  return true;
 }
 
 bool GraphManager::initImuIntegrator(const double g) {
@@ -123,7 +124,7 @@ bool GraphManager::addImuFactor(const gtsam::Key old_key, const gtsam::Key new_k
   return success;
 }
 
-bool GraphManager::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
+void GraphManager::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
   //Create Pose BetweenFactor and add
   auto poseNoiseModel = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << _poseNoise[0], _poseNoise[1], _poseNoise[2], _poseNoise[3], _poseNoise[4], _poseNoise[5]).finished());  // rad,rad,rad,m,m,m
   gtsam::BetweenFactor<gtsam::Pose3> poseBetweenFactor(X(old_key), X(new_key), pose, poseNoiseModel);
