@@ -44,12 +44,11 @@ class GraphIntegrator {
   bool addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
   //Add prior factor from global graph
   bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;
-  //Publish the ISAM graph
+  //Visualize the ISAM graph
   void publishLatestOnboardGraph() const;
 
   //Utility methods
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
-  bool shouldPublish(const gtsam::Pose3& T_M_L) const;
 
   //Members
   ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
@@ -61,8 +60,8 @@ class GraphIntegrator {
   //Transforms
   gtsam::Pose3 _T_B_L;
   gtsam::Pose3 _T_B_C;
+  gtsam::Pose3 _T_G_B;
   gtsam::Pose3 _T_G_M;
-  gtsam::Pose3 _T_M_L;
 
   //Factor graph
   gtsam::ISAM2Params _params;

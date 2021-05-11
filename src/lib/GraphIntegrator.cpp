@@ -81,6 +81,7 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   if (!_isGraphInitialized) {
     new_key = _state_key;  //start at zero
     addPriorFactor(new_key, pose);
+    _isGraphInitialized = true;
   } else {
     auto old_key = _states.back()->key();
     new_key = newStateKey();
@@ -92,21 +93,16 @@ void GraphIntegrator::laserMapOdomCallback(const nav_msgs::Odometry::ConstPtr& o
   _states.emplace_back(std::move(state));
   const auto t2 = std::chrono::high_resolution_clock::now();
 
-  const gtsam::Pose3 T_M_L = _states.back()->navState().pose();
-  if (!_isGraphInitialized || shouldPublish(T_M_L)) {
-    publishLatestOnboardGraph();
-    _T_M_L = T_M_L;
-  }
-  _isGraphInitialized = true;
-
   // DEBUG
   /*
   //Convert to Alphasense IMU frame
+  gtsam::Pose3 T_M_L = _states.back()->navState().pose();
   gtsam::Pose3 T_M_B = T_M_L * _T_B_L.inverse();
   std::cout << "lidar_pose t(x,y,z): " << T_M_L.translation().transpose() << ", RPY(deg): " << T_M_L.rotation().rpy().transpose() * (180.0 / M_PI)
             << "\nimu_pose  t(x,y,z): " << T_M_B.translation().transpose() << ", RPY(deg): " << T_M_B.rotation().rpy().transpose() * (180.0 / M_PI)
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
   */
+  publishLatestOnboardGraph();
   // DEBUG
 }
 
@@ -278,15 +274,6 @@ bool GraphIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs:
   poseMsg->pose.orientation.w = pose.rotation().toQuaternion().w();
 
   return true;
-}
-
-bool GraphIntegrator::shouldPublish(const gtsam::Pose3& T_M_L) const {
-  const gtsam::Pose3 T_L_old_L_cur = _T_M_L.inverse() * T_M_L;
-  const Eigen::Vector3d t = T_L_old_L_cur.translation();
-
-  static constexpr double const& eps = 3;
-  std::cout << "translation difference is " << t.sum() << std::endl;
-  return std::abs(t.sum()) > eps;
 }
 
 }  // namespace loam
