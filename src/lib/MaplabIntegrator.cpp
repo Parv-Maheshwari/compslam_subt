@@ -26,13 +26,13 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
     ROS_INFO_STREAM("MaplabIntegrator - T_cam2imu not defined");
     return false;
   }
-  std::vector<double> T_lidar2imu;  //Lidar to IMU
-  if (privateNode.getParam("T_lidar2imu", T_lidar2imu)) {
-    _T_B_L = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_lidar2imu.data()));
-    std::cout << "MaplabIntegrator - T_lidar2imu:\n"
-              << _T_B_L.matrix() << std::endl;
+  std::vector<double> T_imu2lidar;  //IMU to Lidar
+  if (privateNode.getParam("T_imu2lidar", T_imu2lidar)) {
+    _T_L_B = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_imu2lidar.data()));
+    std::cout << "MaplabIntegrator - T_imu2lidar:\n"
+              << _T_L_B.matrix() << std::endl;
   } else {
-    ROS_INFO_STREAM("MaplabIntegrator - T_lidar2imu not defined");
+    ROS_INFO_STREAM("MaplabIntegrator - T_imu2lidar not defined");
     return false;
   }
   //Factor Noise parameters
@@ -123,10 +123,14 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   //Current timestamp and LiDAR pose
   const double ts = odomPtr->header.stamp.toSec();
   const auto& p = odomPtr->pose.pose;
-  const gtsam::Pose3 lidar_pose(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
-                                gtsam::Point3(p.position.x, p.position.y, p.position.z));
-  gtsam::Pose3 imu_pose = _T_B_L.compose(lidar_pose);
-  gtsam::Pose3 imu_delta = _lastIMUPose.between(imu_pose);
+  const gtsam::Pose3 T_M_L(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
+                           gtsam::Point3(p.position.x, p.position.y, p.position.z));
+  //IMU pose
+  gtsam::Pose3 T_M_B = T_M_L * _T_L_B;
+  //Compute delta in IMU frame
+  if (_firstOdomMsg)  //Store first pose to compute zero delta incase input doesn't start from zero
+    _lastIMUPose = T_M_B;
+  gtsam::Pose3 T_B1_B2 = _lastIMUPose.between(T_M_B);
 
   //Add delta pose factor to graph
   gtsam::Key new_key;
@@ -138,14 +142,18 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
     if (_firstOdomMsg) {
       //Initialize - Add temporary identity prior factor
       new_key = _state_key;
-      addPriorFactor(_state_key, imu_pose);
+      addPriorFactor(_state_key, gtsam::Pose3::identity());
       saveCloud = true;
       _firstOdomMsg = false;
     } else {
-      //Add pose delta
-      auto old_key = _timestampKeyMap.rbegin()->second;  //_states.back()->key();
+      //Update keys
+      auto old_key = _timestampKeyMap.rbegin()->second;
       new_key = newStateKey();
-      addPoseBetweenFactor(old_key, new_key, imu_delta, imu_pose);
+      //Calculate IMU pose estimate in G
+      result = _graph->calculateEstimate();
+      gtsam::Pose3 T_G_B = result.at<gtsam::Pose3>(X(old_key)) * T_B1_B2;
+      //Add delta and estimate as between factor
+      addPoseBetweenFactor(old_key, new_key, T_B1_B2, T_G_B);
     }
     //Update Timestamp-Key Map
     _timestampKeyMap[ts] = new_key;
@@ -154,29 +162,29 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   }
 
   //Save last IMU pose for calculting delta
-  _lastIMUPose = imu_pose;
+  _lastIMUPose = T_M_B;
 
   //Check motion difference to know if incoming cloud should be saved
-  gtsam::Pose3 cloud_delta = _lastCloudSavePose.between(lidar_pose);
+  gtsam::Pose3 cloud_delta = _lastCloudSavePose.between(T_M_L);
   if (cloud_delta.translation().norm() > _cloudSavePosDelta ||
       cloud_delta.rotation().rpy().norm() > _cloudSaveRotDelta) {
-    _lastCloudSavePose = lidar_pose;
+    _lastCloudSavePose = T_M_L;
     saveCloud = true;
   }
-  
+
   //TODO-This is not needed-But need to be verified with anchor pose callback //Update vector of states in (B) frame
   StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
   _states.emplace_back(std::move(state));
 
   //Publish Graph path
-  const auto& current_pose = result.at<gtsam::Pose3>(X(new_key));
+  _T_G_B_inc = result.at<gtsam::Pose3>(X(new_key));
   //Pose Message
   static size_t poseMsgCount = 0;
   geometry_msgs::PoseStamped poseMsg;
   poseMsg.header.frame_id = _world_frame;
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
-  createPoseMessage(current_pose, &poseMsg);
+  createPoseMessage(_T_G_B_inc, &poseMsg);
 
   //Node Message
   _pathMsg.header.frame_id = _world_frame;
@@ -193,7 +201,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   std::cout << std::fixed << "\033[35mODOMETRY\033[0m"
             << ", ts: " << odomPtr->header.stamp.toSec()
             << ", key: " << new_key
-            << ", Total factors: " << getFactorCount()
+            // << ", Total factors: " << getFactorCount()
+            << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose() //<< ", RPY(deg): " << _T_G_B_inc.rotation().rpy().transpose() * (180.0 / M_PI)
             << std::endl;
   // DEBUG
 
@@ -209,7 +218,7 @@ void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2Cons
     ROS_WARN("MaplabIntegrator - nullptr passed to Pointcloud callback");
     return;
   }
-  
+
   //Check if pointcloud needs to be stored
   if (key < 0)
     return;
@@ -391,8 +400,13 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
         auto child_itr = _timestampKeyMap.find(child_ts);
         if (child_itr != _timestampKeyMap.end()) {
           gtsam::Key child_key = child_itr->second;
-          const auto& p = pathPtr->poses[i].pose;
           std::cout << std::fixed << ", Child Key : " << child_key << ", ts: " << child_ts << std::endl;
+
+          //Skip if keys are same
+          if (child_key == parent_key) {
+            ROS_WARN_STREAM("MaplabIntegrator - Same Submap Parent/Child keys, key:" << child_key);
+            continue;
+          }
 
           //Check if a previous BetweenFactor exists between two keys
           gtsam::FactorIndices removeFactorIdx;
@@ -404,6 +418,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
 
           //Add submap-submap BetweenFactor
           static auto submapNoise = gtsam::noiseModel::Diagonal::Sigmas(_submapNoise);
+          const auto& p = pathPtr->poses[i].pose;
           gtsam::Pose3 T_B1B2(gtsam::Rot3(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z),
                               gtsam::Point3(p.position.x, p.position.y, p.position.z));
           gtsam::BetweenFactor<gtsam::Pose3> submapBF(X(parent_key), X(child_key), T_B1B2, submapNoise);
@@ -471,7 +486,7 @@ bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) con
     // The requested ts is older than the oldest one in the state vector.
     return false;
   }
-  auto comp = [eps](const StatePtr& lhs, const double ts) { return lhs->ts() + eps < ts; };
+  auto comp = [](const StatePtr& lhs, const double ts) { return lhs->ts() + eps < ts; };
   auto it = std::lower_bound(_states.cbegin(), _states.cend(), ts, comp);
   if (it == _states.cend()) {
     return false;
@@ -487,7 +502,7 @@ void MaplabIntegrator::updateResultsForVisualization(const ros::Time ts) {
     _resultTimestamp = ts;
     _results = _graph->calculateBestEstimate();
     _new_results = true;
-    
+
     // //DEBUG
     // std::cout << "----- \033[34mVisualization Results Updated\033[0m-----" << std::endl;
   }
@@ -519,7 +534,7 @@ void MaplabIntegrator::visualizeResults() {
       auto itr = _keyCloudMap.find(i);
       if (itr != _keyCloudMap.end()) {
         //Get global lidar pose
-        gtsam::Pose3 T_G_L = T_G_B * _T_B_L;
+        gtsam::Pose3 T_G_L = T_G_B * _T_L_B.inverse();
         //Transform cloud
         pcl::PointCloud<pcl::PointXYZ>::Ptr transformedCloud(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::transformPointCloud(*itr->second, *transformedCloud, T_G_L.matrix());
@@ -547,6 +562,9 @@ void MaplabIntegrator::visualizeResults() {
     _pubMap.publish(rosCloud);
   }
 
+  //Update last optimzed pose
+  _T_G_B_opt = _results.at<gtsam::Pose3>(X(_results.size() - 1));
+
   //Reset results flag
   _new_results = false;
 
@@ -559,7 +577,7 @@ void MaplabIntegrator::visualizeResults() {
 
 void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   // Absolute(DARPA)-to-RobotMap
-  geometry_msgs::TransformStamped T_G_M;  ///< geometry_msg of mapping odometry message CORRECTED
+  geometry_msgs::TransformStamped T_G_M;
   T_G_M.header.stamp = ts;
   T_G_M.header.frame_id = _world_frame;
   T_G_M.child_frame_id = _map_frame;
@@ -571,6 +589,34 @@ void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   T_G_M.transform.translation.y = _T_G_M.translation().y();
   T_G_M.transform.translation.z = _T_G_M.translation().z();
   _tb.sendTransform(T_G_M);
+
+  // Base(IMU)-to-Absolute(DARPA) - Incremental Update
+  geometry_msgs::TransformStamped T_G_B_inc;
+  T_G_B_inc.header.stamp = ts;
+  T_G_B_inc.header.frame_id = _world_frame;
+  T_G_B_inc.child_frame_id = _base_frame + "_increment";
+  T_G_B_inc.transform.rotation.x = _T_G_B_inc.rotation().toQuaternion().x();
+  T_G_B_inc.transform.rotation.y = _T_G_B_inc.rotation().toQuaternion().y();
+  T_G_B_inc.transform.rotation.z = _T_G_B_inc.rotation().toQuaternion().z();
+  T_G_B_inc.transform.rotation.w = _T_G_B_inc.rotation().toQuaternion().w();
+  T_G_B_inc.transform.translation.x = _T_G_B_inc.translation().x();
+  T_G_B_inc.transform.translation.y = _T_G_B_inc.translation().y();
+  T_G_B_inc.transform.translation.z = _T_G_B_inc.translation().z();
+  _tb.sendTransform(T_G_B_inc);
+
+  // Base(IMU)-to-Absolute(DARPA) - Optimized
+  geometry_msgs::TransformStamped T_G_B_opt;
+  T_G_B_opt.header.stamp = ts;
+  T_G_B_opt.header.frame_id = _world_frame;
+  T_G_B_opt.child_frame_id = _base_frame + "_optimized";
+  T_G_B_opt.transform.rotation.x = _T_G_B_opt.rotation().toQuaternion().x();
+  T_G_B_opt.transform.rotation.y = _T_G_B_opt.rotation().toQuaternion().y();
+  T_G_B_opt.transform.rotation.z = _T_G_B_opt.rotation().toQuaternion().z();
+  T_G_B_opt.transform.rotation.w = _T_G_B_opt.rotation().toQuaternion().w();
+  T_G_B_opt.transform.translation.x = _T_G_B_opt.translation().x();
+  T_G_B_opt.transform.translation.y = _T_G_B_opt.translation().y();
+  T_G_B_opt.transform.translation.z = _T_G_B_opt.translation().z();
+  _tb.sendTransform(T_G_B_opt);
 }
 
 bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {

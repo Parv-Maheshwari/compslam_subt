@@ -88,9 +88,9 @@ poseBetweenNoise: [0.5, 0.5, 0.05, 0.1, 0.1, 0.1] #Noise of add between factor -
 zeroMotionDetection: false                        #Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
 
 #MaplabIntegrator
-world_frame: absolute_darpa
-map_frame: robot_map
-base_frame: alphasense_imu
+world_frame: darpa
+map_frame: map
+base_frame: imu
 cloudSavePosDelta: 1.0
 cloudSaveRotDelta: 0.2
 odometryFactorNoise: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1]
@@ -101,7 +101,7 @@ T_cam2imu: [-0.9999962982, -0.000530768, 0.0026686827, 0.0471397497,
             -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
              0.0005317493, -0.9999997913, 0.0003670147, 0.0260845632,
              0.0, 0.0, 0.0, 1.0]
-T_lidar2imu: [1, 0, 0, 0.005303,
+T_imu2lidar: [1, 0, 0, 0.005303,
               0, 1, 0, 0.037340,
               0, 0, 1, 0.063319,
               0, 0, 0, 1]

@@ -64,7 +64,7 @@ class MaplabIntegrator {
   //Add a pose between factor
   void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose_delta, const gtsam::Pose3& pose_estimate);
   //Add prior factor from global graph
-  bool findClosestKeyForTS(const double ts, gtsam::Key* key) const; //TODO - deprecate
+  bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;  //TODO - deprecate
   //Visualize the ISAM graph
   void visualizeResults();
   //Publish associated transforms
@@ -111,20 +111,21 @@ class MaplabIntegrator {
   geometry_msgs::TransformStamped _incPose;  // incremental Pose
 
   //Transforms
-  gtsam::Pose3 _T_B_L;  //LiDAR(L) to alphasense IMU(B)
-  gtsam::Pose3 _T_B_C;  //alphasense camera(C) to alphasense IMU(B)
-  gtsam::Pose3 _T_G_B;  //alphasense IMU(B) to DARPA(G)
-  gtsam::Pose3 _T_G_M;  //DARPA(G) to Robot (Local) Map(M) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
+  gtsam::Pose3 _T_L_B;      //IMU(B) to LiDAR(L)
+  gtsam::Pose3 _T_B_C;      //camera(C) to  IMU(B)
+  gtsam::Pose3 _T_G_M;      //Robot(Local) Map(M) to DARPA(G) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
+  gtsam::Pose3 _T_G_B_opt;  //IMU to DARPA(G) - optimized
+  gtsam::Pose3 _T_G_B_inc;  //IMU to DARPA(G) - incremental
 
   //Factor graph
-  size_t _factor_count = 0;               //Counter for Total factors (existing + removed)
+  size_t _factor_count = 0;                 //Counter for Total factors (existing + removed)
   std::mutex _graphMutex;                   //For adding new factors and graph update
   gtsam::ISAM2Params _params;               //Graph parameters
   gtsam::NonlinearFactorGraph _newFactors;  //New factors to be added to the graph
   std::shared_ptr<gtsam::ISAM2> _graph;     //iSAM2 GRAPH object
   gtsam::Key _state_key = 0;                //Current state key
   std::vector<StatePtr> _states;            //Vecotr of states //TODO deprecate
-  
+
   //Factor noise vectors - ORDER RPY(rad) - XYZ(meters)
   gtsam::Vector6 _odomNoise;      //Odometry BetweenFactor Noise
   gtsam::Vector6 _absoluteNoise;  //Absolute(AprilTag) PriorFactor Noise
