@@ -45,7 +45,7 @@ class GraphIntegrator {
   //Add prior factor from global graph
   bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;
   //Visualize the ISAM graph
-  void publishLatestOnboardGraph() const;
+  void visualizeOnboardGraph() const;
 
   //Utility methods
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
@@ -54,6 +54,7 @@ class GraphIntegrator {
   ros::Subscriber _subLaserMapOdom;  // Laser mapping odometry subscriber
   ros::Subscriber _subMaplabAnchor;  // Maplab published path subscriber
   ros::Subscriber _subAbsolutePose;  //
+  ros::Publisher _pubGraphPath;      // Graph path publisher
   ros::Publisher _pubUpdatedPath;    //
   nav_msgs::Path _pathMsg;           // ROS path message for graph
 
