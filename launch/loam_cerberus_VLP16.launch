@@ -7,7 +7,7 @@
   # CERBERUS - Frame Connector
 
   <!-- Input topics remap -->
-  <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered" />
+  <arg name="pointcloud_topic_name" default="/lidar/point_cloud" /> #/lidar/point_cloud #/point_cloud_filter/lidar/point_cloud_filtered
   <arg name="imu_topic_name" default="/sensors/imu" />
 
   <!-- LOAM Nodelet Manager -->
@@ -29,6 +29,7 @@
   <node pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(find loam)/config/loam_cerberus_params.yaml" command="load"/>
     <param name="saved_submaps_filepath" value="$(find loam)"/>
+    <remap from="/aft_mapped_to_init_CORRECTED" to="/loam/odometry" /> #For offline use with ANYmal stack
   </node> 
 
   <!-- Laser Transform Maintenance Nodelet -->

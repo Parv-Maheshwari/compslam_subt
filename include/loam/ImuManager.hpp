@@ -20,7 +20,7 @@ class ImuManager {
  public:
   //Constructor
   ImuManager()
-      : _imuRate(400) {
+      : _imuRate(400), _imuTimeForInit(1.0) {
     //Reset IMU Buffer
     _IMUBuffer.clear();
   }
@@ -30,6 +30,7 @@ class ImuManager {
 
   //Setters
   void setImuRate(double d) { _imuRate = d; }
+  void setImuTimeForInit(double d) {_imuTimeForInit =d;}
 
   // Add IMU measurement to buffer
   void addToIMUBuffer(double ts, double accX, double accY, double accZ, double gyrX, double gyrY, double gyrZ) {
@@ -114,20 +115,31 @@ class ImuManager {
     e_itr = _IMUBuffer.lower_bound(ts_end);
 
     //Check if it is first value in the buffer which means there is no value before to interpolate with
-    if (s_itr == _IMUBuffer.begin())
-      std::cout << "\033[33mIMU-Manager\033[0m IMU Lookup requiring first message of the buffer s_itr == _IMUBuffer.begin() --- Might be during IMU Pose Initialization\n";
+    if (s_itr == _IMUBuffer.begin()) {
+      std::cout << "\033[33mIMU-Manager\033[0m Lookup requires first message of IMU buffer, cannot Interpolate back, Lookup Start/End: "
+                << std::fixed << ts_start << "/" << ts_end << ", Buffer Start/End: "
+                << _IMUBuffer.begin()->first << "/" << _IMUBuffer.rbegin()->first << std::endl;
+      return false;
+    }
+
+    //Check if lookup start time is ahead of buffer start time
+    if (s_itr == _IMUBuffer.end()) {
+      std::cout << "\033[33mIMU-Manager\033[0m IMU Lookup start time ahead latest IMU message in the buffer, lookup: " << ts_start
+                << ", latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
+      return false;
+    }
 
     //Check if last value is valid
     if (e_itr == _IMUBuffer.end()) {
-      std::cout << "\033[33mIMU-Manager\033[0m Lookup is past IMU buffer, with lookup Start/End ts: " << std::fixed << ts_start
-                << "/" << ts_end << " and latest IMU ts: " << _IMUBuffer.rbegin()->first << std::endl;
+      std::cout << "\033[33mIMU-Manager\033[0m Lookup is past IMU buffer, with lookup Start/End: " << std::fixed << ts_start
+                << "/" << ts_end << " and latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
       e_itr = _IMUBuffer.end();
       --e_itr;
     }
 
     //Check if two IMU messages are different
     if (s_itr == e_itr) {
-      std::cout << "\033[33mIMU-Manager\033[0m Not Enough IMU values between timestamps , with Start/End Timestamps: " << std::fixed << ts_start << "/" << ts_end
+      std::cout << "\033[33mIMU-Manager\033[0m Not Enough IMU values between timestamps , with Start/End: " << std::fixed << ts_start << "/" << ts_end
                 << ", with diff: " << ts_end - ts_start << std::endl;
       return false;
     }
@@ -162,40 +174,50 @@ class ImuManager {
     return meas3;
   }
 
-  // Determine initial IMU pose w.r.t to gravity vector pointing up
-  bool estimateAttitudeFromImu(const double imu_pose_init_ts, gtsam::Rot3& init_attitude, double& gravity_magnitude, bool output = false) {
+  // Determine initial IMU roll/pitch w.r.t to gravity vector and gyro bias
+  bool estimateAttitudeFromImu(const double ts, const Eigen::Vector3d& acc_bias, 
+                               gtsam::Rot3& init_attitude, double& gravity_magnitude, Eigen::Vector3d *gyr_bias = nullptr,
+                               bool output = false) {
     //Get timestamp of first message for lookup
-    if (_IMUBuffer.size() < (_imuRate * _imuPoseInitWaitSecs)) {
+    if (_IMUBuffer.size() < (_imuRate * _imuTimeForInit)) {
       std::cout << "\033[33mIMU-Manager\033[0m NOT ENOUGH IMU MESSAGES TO INITIALIZE POSE\n";
       return false;
     } else {
       //Get IMU Message iterators in the interval
-      IMUMap init_imu_map;
-      double prev_ts = imu_pose_init_ts - _imuPoseInitWaitSecs;
-      bool success = getInterpolatedImuMeasurements(prev_ts, imu_pose_init_ts, init_imu_map);
+      IMUMap imu_meas;
+      double prev_ts = ts - _imuTimeForInit;
+      bool success = getInterpolatedImuMeasurements(prev_ts, ts, imu_meas);
       if (success) {
         //Accumulate Acceleration part of IMU Messages
-        double imu_pose_init_msg_count = 0.0;                   //Counter for messages needed for  initializing Pose from IMU
-        Eigen::Vector3d imu_pose_init_acc_mean(0.0, 0.0, 0.0);  //vector accumulating and imag
-        for (auto itr = init_imu_map.begin(); itr != init_imu_map.end(); ++itr) {
-          imu_pose_init_acc_mean += itr->second.head<3>();
-          ++imu_pose_init_msg_count;
+        Eigen::Vector3d acc_mean(0.0, 0.0, 0.0), gyr_mean(0.0, 0.0, 0.0);
+        for (auto itr = imu_meas.begin(); itr != imu_meas.end(); ++itr){
+          acc_mean += itr->second.head<3>();
+          gyr_mean += itr->second.tail<3>();
         }
-        //Average IMU measurements and set assumed gravity direction
-        imu_pose_init_acc_mean /= imu_pose_init_msg_count;
-        gravity_magnitude = imu_pose_init_acc_mean.norm();
-        Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);  //ROS convention
+        //Average IMU measurements and remove bias
+        acc_mean /= imu_meas.size();
+        acc_mean -= acc_bias;  //remove bias
+        //Calculate gyro bias
+        gyr_mean /= imu_meas.size();
+        if (gyr_bias)
+          *gyr_bias = gyr_mean;
+        //Set gravity direction (Z-Up same as ROS convention)
+        gravity_magnitude = acc_mean.norm();
+        Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);
         //Normalize gravity vectors to remove the affect of gravity magnitude from place-to-place
-        imu_pose_init_acc_mean.normalize();
+        acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
-        init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(imu_pose_init_acc_mean, g_unit_vec));
+        init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(acc_mean, g_unit_vec));
         if (output) {
-          std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << imu_pose_init_acc_mean.transpose()
-                    << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Yaw/Pitch/Roll(deg): " << init_attitude.ypr().transpose() * (180.0 / M_PI) << std::endl;
+          // std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
+          // std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << acc_mean.transpose()
+          //           << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m IMU Rate(Hz): " << _imuRate <<", Time Interval(s): "<<_imuTimeForInit<<", num meas used: "<<(_imuRate * _imuTimeForInit) << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Roll/Pitch/Yaw(deg): " << init_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Gyro bias(x,y,z): " << gyr_mean.transpose() << std::endl;
         }
-      }
+      } else
+        return false;
     }
     return true;
   }
@@ -203,8 +225,8 @@ class ImuManager {
  private:
   std::mutex _IMUBufferMutex;               //Mutex for reading writing IMU buffer
   IMUMap _IMUBuffer;                        //IMU buffer
-  double _imuRate;                          //Rate of IMU input (Hz) - Used to calculate minimum measurements needed to calculate gravity and init attitude
-  const double _imuPoseInitWaitSecs = 1.0;  //Multiplied with _imuRate
+  double _imuRate;                          //Rate of IMU input (Hz) - Used to calculate minimum measurements used to calculate gravity, initial Roll/Pitch and gyro bias
+  double _imuTimeForInit;                   //Multiplied with _imuRate
 };
 }  // namespace loam
 #endif

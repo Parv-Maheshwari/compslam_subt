@@ -70,6 +70,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   int iParam;
   bool bParam;
   std::string sParam;
+  std::vector<double> dvParam;
 
   if (privateNode.getParam("scanPeriod", fParam)) {
     if (fParam <= 0) {
@@ -302,18 +303,22 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU rate for preintegrator: " << dParam);
     _imuBuffer.setImuRate(dParam);
   }
+  if (privateNode.getParam("imuTimeForInit", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
+    _imuBuffer.setImuTimeForInit(dParam);
+  }
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
     _graphMgr.setAccBiasRandomWalk(dParam);
-  if (privateNode.getParam("accBiasPrior", dParam))
-    _graphMgr.setAccBiasPrior(dParam);
   if (privateNode.getParam("gyrNoiseDensity", dParam))
     _graphMgr.setGyroNoiseDensity(dParam);
   if (privateNode.getParam("gyrBiasRandomWalk", dParam))
     _graphMgr.setGyrBiasRandomWalk(dParam);
-  if (privateNode.getParam("gyrBiasPrior", dParam))
-    _graphMgr.setGyrBiasPrior(dParam);
+  if (privateNode.getParam("accBiasPrior", dvParam))
+    _graphMgr.setAccBiasPrior(dvParam);
+  if (privateNode.getParam("gyrBiasPrior", dvParam))
+    _graphMgr.setGyrBiasPrior(dvParam);
   //Factor Graph
   if (privateNode.getParam("smootherLag", dParam))
     _graphMgr.setSmootherLag(dParam);
@@ -344,16 +349,30 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("enableDetailedResults", bParam))
     _graphMgr._params.setEnableDetailedResults(bParam);
   //Pose between factor noise
-  std::vector<double> poseNoise{0, 0, 0, 0, 0, 0};  //roll,pitch,yaw,x,y,z
-  if (privateNode.getParam("poseBetweenNoise", poseNoise)){
-    _graphMgr.setPoseNoise(poseNoise);
-  }
-  //Zero Motion Factor
+  if (privateNode.getParam("poseBetweenNoise", dvParam))
+    _graphMgr.setPoseNoise(dvParam);
+  //Zero Motion Factor & Gravity Roll/Pitch Factor
   if (privateNode.getParam("zeroMotionDetection", bParam)) {
     setZeroMotionDetection(bParam);
-    if (bParam)
-      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Velocity and Zero Delta Pose Factors will be added");
-    else
+    if (bParam) {
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Delta Pose & Velocity Factors added");
+      //Zero motion detection threshold
+      if (privateNode.getParam("zeroMotionThreshold", dParam)) {
+        _graphMgr.setZeroMotionTh(dParam);
+        ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection Threshold(m): " << dParam);
+      }
+      //Minimum consective zero motion detection
+      if (privateNode.getParam("minZeroMoitionDetections", iParam)) {
+        _graphMgr.setMinZeroMotionDetections(iParam);
+        ROS_INFO_STREAM("LaserOdometry - Min consective Zero Motion Detections: " << iParam);
+      }
+      //Check if Gravity-algined Roll-Pitch factor should be added
+      if (privateNode.getParam("gravityRollPitchFactors", bParam)) {
+        setUseGravityRollPitchFactors(bParam);
+        if (bParam)
+          ROS_INFO_STREAM("LaserOdometry - Gravity-aligned Roll-Pitch Factors added when in Zero Motion");
+      }
+    } else
       ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED");
   }
   /** Graph Parameters **/

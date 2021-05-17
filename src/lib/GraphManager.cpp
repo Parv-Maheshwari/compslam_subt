@@ -9,7 +9,7 @@ bool GraphManager::initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3
   relinTh['v'] = (gtsam::Vector(3) << _velReLinTh, _velReLinTh, _velReLinTh).finished();
   relinTh['b'] = (gtsam::Vector(6) << _accBiasReLinTh, _accBiasReLinTh, _accBiasReLinTh, _gyrBiasReLinTh, _gyrBiasReLinTh, _gyrBiasReLinTh).finished();
   _params.relinearizeThreshold = relinTh;
-  _params.factorization = gtsam::ISAM2Params::CHOLESKY;  //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
+  _params.factorization = gtsam::ISAM2Params::QR;  //CHOLESKY:Fast but non-stable //QR:Slower but more stable in poorly conditioned problems
 
   //Create Prior factor and Initialize factor graph
   //Prior factor noise
@@ -66,9 +66,8 @@ bool GraphManager::initImuIntegrator(const double g) {
   _imuParams->biasOmegaCovariance = gtsam::Matrix33::Identity(3, 3) * _gyrBiasRandomWalk;
   _imuParams->integrationCovariance = gtsam::Matrix33::Identity(3, 3) * 1.0e-8;  // error committed in integrating position from velocities
   // _imuParams->biasAccOmegaInt = gtsam::Matrix66::Identity(6, 6) * 1.0e-5; // error in the bias used for preintegration
-  gtsam::Vector3 acc_bias_prior(_accBiasPrior, _accBiasPrior, _accBiasPrior);
-  gtsam::Vector3 gyr_bias_prior(_gyrBiasPrior, _gyrBiasPrior, _gyrBiasPrior);
-  _imuBiasPrior = std::make_shared<gtsam::imuBias::ConstantBias>(acc_bias_prior, gyr_bias_prior);
+  _imuBiasPrior = std::make_shared<gtsam::imuBias::ConstantBias>(_accBiasPrior, _gyrBiasPrior);
+  _imuBiasPrior->print("IMU Bias Priors:");
   _imuPreintegrator = std::make_shared<gtsam::PreintegratedCombinedMeasurements>(_imuParams, *_imuBiasPrior);
   _imuParams->print("IMU Preintegration Parameters:");
   return true;
@@ -192,12 +191,33 @@ bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key n
   //Add Zero Pose Factor
   _newFactors.add(gtsam::BetweenFactor<gtsam::Pose3>(X(old_key), 
                                                      X(new_key), 
-                                                     gtsam::Pose3(), 
-                                                     gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3).finished())));
+                                                     gtsam::Pose3::identity(), 
+                                                     gtsam::noiseModel::Isotropic::Sigma(6, 1e-3)));
   //Add Zero Velocity Factor
-  _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key), 
-                                                     gtsam::Vector3::Zero(), 
+  _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key),
+                                                     gtsam::Vector3::Zero(),
                                                      gtsam::noiseModel::Isotropic::Sigma(3, 1e-3)));
+
+  //Re-detect Zero Motion
+  _detectionCount = _minDetections - 5;  //TODO - what should be the reset?
+
+  // //DEBUG
+  // std::cout << "\033[33mZero Motion Factor\033[0m added between: " << old_key << "/" << new_key << std::endl;
+  // //DEBUG
+
   return true;
 }
+
+bool GraphManager::addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude) {
+  static auto imuEstNoise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << 1e-3, 1e-3, _poseNoise[2], 1e+10, 1e+10, 1e+10).finished());  // rad,rad,rad,m, m, m
+  _newFactors.add(gtsam::PriorFactor<gtsam::Pose3>(X(key),
+                                                   gtsam::Pose3(imu_attitude, gtsam::Point3::Zero()),
+                                                   imuEstNoise));
+
+  // //DEBUG
+  // std::cout << "\033[33mGravity Factor\033[0m - RPY(deg): " << imu_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
+  // //DEBUG
+  return true;
+}
+
 }  //namespace loam

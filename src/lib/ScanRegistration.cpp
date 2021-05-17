@@ -40,6 +40,8 @@ bool ScanRegistration::parseParams(const ros::NodeHandle& nh, RegistrationParams
   bool success = true;
   int iParam = 0;
   float fParam = 0;
+  bool bParam = false;
+  std::vector<double> dvParam;
 
   if (nh.getParam("scanPeriod", fParam)) {
     if (fParam <= 0) {
@@ -132,6 +134,42 @@ bool ScanRegistration::parseParams(const ros::NodeHandle& nh, RegistrationParams
     }
   }
 
+  // CUSTOMIZATION
+  if (nh.getParam("checkInvalidFeatureRegions", bParam)) {
+    config_out.checkInvalidFeatureRegions = bParam;
+    if (bParam) {
+      ROS_INFO("Check for Invalid Feature Regions - ENABLED");
+      //Get Valid Azimuth region boundries
+      if (nh.getParam("azimuthBoundaries", dvParam)) {
+        if (dvParam.size() % 2 > 0) {
+          ROS_ERROR("Invalid number of feature azimuthBoundaries set: %d, expected even number of inputs", int(dvParam.size()));
+          success = false;
+        } else {
+          config_out.noFeatureAzimuthBoundaries = dvParam;
+        }
+      }
+      //Get Valid Ploar region boundries
+      if (nh.getParam("polarBoundaries", dvParam)) {
+        if (dvParam.size() % 2 > 0) {
+          ROS_ERROR("Invalid number of feature polarBoundaries set: %d, expected even number of inputs", int(dvParam.size()));
+          success = false;
+        } else {
+          config_out.noFeaturePolarBoundaries = dvParam;
+        }
+      }
+      //Invalid feaures visualization for debugging
+      if (nh.getParam("publishDebugArrowsToRemovedFeatures", bParam)) {
+        config_out.publishDebugArrowsToRemovedFeatures = bParam;
+        if (bParam)
+          ROS_INFO("Invalid Feature Visualization - ENABLED");
+        else
+          ROS_INFO("Invalid Feature Visualization - DISBALED");
+      }
+    } else
+      ROS_WARN("Check for Invalid Feature Regions - DISBALED");
+  }
+  // CUSTOMIZATION
+
   return success;
 }
 
@@ -143,13 +181,13 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   // _subImu = node.subscribe<sensor_msgs::Imu>("/imu/data", 50, &ScanRegistration::handleIMUMessage, this);
 
   // advertise scan registration topics
-  _pubLaserCloudRGB = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_RGB_Scans", 2);  //CUSTOMIZATION
   _pubLaserCloud = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 2);
   _pubCornerPointsSharp = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 2);
   _pubCornerPointsLessSharp = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_sharp", 2);
   _pubSurfPointsFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_flat", 2);
   _pubSurfPointsLessFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_flat", 2);
   _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("/imu_trans", 5);
+  _pubInvalidFeaturesMarkers = node.advertise<visualization_msgs::MarkerArray>("/invalid_feature_markers", 1); //For Debugging only
 
   //Publishing frame name
   _cameraFrameId= "camera";
@@ -189,13 +227,59 @@ void ScanRegistration::publishResult() {
   publishCloudMsg(_pubSurfPointsFlat, surfacePointsFlat(), sweepStartTime, _cameraFrameId);
   publishCloudMsg(_pubSurfPointsLessFlat, surfacePointsLessFlat(), sweepStartTime, _cameraFrameId);
 
-  //CUSTOMIZATION - for dome LiDAR debug visualization
-  if (_pubLaserCloudRGB.getNumSubscribers() > 0)
-    publishCloudMsg(_pubLaserCloudRGB, laserCloudRGB(), sweepStartTime, _cameraFrameId);
-  //CUSTOMIZATION
-
   // publish corresponding IMU transformation information
   publishCloudMsg(_pubImuTrans, imuTransform(), sweepStartTime, _cameraFrameId);
+
+  // Publish Arrows for invalid features removed
+  if (_pubInvalidFeaturesMarkers.getNumSubscribers() > 0)
+    publishInvalidFeatureMarkers(invalidSharpFeatures());
+
+}
+
+void ScanRegistration::publishInvalidFeatureMarkers(const pcl::PointCloud<pcl::PointXYZI>& invalidFeatures) {
+  visualization_msgs::MarkerArray arrows;
+
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = "camera";
+  marker.ns = "invalidFeatureArrows";
+  marker.type = visualization_msgs::Marker::ARROW;
+  marker.action = visualization_msgs::Marker::ADD;
+  geometry_msgs::Point p1;
+  geometry_msgs::Point p2;
+  p1.x = 0.0;
+  p1.y = 0.0;
+  p1.z = 0.0;
+  marker.scale.x = 0.05;
+  marker.scale.y = 0.05;
+  marker.scale.z = 0.05;
+  marker.color.a = 0.1;
+  marker.color.r = 0.0;
+  marker.color.g = 0.0;
+  marker.color.b = 1.0;
+  marker.pose.orientation.x = 0.0;
+  marker.pose.orientation.y = 0.0;
+  marker.pose.orientation.z = 0.0;
+  marker.pose.orientation.w = 1.0;
+
+  marker.action = visualization_msgs::Marker::DELETEALL;
+  arrows.markers.push_back(marker); 
+  _pubInvalidFeaturesMarkers.publish( arrows.markers ); 
+  arrows.markers.clear();
+
+  marker.action = visualization_msgs::Marker::ADD;
+   
+  for (uint i = 0; i < invalidFeatures.size(); i+=10) {
+    marker.points.clear();
+    marker.id = i;
+    marker.points.push_back(p1);
+    p2.x = invalidFeatures[i].x;
+    p2.y = invalidFeatures[i].y;
+    p2.z = invalidFeatures[i].z;
+    marker.points.push_back(p2);
+    arrows.markers.push_back(marker);
+  }
+
+  _pubInvalidFeaturesMarkers.publish( arrows.markers );
 }
 
 }  // end namespace loam

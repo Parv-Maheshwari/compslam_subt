@@ -48,6 +48,9 @@ class GraphManager {
   //Check if zero motion has occured and add zero pose/velocity factor
   bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
 
+  //Add gravity-aligned roll/ptich from IMU when no motion
+  bool addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude);
+
   //Associate timestamp to each 'value key', e.g. for graph key 0, value keys (x0,v0,b0) need to be associated
   void valuesToKeyTimeStampMap(const gtsam::Values& values, const double ts, std::map<gtsam::Key, double>& key_timestamp_map) {
     for (const auto& value : values)
@@ -57,10 +60,11 @@ class GraphManager {
   //Accessors - Setters
   void setAccNoiseDensity(double val) { _accNoiseDensity = val; }
   void setAccBiasRandomWalk(double val) { _accBiasRandomWalk = val; }
-  void setAccBiasPrior(double val) { _accBiasPrior = val; }
   void setGyroNoiseDensity(double val) { _gyrNoiseDensity = val; }
   void setGyrBiasRandomWalk(double val) { _gyrBiasRandomWalk = val; }
-  void setGyrBiasPrior(double val) { _gyrBiasPrior = val; }
+  void setAccBiasPrior(const std::vector<double>& v) { _accBiasPrior << v[0], v[1], v[2]; }
+  void setGyrBiasPrior(const std::vector<double>& v) { _gyrBiasPrior << v[0], v[1], v[2]; }
+  auto& setInitGyrBias() { return _gyrBiasPrior; }
   void setSmootherLag(double val) { _smootherLag = val; }
   void setIterations(int val) { _additonalIterations = val; }
   void setPositionReLinTh(double val) { _posReLinTh = val; }
@@ -68,7 +72,9 @@ class GraphManager {
   void setVelocityReLinTh(double val) { _velReLinTh = val; }
   void setAccBiasReLinTh(double val) { _accBiasReLinTh = val; }
   void setGyrBiasReLinTh(double val) { _gyrBiasReLinTh = val; }
-  void setPoseNoise(const std::vector<double>& v) {_poseNoise = v;}
+  void setPoseNoise(const std::vector<double>& v) { _poseNoise = v; }
+  void setZeroMotionTh(double val) { _zeroMotionTh = val; }
+  void setMinZeroMotionDetections(int val) { _minDetections = _detectionCount = val; }
   //Accessors - Getters
   auto iterations() const { return _additonalIterations; }
   const auto newStateKey() { return ++_state_key; }
@@ -85,15 +91,15 @@ class GraphManager {
  private:
   //Member variables
   // IMU Preintegration
-  double _accNoiseDensity;    // continuous-time "Covariance" of accelerometer
-  double _accBiasRandomWalk;  // continuous-time "Covariance" describing accelerometer bias random walk
-  double _accBiasPrior;       // prior/starting value of accelerometer bias
-  double _gyrNoiseDensity;    // continuous-time "Covariance" of gyroscope measurements
-  double _gyrBiasRandomWalk;  // continuous-time "Covariance" describing gyroscope bias random walk
-  double _gyrBiasPrior;       // prior/starting value of gyroscope bias
+  double _accNoiseDensity;                       // continuous-time "Covariance" of accelerometer
+  double _accBiasRandomWalk;                     // continuous-time "Covariance" describing accelerometer bias random walk
+  double _gyrNoiseDensity;                       // continuous-time "Covariance" of gyroscope measurements
+  double _gyrBiasRandomWalk;                     // continuous-time "Covariance" describing gyroscope bias random walk
+  Eigen::Vector3d _accBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of accelerometer bias
+  Eigen::Vector3d _gyrBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of gyroscope bias
   //Factor Graph
   gtsam::Key _state_key = 0;     //Current state key
-  double _smootherLag = 1;       // Lag of fixed lag smoother[seconds]
+  double _smootherLag = 1;       //Lag of fixed lag smoother[seconds]
   int _additonalIterations = 1;  //Additional iterations of graph optimizer after update with new factors
   double _posReLinTh = 0.05;     //Position linearization threshold
   double _rotReLinTh = 0.05;     //Rotation linearization threshold
@@ -103,9 +109,9 @@ class GraphManager {
   //Pose Between Factor
   std::vector<double> _poseNoise{0.02, 0.02, 0.02, 0.05, 0.05, 0.05};  //ORDER RPY(rad) - XYZ(meters)
   //Zero Velocity Factor
-  double _zeroMotionTh = 0.01;              //Zero motion threshold meters
-  double _minDetections = 4;                //Number of consective zero motions detected before zero motion factors are added
-  double _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
+  double _zeroMotionTh = 0.01;           //Zero motion threshold in meters (Currently only motion detection is translation only)
+  int _minDetections = 20;               //Minimum number of consective zero motions detected before factors are added
+  int _detectionCount = _minDetections;  //Assumption: Robot starts at rest so initially zero motion is enabled
 };
 }  //namespace loam
 

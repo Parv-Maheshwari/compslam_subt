@@ -47,24 +47,53 @@
 #include <tf/transform_listener.h>
 //CUSTOMIZATION
 
-
-/** Euclidean Velodyne coordinate, including intensity and ring number. */
-struct PointXYZIR
+//Register Custom Velodyne and Ouster data types to use custom fields e.g. 'ring'
+////////////////// VLP-16 Data structure support //////////////////
+/** Velodyne Point struct */
+struct PointVelodyne
 {
-  PCL_ADD_POINT4D;                // quad-word XYZ
-  float intensity;                ///< laser intensity reading
-  uint16_t ring;                  ///< laser ring number
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW // ensure proper alignment
+  PCL_ADD_POINT4D;                    // quad-word XYZ
+  float    intensity;                 ///< laser intensity reading
+  uint16_t ring;                      ///< laser ring number
+  float    time;                      ///< laser time reading
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW     // ensure proper alignment
 } EIGEN_ALIGN16;
-
 /** Register as pointcloud struct for using in pcl::createMapping method */
-POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZIR,
-                                   (float, x, x)
-                                   (float, y, y)
-                                   (float, z, z)
-                                   (float, intensity, intensity)
-                                   (uint16_t, ring, ring)
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyne,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (std::uint16_t, ring, ring)
+                                  (float, time, time)
 )
+////////////////// VLP-16 Data structure support //////////////////
+
+////////////////// OS0-128 Data structure support //////////////////
+/** Ouster Point struct */
+struct EIGEN_ALIGN16 PointOuster {
+  PCL_ADD_POINT4D;
+  float intensity;
+  uint32_t t;
+  uint16_t reflectivity;
+  uint8_t ring;
+  uint16_t ambient;
+  uint32_t range;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+/** Register as pointcloud struct for using in pcl::createMapping method */
+POINT_CLOUD_REGISTER_POINT_STRUCT(PointOuster,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (std::uint32_t, t, t) // use std::uint32_t to avoid conflicting with pcl::uint32_t
+                                  (std::uint16_t, reflectivity, reflectivity)
+                                  (std::uint8_t, ring, ring)
+                                  (std::uint16_t, ambient, ambient)
+                                  (std::uint32_t, range, range)
+)
+////////////////// OS0-128 Data structure support //////////////////
 
 namespace loam{
 /** \brief Class realizing a linear mapping from vertical point angle to the corresponding scan ring.
@@ -131,7 +160,7 @@ class MultiScanMapper {
   static inline MultiScanMapper Ouster_O0_128() { return MultiScanMapper(-46.2f, 46.2f, 128); };
   
   /** Multi scan mapper for Ouster O0-128-Div2 according to data sheet. */
-  static inline MultiScanMapper Ouster_O0_128_Div2() { return MultiScanMapper(-46.2f, 46.2f, 64); };
+  static inline MultiScanMapper Ouster_O0_128_Div2() { return MultiScanMapper(-46.2f, 46.2f, 128); };
   
 private:
   std::string _lidarName; ///< CUSTOMIZATION LiDAR Name
@@ -169,8 +198,8 @@ class MultiScanRegistration : virtual public ScanRegistration {
    * @param laserCloudIn the new input cloud to process
    * @param scanTime the scan (message) timestamp
    */
-  // void process(const pcl::PointCloud<PointXYZIR> &laserCloudInput, const Time &scanTime);
-  void process(const pcl::PointCloud<pcl::PointXYZ> &laserCloudInput, const Time &scanTime); //FIXME
+  template <typename pointType>
+  void process(const pcl::PointCloud<pointType> &laserCloudInput, const Time &scanTime);
 
 private:
   int _systemDelay = 20;       ///< system startup delay counter
