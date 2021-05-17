@@ -21,7 +21,6 @@ RegistrationParams::RegistrationParams(const float &scanPeriod_,
       lessFlatFilterSize(lessFlatFilterSize_),
       surfaceCurvatureThreshold(surfaceCurvatureThreshold_){};
 
-
 void BasicScanRegistration::processScanlines(const Time &scanTime, std::vector<pcl::PointCloud<pcl::PointXYZI>> const &laserCloudScans) {
   // reset internal buffers and set IMU start state based on current scan time
   reset(scanTime);
@@ -37,33 +36,6 @@ void BasicScanRegistration::processScanlines(const Time &scanTime, std::vector<p
     _scanIndices.push_back(range);
   }
 
-  //CUSTOMIZATION
-  // _laserCloudRGB.clear();
-  // _laserCloudRGB.reserve(cloudSize);
-  // for (int i = 0; i < laserCloudScans.size(); i++)
-  // {
-  //   for (auto &p : laserCloudScans[i])
-  //   {
-  //     pcl::PointXYZRGB pRGB;
-  //     pRGB.x = p.x;
-  //     pRGB.y = p.y;
-  //     pRGB.z = p.z;
-  //     pRGB.b = 0;
-  //     if (i % 2 == 0)
-  //     {
-  //       pRGB.r = 0;
-  //       pRGB.g = 255;
-  //     }
-  //     else
-  //     {
-  //       pRGB.r = 255;
-  //       pRGB.g = 0;
-  //     }
-  //     _laserCloudRGB.push_back(pRGB);
-  //   }
-  // }
-  //CUSTOMIZATION
-  
   extractFeatures();
   updateIMUTransform();
 }
@@ -99,6 +71,7 @@ void BasicScanRegistration::reset(const Time &scanTime) {
     _surfacePointsFlat.clear();
     _surfacePointsLessFlat.clear();
     _surfPointsLessFlatScanDS.clear();
+    _invalidSharpFeatures.clear();
 
     // clear scan indices vector
     _scanIndices.clear();
@@ -215,19 +188,25 @@ void BasicScanRegistration::extractFeatures(const uint16_t &beginIdx) {
 
         //smk: pick sharp points, the sharp and less sharp need to be above "surfaceCurvatureThreshold", technically there is no difference in btw the two only some of them are marked are sharp to reduce data for laser odometry
         if (_scanNeighborPicked[scanIdx] == 0 && _regionCurvature[regionIdx] > _config.surfaceCurvatureThreshold) {
-          largestPickedNum++;
-          if (largestPickedNum <= _config.maxCornerSharp)
-          {
-            _regionLabel[regionIdx] = CORNER_SHARP;
-            _cornerPointsSharp.push_back(_laserCloud[idx]);
-          }
-          else
-          {
-            _regionLabel[regionIdx] = CORNER_LESS_SHARP;
-          }
-          _cornerPointsLessSharp.push_back(_laserCloud[idx]);
+          // Check if feature is in valid azimuth & polar ranges
+          bool isFeatureInvalid = false;
+          if (_config.checkInvalidFeatureRegions)
+            isFeatureInvalid = checkFeatureInvalid(_laserCloud[idx]);
 
-          markAsPicked(idx, scanIdx);
+          //Add Valid Feature
+          if (!isFeatureInvalid) {
+            ++largestPickedNum;
+            if (largestPickedNum <= _config.maxCornerSharp) {
+              _regionLabel[regionIdx] = CORNER_SHARP;
+              _cornerPointsSharp.push_back(_laserCloud[idx]);
+            } else {
+              _regionLabel[regionIdx] = CORNER_LESS_SHARP;
+            }
+            _cornerPointsLessSharp.push_back(_laserCloud[idx]);
+
+            markAsPicked(idx, scanIdx);
+          } else if (_config.publishDebugArrowsToRemovedFeatures)  //Skip point and add invalid feature point for debugging
+            _invalidSharpFeatures.push_back(_laserCloud[idx]);
         }
       }
 
@@ -390,7 +369,6 @@ void BasicScanRegistration::setScanBuffersFor(const size_t &startIdx, const size
   }
 }
 
-
 void BasicScanRegistration::markAsPicked(const size_t &cloudIdx, const size_t &scanIdx) {
   _scanNeighborPicked[scanIdx] = 1;
 
@@ -413,5 +391,37 @@ void BasicScanRegistration::markAsPicked(const size_t &cloudIdx, const size_t &s
     _scanNeighborPicked[scanIdx - i] = 1;
   }
 }
+
+// CUSTOMIZATION
+bool BasicScanRegistration::checkFeatureInvalid(const pcl::PointXYZI& point) {
+  bool featureInvalid = false;
+  if (_config.noFeatureAzimuthBoundaries.size() > 0) {
+    float azimuth = std::atan2(point.x, point.z);
+    for (uint i = 0; i < _config.noFeatureAzimuthBoundaries.size(); i += 2) {
+      //Check if feature is in valid Azimuth range
+      featureInvalid = checkBounds(azimuth, _config.noFeatureAzimuthBoundaries[i], _config.noFeatureAzimuthBoundaries[i + 1]);
+      //Check if feature is in valid Polar range
+      // if (featureInvalid && _config.noFeaturePolarBoundaries.size() > i) {
+      //   float polar = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z));
+      //   featureInvalid = checkBounds(polar, _config.noFeaturePolarBoundaries[i], _config.noFeaturePolarBoundaries[i + 1]);
+      // }
+      if (featureInvalid)
+        return true;
+    }
+  }
+  return false;
+}
+
+bool BasicScanRegistration::checkBounds(const float angle, const float lowerBound, const float upperBound) {
+  if (lowerBound < upperBound) {
+    if (angle > lowerBound && angle < upperBound)
+      return true;
+  } else {
+    if (angle < lowerBound && angle > upperBound)
+      return true;
+  }
+  return false;
+}
+// CUSTOMIZATION
 
 }  // namespace loam

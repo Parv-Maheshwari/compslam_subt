@@ -971,7 +971,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
               << ", Iter:" << iterCount + 1
               << ", Residual(T/R):" << deltaT << "/" << deltaR
               << ", Time(ms):" << t
-              << (t < 100 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+              << (t < 175 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
   }
   //DEBUG - Optimization Status
 

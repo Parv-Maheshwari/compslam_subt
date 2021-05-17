@@ -60,10 +60,11 @@ class GraphManager {
   //Accessors - Setters
   void setAccNoiseDensity(double val) { _accNoiseDensity = val; }
   void setAccBiasRandomWalk(double val) { _accBiasRandomWalk = val; }
-  void setAccBiasPrior(double val) { _accBiasPrior = val; }
   void setGyroNoiseDensity(double val) { _gyrNoiseDensity = val; }
   void setGyrBiasRandomWalk(double val) { _gyrBiasRandomWalk = val; }
-  void setGyrBiasPrior(double val) { _gyrBiasPrior = val; }
+  void setAccBiasPrior(const std::vector<double>& v) { _accBiasPrior << v[0], v[1], v[2]; }
+  void setGyrBiasPrior(const std::vector<double>& v) { _gyrBiasPrior << v[0], v[1], v[2]; }
+  auto& setInitGyrBias() { return _gyrBiasPrior; }
   void setSmootherLag(double val) { _smootherLag = val; }
   void setIterations(int val) { _additonalIterations = val; }
   void setPositionReLinTh(double val) { _posReLinTh = val; }
@@ -71,9 +72,9 @@ class GraphManager {
   void setVelocityReLinTh(double val) { _velReLinTh = val; }
   void setAccBiasReLinTh(double val) { _accBiasReLinTh = val; }
   void setGyrBiasReLinTh(double val) { _gyrBiasReLinTh = val; }
-  void setPoseNoise(const std::vector<double>& v) {_poseNoise = v;}
+  void setPoseNoise(const std::vector<double>& v) { _poseNoise = v; }
   void setZeroMotionTh(double val) { _zeroMotionTh = val; }
-  void setMinZeroMotionDetections(int val) {_minDetections = _detectionCount = val;}
+  void setMinZeroMotionDetections(int val) { _minDetections = _detectionCount = val; }
   //Accessors - Getters
   auto iterations() const { return _additonalIterations; }
   const auto newStateKey() { return ++_state_key; }
@@ -90,12 +91,12 @@ class GraphManager {
  private:
   //Member variables
   // IMU Preintegration
-  double _accNoiseDensity;    // continuous-time "Covariance" of accelerometer
-  double _accBiasRandomWalk;  // continuous-time "Covariance" describing accelerometer bias random walk
-  double _accBiasPrior;       // prior/starting value of accelerometer bias
-  double _gyrNoiseDensity;    // continuous-time "Covariance" of gyroscope measurements
-  double _gyrBiasRandomWalk;  // continuous-time "Covariance" describing gyroscope bias random walk
-  double _gyrBiasPrior;       // prior/starting value of gyroscope bias
+  double _accNoiseDensity;                       // continuous-time "Covariance" of accelerometer
+  double _accBiasRandomWalk;                     // continuous-time "Covariance" describing accelerometer bias random walk
+  double _gyrNoiseDensity;                       // continuous-time "Covariance" of gyroscope measurements
+  double _gyrBiasRandomWalk;                     // continuous-time "Covariance" describing gyroscope bias random walk
+  Eigen::Vector3d _accBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of accelerometer bias
+  Eigen::Vector3d _gyrBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of gyroscope bias
   //Factor Graph
   gtsam::Key _state_key = 0;     //Current state key
   double _smootherLag = 1;       //Lag of fixed lag smoother[seconds]

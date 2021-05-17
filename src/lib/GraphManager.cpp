@@ -66,9 +66,8 @@ bool GraphManager::initImuIntegrator(const double g) {
   _imuParams->biasOmegaCovariance = gtsam::Matrix33::Identity(3, 3) * _gyrBiasRandomWalk;
   _imuParams->integrationCovariance = gtsam::Matrix33::Identity(3, 3) * 1.0e-8;  // error committed in integrating position from velocities
   // _imuParams->biasAccOmegaInt = gtsam::Matrix66::Identity(6, 6) * 1.0e-5; // error in the bias used for preintegration
-  gtsam::Vector3 acc_bias_prior(_accBiasPrior, _accBiasPrior, _accBiasPrior);
-  gtsam::Vector3 gyr_bias_prior(_gyrBiasPrior, _gyrBiasPrior, _gyrBiasPrior);
-  _imuBiasPrior = std::make_shared<gtsam::imuBias::ConstantBias>(acc_bias_prior, gyr_bias_prior);
+  _imuBiasPrior = std::make_shared<gtsam::imuBias::ConstantBias>(_accBiasPrior, _gyrBiasPrior);
+  _imuBiasPrior->print("IMU Bias Priors:");
   _imuPreintegrator = std::make_shared<gtsam::PreintegratedCombinedMeasurements>(_imuParams, *_imuBiasPrior);
   _imuParams->print("IMU Preintegration Parameters:");
   return true;

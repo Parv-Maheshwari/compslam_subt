@@ -181,6 +181,7 @@ void BasicLaserOdometry::process() {
                                             _graphMgr._state.imuBias().accelerometer(),
                                             imu_attitude,
                                             g,
+                                            &_graphMgr.setInitGyrBias(),
                                             true)) {
       ROS_WARN("LaserOdometry Failed to Initialize Attitude from IMU - RETRYING ...");
       return;
@@ -688,7 +689,7 @@ void BasicLaserOdometry::process() {
                 << ", Iter:" << iterCount + 1
                 << ", Residual(T/R):" << deltaT << "/" << deltaR
                 << ", Time(ms):" << t
-                << (t < 50 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+                << (t < 75 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
     }
     //DEBUG - Optimization Status
 

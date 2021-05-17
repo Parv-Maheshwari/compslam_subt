@@ -70,6 +70,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   int iParam;
   bool bParam;
   std::string sParam;
+  std::vector<double> dvParam;
 
   if (privateNode.getParam("scanPeriod", fParam)) {
     if (fParam <= 0) {
@@ -302,18 +303,22 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU rate for preintegrator: " << dParam);
     _imuBuffer.setImuRate(dParam);
   }
+  if (privateNode.getParam("imuTimeForInit", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
+    _imuBuffer.setImuTimeForInit(dParam);
+  }
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
     _graphMgr.setAccBiasRandomWalk(dParam);
-  if (privateNode.getParam("accBiasPrior", dParam))
-    _graphMgr.setAccBiasPrior(dParam);
   if (privateNode.getParam("gyrNoiseDensity", dParam))
     _graphMgr.setGyroNoiseDensity(dParam);
   if (privateNode.getParam("gyrBiasRandomWalk", dParam))
     _graphMgr.setGyrBiasRandomWalk(dParam);
-  if (privateNode.getParam("gyrBiasPrior", dParam))
-    _graphMgr.setGyrBiasPrior(dParam);
+  if (privateNode.getParam("accBiasPrior", dvParam))
+    _graphMgr.setAccBiasPrior(dvParam);
+  if (privateNode.getParam("gyrBiasPrior", dvParam))
+    _graphMgr.setGyrBiasPrior(dvParam);
   //Factor Graph
   if (privateNode.getParam("smootherLag", dParam))
     _graphMgr.setSmootherLag(dParam);
@@ -344,10 +349,8 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("enableDetailedResults", bParam))
     _graphMgr._params.setEnableDetailedResults(bParam);
   //Pose between factor noise
-  std::vector<double> poseNoise{0, 0, 0, 0, 0, 0};  //roll,pitch,yaw,x,y,z
-  if (privateNode.getParam("poseBetweenNoise", poseNoise)){
-    _graphMgr.setPoseNoise(poseNoise);
-  }
+  if (privateNode.getParam("poseBetweenNoise", dvParam))
+    _graphMgr.setPoseNoise(dvParam);
   //Zero Motion Factor & Gravity Roll/Pitch Factor
   if (privateNode.getParam("zeroMotionDetection", bParam)) {
     setZeroMotionDetection(bParam);
