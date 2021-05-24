@@ -375,6 +375,15 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     } else
       ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED");
   }
+  // Initialize graph roll/pitch from IMU  
+  if (privateNode.getParam("initGraphRollPicthFromIMU", bParam)) {
+    setUseIMURollPitchForGraphInit(bParam);
+    ROS_INFO_STREAM("LaserOdometry - Graph Roll/Pitch initialized from IMU: " << (bParam ? "True" : "False"));
+    if (!bParam) {
+      setUseGravityRollPitchFactors(bParam);
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED as Graph Roll/Pitch NOT initialized from IMU");
+    }
+  }
   /** Graph Parameters **/
 
   //Verbose Ouput
