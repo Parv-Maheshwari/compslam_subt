@@ -210,8 +210,13 @@ void BasicLaserOdometry::process() {
 
     //Initialize IMU Preintegrator and Factor Graph
     _graphMgr.initImuIntegrator(g);
-    auto zeroYawIMUattitude = gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()); //Set IMU yaw to zero
-    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), gtsam::Pose3(zeroYawIMUattitude, gtsam::Point3()));
+
+    //Initialize Factor Graph with prior factor
+    gtsam::Pose3 init_pose = gtsam::Pose3::identity();
+    if (_initGraphRollPicthFromIMU)
+      init_pose = gtsam::Pose3(gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
+                               gtsam::Point3());
+    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_pose);
 
     //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
     gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
