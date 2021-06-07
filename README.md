@@ -13,6 +13,38 @@
 
 This README would normally document whatever steps are necessary to get your application up and running.
 
+### Set up GTSAM 4.0.3 to work with compslam ###
+
+* clone repository:
+```
+$ git clone git@github.com:borglab/gtsam.git -b 4.0.3
+```
+
+There are options for globally or locally installing gtsam on your system, follow either set of steps.
+
+#### Global install ####
+
+$ cd <your_path_to_gtsam>/gtsam
+$ mkdir build && cd build
+$ cmake -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF ..
+$ make install
+
+#### Local install ####
+
+* install with required flags:
+```
+$ cd <your_path_to_gtsam>/gtsam
+$ mkdir build && cd build
+$ cmake -DCMAKE_INSTALL_PREFIX:PATH=<your_installation_path> -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF ..
+$ make install
+```
+
+* link to locally installed libs:
+```
+$ echo -e '\n# Link to local GTSAM installation libs' >> /home/subt/.bashrc
+$ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH' >> /home/subt/.bashrc
+```
+
 ### What is this repository for? ###
 
 * Quick summary
