@@ -1,18 +1,5 @@
 # Complementrary SLAM use with rovio and leg odometry
 
-### Requires GTSAM 4.0.2 ###
-* [GTSAM 4.0.2](https://github.com/borglab/gtsam/tree/4.0.2)
-* Installation flags:
-    * GTSAM_BUILD_WITH_MARCH_NATIVE = OFF
-    * GTSAM_POSE3_EXPMAP = ON
-    * GTSAM_ROT3_EXPMAP = ON
-    * GTSAM_USE_QUATERNIONS = ON
-    * GTSAM_USE_SYSTEM_EIGEN = ON
-
-# README #
-
-This README would normally document whatever steps are necessary to get your application up and running.
-
 ### Set up GTSAM 4.0.3 to work with compslam ###
 
 * clone repository:
@@ -24,10 +11,12 @@ There are options for globally or locally installing gtsam on your system, follo
 
 #### Global install ####
 
+```
 $ cd <your_path_to_gtsam>/gtsam
 $ mkdir build && cd build
 $ cmake -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF ..
 $ make install
+```
 
 #### Local install ####
 
