@@ -158,6 +158,8 @@ class BasicLaserOdometry {
   void setImuFrame(const std::string& s) { _imuFrame = s; }
   void setImuTimeOffset(const double d) { _imuTimeOffset = d; }
   void setZeroMotionDetection(const bool b) { _zeroMotionDetection = b; }
+  void setUseGravityRollPitchFactors(const bool b) { _gravityRollPitchFactors = b; }
+  void setUseIMURollPitchForGraphInit(const bool b) { _initGraphRollPicthFromIMU = b; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   loam::OptStatus _optStatusMsg;
@@ -262,10 +264,12 @@ class BasicLaserOdometry {
   double _imuTimeOffset = 0.0;                          //Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
   Eigen::Matrix4d _T_LB = Eigen::Matrix4d::Identity();  //IMU to LiDAR expressed in IMU frame, Read as Transforms LiDAR into IMU
   Eigen::Matrix4d _T_BL = Eigen::Matrix4d::Identity();  //LiDAR to IMU expressed in LiDAR frame, Read as Transforms IMU into LiDAR
+  bool _initGraphRollPicthFromIMU = true;               //Initialize graph roll/pitch from IMU  
   bool _gravityAttitudeInit = false;                    //Flag if attitude from gravity were initialized
   tf::Transform _gravityAttitude;                       //Attitude from initial gravity alignment
   sensor_msgs::Imu _imuBiasMsg;                         //IMU bias publishing ROS message
   bool _zeroMotionDetection = false;                    //Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+  bool _gravityRollPitchFactors = false;                //Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)
   //CUSTOMIZATION
 };
 

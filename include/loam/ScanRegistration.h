@@ -38,6 +38,8 @@
 #include <stdint.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
+#include "visualization_msgs/Marker.h"
+#include "visualization_msgs/MarkerArray.h"
 
 #include "BasicScanRegistration.h"
 #include "common.h"
@@ -83,6 +85,9 @@ class ScanRegistration : protected BasicScanRegistration {
     */
   bool parseParams(const ros::NodeHandle& nh, RegistrationParams& config_out);
 
+  /** \brief Publish visualization markers for features in invalid regions. */
+  void publishInvalidFeatureMarkers(const pcl::PointCloud<pcl::PointXYZI>& invalidFeatures);
+
  private:
   ros::Subscriber _subImu;                   ///< IMU message subscriber
   ros::Publisher _pubLaserCloud;             ///< full resolution cloud message publisher
@@ -94,9 +99,9 @@ class ScanRegistration : protected BasicScanRegistration {
 
   //CUSTOMIZATION
   //This is the original un-modiifed timestamp from the input pointcloud
-  ros::Publisher _pubLaserCloudRGB;         // Full resolution RGB cloud message publisher
   ros::Time _rosPCLTimeStamp;               // Timestamp of input clouds in ROS formate
   std::string _cameraFrameId;               // Frame id of camera
+  ros::Publisher _pubInvalidFeaturesMarkers; //Arrow markers for removed invalid sharp features - Debugging only
   //CUSTOMIZATION
 };
 

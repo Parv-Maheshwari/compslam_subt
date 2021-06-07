@@ -37,6 +37,8 @@ BasicLaserOdometry::BasicLaserOdometry(float scanPeriod, size_t maxIterations)
       _coeffSel(new pcl::PointCloud<pcl::PointXYZI>()) {
   //Initialize factor graph parameter object
   _graphMgr._params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
+  // //Logging
+  // _odometryLogFile.open("/home/shehryar/compslam_ws/src/compslam/odomEigen.csv", std::ios::out);
 }
 
 void BasicLaserOdometry::transformToStart(const pcl::PointXYZI& pi, pcl::PointXYZI& po) {
@@ -66,7 +68,7 @@ size_t BasicLaserOdometry::transformToEnd(pcl::PointCloud<pcl::PointXYZI>::Ptr& 
 
     //Project current point to the end of the scan
     if (_undistortInputCloud)
-      float s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
+      s = (1.f / _scanPeriod) * (point.intensity - int(point.intensity));
     else
       s = 1.0;
 
@@ -172,6 +174,19 @@ void BasicLaserOdometry::process() {
 
     //CUSTOMIZATION
     //FACTOR-GRAPH
+    //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
+    double g;
+    gtsam::Rot3 imu_attitude;
+    if (!_imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(),
+                                            _graphMgr._state.imuBias().accelerometer(),
+                                            imu_attitude,
+                                            g,
+                                            &_graphMgr.setInitGyrBias(),
+                                            true)) {
+      ROS_WARN("LaserOdometry Failed to Initialize Attitude from IMU - RETRYING ...");
+      return;
+    }
+
     //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
     tf::StampedTransform T_LB, T_BL;
     try {
@@ -193,16 +208,17 @@ void BasicLaserOdometry::process() {
     std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
               << _T_BL << std::endl;
 
-    //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
-    double g = 9.81;
-    gtsam::Rot3 imu_attitude;
-    _imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(), imu_attitude, g);
-
     //Initialize IMU Preintegrator and Factor Graph
     _graphMgr.initImuIntegrator(g);
-    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), gtsam::Pose3(imu_attitude, gtsam::Point3()));
 
-    //Get LiDAR pose - FG gives pose in IMU frame
+    //Initialize Factor Graph with prior factor
+    gtsam::Pose3 init_pose = gtsam::Pose3::identity();
+    if (_initGraphRollPicthFromIMU)
+      init_pose = gtsam::Pose3(gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
+                               gtsam::Point3());
+    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_pose);
+
+    //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
     gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
 
     //Initialize pose in LOAM frame from LiDAR pose
@@ -593,6 +609,10 @@ void BasicLaserOdometry::process() {
         matP = matV.inverse() * matV2;
 
         //CUSTOMIZATION
+        // //Logging
+        // _odometryLogFile << (_currentPCLTime.toSec() + _currentPCLTime.toNSec() * 1e-9) << ","
+        //                  << matE(0, 0) << "," << matE(0, 1) << "," << matE(0, 2) << ","
+        //                  << matE(0, 3) << "," << matE(0, 4) << "," << matE(0, 5) << "\n";
         //Enable VIO passthrough if solution was degenerate
         if (_isExternalPriorHealthy) {
           if (isDegenerate) {
@@ -674,7 +694,7 @@ void BasicLaserOdometry::process() {
                 << ", Iter:" << iterCount + 1
                 << ", Residual(T/R):" << deltaT << "/" << deltaR
                 << ", Time(ms):" << t
-                << (t < 50 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+                << (t < 75 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
     }
     //DEBUG - Optimization Status
 
@@ -882,22 +902,36 @@ bool BasicLaserOdometry::updateFactorGraph() {
   delta_lidar.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
   delta_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
 
-  // Convert to IMU frame
+  //Convert to IMU frame
   gtsam::Pose3 delta_imu(_T_BL * delta_lidar * _T_LB);
   
-  //Add Pose between Factor
-  _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
-
-  // Check and Add Zero Motion Factor
+  //Check if Zero Motion and add Zero motion Factor
+  bool zeroMotion = false;
   if (_zeroMotionDetection)
-    bool zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+    zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+
+  //Add Pose between Factor if non-zero motion
+  if (!zeroMotion)
+    _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
+
+  //Add IMU attitute prior if Zero Motion
+  if(_gravityRollPitchFactors && zeroMotion){
+    double g;
+    gtsam::Rot3 imu_attitude;
+    _imuBuffer.estimateAttitudeFromImu(old_ts,
+                                       _graphMgr._state.imuBias().accelerometer(),
+                                       imu_attitude,
+                                       g);
+    gtsam::Rot3 current_attitude = _graphMgr._state.navState().attitude();
+    auto yawAdjIMUattitude = gtsam::Rot3::Ypr(current_attitude.yaw(), imu_attitude.pitch(), imu_attitude.roll());
+    _graphMgr.addGravityRollPitchFactor(old_key, yawAdjIMUattitude);
+  }
 
   //Update graph with factors and calculate new state
   _graphMgr.updateGraphAndState(new_ts, new_key);
 
   return success;
 }
-
 //CUSTOMIZATION
 
 }  // end namespace loam

@@ -59,7 +59,7 @@ class State {
   }
 
   //Update state Graph Key and Timestamp
-  void updateKeyAndTimestamp(const gtsam::Key& key, const double& ts) {
+  void updateKeyAndTimestamp(const gtsam::Key key, const double ts) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     key_ = key;
     ts_ = ts;
