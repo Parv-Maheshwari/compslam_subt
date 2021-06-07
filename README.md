@@ -25,14 +25,14 @@ Install with required flags:
 ```
 $ cd <your_path_to_gtsam>/gtsam
 $ mkdir build && cd build
-$ cmake -DCMAKE_INSTALL_PREFIX:PATH=<your_installation_path> -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF ..
+$ cmake -DCMAKE_INSTALL_PREFIX:PATH=<your_local_installation_path> -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF ..
 $ make install
 ```
 
 Link to locally installed libs:
 ```
-$ echo -e '\n# Link to local GTSAM installation libs' >> /home/subt/.bashrc
-$ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH' >> /home/subt/.bashrc
+$ echo -e '\n# Link to local GTSAM installation libs' >> ~/.bashrc
+$ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH' >> ~/.bashrc
 ```
 
 ### What is this repository for? ###
@@ -60,4 +60,3 @@ $ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH
 
 * Repo owner or admin
 * Other community or team contact
-
