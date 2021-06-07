@@ -8,7 +8,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
 lidarFrame: lidar                        #LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
-extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+extPriorAvailable: true                 #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
@@ -95,3 +95,22 @@ zeroMotionDetection: false                        #Detect and Add Zero Motion Fa
 zeroMotionThreshold: 0.01                         #Zero motion threshold in meters (Currently only motion detection is translation only)
 minZeroMoitionDetections: 10                      #Minimum number of consective zero motions detected before factors are added
 gravityRollPitchFactors: false                    #Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)
+
+#MaplabIntegrator
+world_frame: darpa
+map_frame: map
+base_frame: imu
+cloudSavePosDelta: 1.0
+cloudSaveRotDelta: 0.2
+odometryFactorNoise: [0.05, 0.05, 0.05, 0.1, 0.1, 0.1]
+absoluteFactorNoise: [1.0e-06, 1.0e-06, 1.0e-06, 1.0e-06, 1.0e-06, 1.0e-06]
+submapFactorNoise: [1.0e-03, 1.0e-03, 1.0e-03, 1.0e-03, 1.0e-03, 1.0e-03]
+anchorFactorNoise: [1.0e-05, 1.0e-05, 1.0e-05, 1.0e-05, 1.0e-05, 1.0e-05]
+T_cam2imu: [-0.9999962982, -0.000530768, 0.0026686827, 0.0471397497,
+            -0.0026684873, -0.0003684325, -0.9999963717, -0.0778675546,
+             0.0005317493, -0.9999997913, 0.0003670147, 0.0260845632,
+             0.0, 0.0, 0.0, 1.0]
+T_imu2lidar: [1, 0, 0, 0.005303,
+              0, 1, 0, 0.037340,
+              0, 0, 1, 0.063319,
+              0, 0, 0, 1]

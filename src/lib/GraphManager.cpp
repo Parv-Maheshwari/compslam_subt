@@ -53,7 +53,6 @@ bool GraphManager::initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3
   // auto& ns = _state.navState();
   // std::cout << "Init t(x,y,z): " << ns.position().transpose()<< ", RPY(deg): " << ns.attitude().rpy().transpose() * (180.0 / M_PI) << ", v(x,y,z): " << ns.velocity().transpose()  << "\n";
   // //DEBUG
-
   return true;
 }
 
