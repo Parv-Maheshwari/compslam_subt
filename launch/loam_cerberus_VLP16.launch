@@ -32,7 +32,7 @@
   <node pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet loam_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
     <param name="saved_submaps_filepath" value="$(find loam)"/>
-    <remap from="/aft_mapped_to_init_CORRECTED" to="/loam/odometry" /> #For offline use without ANYmal stack
+    <remap from="/aft_mapped_to_init_CORRECTED" to="/loam/odometry" /> #For offline use with ANYmal stack
   </node> 
 
   <!-- Laser Transform Maintenance Nodelet -->
