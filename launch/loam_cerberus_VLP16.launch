@@ -10,7 +10,7 @@
   <arg name="pointcloud_topic_name" default="/lidar/point_cloud" /> #/lidar/point_cloud #/point_cloud_filter/lidar/point_cloud_filtered
   <arg name="imu_topic_name" default="/sensors/imu" />
 
-    <!-- Config params -->
+  <!-- Config params -->
   <arg name="config_filename" default="$(find loam)/config/loam_cerberus_params.yaml" />
 
   <!-- LOAM Nodelet Manager -->

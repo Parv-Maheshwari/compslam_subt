@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(loam)
 
+## Compile as C++14, supported in ROS Kinetic and newer
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "-O3 -pthread")
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs

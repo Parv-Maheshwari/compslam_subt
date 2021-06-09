@@ -42,15 +42,19 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+#include "loam/nanoflann_pcl.h"
+
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
 #include <nav_msgs/Odometry.h>
-#include <pcl/io/pcd_io.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
+#include <pcl/io/pcd_io.h>
 #include <fstream>
 #include <unordered_set>
+#include <unordered_map>
+#include <thread>
 //CUSTOMIZATION
 
 namespace loam {
@@ -167,6 +171,7 @@ class BasicLaserMapping {
   auto& getCurrentSurfSubmap() { return *_laserCloudSurfArray[_laserCloudNum / 2]; }
 
   pcl::PointCloud<pcl::PointXYZI>& laserMap();
+  pcl::PointCloud<pcl::PointXYZI>& getSubmapSearchCloud();
 
   // Set internal map parameters
   void setMapCubeSize(double s) { _mapCubeSize = s; }
@@ -195,6 +200,7 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
+  void setSqRangeofSubmapSearchCloud(const float f){_submapSearchCloudSqRange = f*f;}
   loam::OptStatus _optStatusMsg;
 
   //DEBUG
@@ -216,6 +222,9 @@ class BasicLaserMapping {
 
   // CUSTOMIZATION
   void processDegeneration(bool is_degenerating);
+  size_t getPointCubeIdx(const pcl::PointXYZI& pt);
+  void buildCornerKDTrees();
+  void buildSurfKDTrees();
 
   //Members
   Time _laserOdometryTime;
@@ -269,6 +278,12 @@ class BasicLaserMapping {
   std::vector<size_t> _laserCloudValidInd;
   std::vector<size_t> _laserCloudSurroundInd;
 
+  // 
+  typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;
+  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;
+  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _surfKDTrees;
+  // 
+
   Twist _transformSum, _transformIncre, _transformTobeMapped, _transformBefMapped, _transformAftMapped;
   CircularBuffer<IMUState2> _imuHistory;  ///< history of IMU states
 
@@ -283,6 +298,7 @@ class BasicLaserMapping {
   double _mapPriorNormThresh;               // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
   bool _isLaserOdometryDegenerate = false;  // flag to check if laser odometry is degenrate
   ros::Time _currentPCLTime, _lastPCLTime;  // timestamps of last and current pointclouds
+  float _submapSearchCloudSqRange = 1225;   // squared-range of points in current cloud to be allowed to be searched with the submap
 
   //Submap Co-Localization
   pcl::PointCloud<pcl::PointXYZI>::Ptr _savedCornerSubmap, _savedSurfSubmap;
@@ -310,8 +326,8 @@ class BasicLaserMapping {
   bool _isInputPCLRotated = false;
   tf::Transform _Rot_inCloudLiDAR;
 
-  // Full Map for visualization - Downsampled
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserMap;  // Full Map
+  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserMap;           // Full Map for visualization - Downsampled
+  pcl::PointCloud<pcl::PointXYZI>::Ptr _submapSearchCloud;  // Cloud to searched within current submap
 
   //DEBUG
   int _verboseLevel = 0;

@@ -171,6 +171,7 @@ class LaserMapping : public BasicLaserMapping {
   ros::Publisher _pubMap;                                         // ROS publisher for Full map
   int _mapPublishRateDivider = 20;                                // Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider)
   int _mapCounter = 0;                                            // Counter for full map publishing
+  ros::Publisher _pubSubMapSearchCloud;                           // ROS publisher for current cloud to be searched in the submap
   //CUSTOMIZATION
 };
 
