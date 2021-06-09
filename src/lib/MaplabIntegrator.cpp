@@ -55,7 +55,7 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   std::vector<double> submapNoise;
   if (privateNode.getParam("submapFactorNoise", submapNoise)) {
     _submapNoise << submapNoise[0], submapNoise[1], submapNoise[2], submapNoise[3], submapNoise[4], submapNoise[5];  // rad,rad,rad,m,m,m
-    std::cout << "MaplabIntegrator - Absolute Factor Noise: " << _submapNoise.transpose() << std::endl;
+    std::cout << "MaplabIntegrator - Submap Factor Noise: " << _submapNoise.transpose() << std::endl;
   } else {
     ROS_INFO_STREAM("MaplabIntegrator - Submap Factor Noise not defined");
     return false;
@@ -63,7 +63,7 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   std::vector<double> anchorNoise;
   if (privateNode.getParam("anchorFactorNoise", anchorNoise)) {
     _anchorNoise << anchorNoise[0], anchorNoise[1], anchorNoise[2], anchorNoise[3], anchorNoise[4], anchorNoise[5];  // rad,rad,rad,m,m,m
-    std::cout << "MaplabIntegrator - Absolute Factor Noise: " << _anchorNoise.transpose() << std::endl;
+    std::cout << "MaplabIntegrator - Anchor Factor Noise: " << _anchorNoise.transpose() << std::endl;
   } else {
     ROS_INFO_STREAM("MaplabIntegrator - Anchor Factor Noise not defined");
     return false;
@@ -134,8 +134,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 
   //Add delta pose factor to graph
   gtsam::Key new_key;
-  gtsam::Values result;
   bool saveCloud = false;
+  auto t1 = std::chrono::high_resolution_clock::now();
   {
     //If first lidar odometry message has been received
     std::lock_guard<std::mutex> lock(_graphMutex);
@@ -149,17 +149,17 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
       //Update keys
       auto old_key = _timestampKeyMap.rbegin()->second;
       new_key = newStateKey();
-      //Calculate IMU pose estimate in G
-      result = _graph->calculateEstimate();
-      gtsam::Pose3 T_G_B = result.at<gtsam::Pose3>(X(old_key)) * T_B1_B2;
+      //Calculate new IMU pose estimate in G
+      gtsam::Pose3 T_G_B = _T_G_B_inc * T_B1_B2;
       //Add delta and estimate as between factor
       addPoseBetweenFactor(old_key, new_key, T_B1_B2, T_G_B);
     }
     //Update Timestamp-Key Map
     _timestampKeyMap[ts] = new_key;
     //Get updated result
-    result = _graph->calculateEstimate();
+    _T_G_B_inc = _graph->calculateEstimate<gtsam::Pose3>(X(new_key));
   }
+  auto t2 = std::chrono::high_resolution_clock::now();
 
   //Save last IMU pose for calculting delta
   _lastIMUPose = T_M_B;
@@ -173,11 +173,10 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   }
 
   //TODO-This is not needed-But need to be verified with anchor pose callback //Update vector of states in (B) frame
-  StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(result.at<gtsam::Pose3>(X(new_key)), gtsam::Vector3(0, 0, 0)));
+  StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(_T_G_B_inc, gtsam::Vector3(0, 0, 0)));
   _states.emplace_back(std::move(state));
 
   //Publish Graph path
-  _T_G_B_inc = result.at<gtsam::Pose3>(X(new_key));
   //Pose Message
   static size_t poseMsgCount = 0;
   geometry_msgs::PoseStamped poseMsg;
@@ -198,12 +197,15 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   publishTransforms(odomPtr->header.stamp);
 
   // DEBUG
-  std::cout << std::fixed << "\033[35mODOMETRY\033[0m"
-            << ", ts: " << odomPtr->header.stamp.toSec()
-            << ", key: " << new_key
-            // << ", Total factors: " << getFactorCount()
-            << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose() //<< ", RPY(deg): " << _T_G_B_inc.rotation().rpy().transpose() * (180.0 / M_PI)
-            << std::endl;
+  if (new_key % 10 == 0) {
+    std::cout << std::fixed << "\033[35mODOMETRY\033[0m"
+              << ", ts: " << odomPtr->header.stamp.toSec()
+              << ", key: " << new_key
+              // << ", Total factors: " << getFactorCount()
+              << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()  //<< ", RPY(deg): " << _T_G_B_inc.rotation().rpy().transpose() * (180.0 / M_PI)
+              << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+              << std::endl;
+  }
   // DEBUG
 
   //return key to associate pointcloud
@@ -272,6 +274,7 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   gtsam::Pose3 T_G_B = T_G_C * _T_B_C.inverse();
 
   //Add absolute priors at FIRST key i.e. key=0
+  auto t1 = std::chrono::high_resolution_clock::now();
   {
     std::lock_guard<std::mutex> lock(_graphMutex);
     //Create prior factor
@@ -294,16 +297,20 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
     incFactorCount();
 
     //Update DARPA(G) to Robot (Local) Map(M)
-    gtsam::Values result = _graph->calculateEstimate();
-    _T_G_M = result.at<gtsam::Pose3>(X(0));
+    static size_t minAbsCount = 0;
+    if (minAbsCount > 5)
+      updateResultsForVisualization(posePtr->header.stamp);
+    ++minAbsCount;
   }
+  auto t2 = std::chrono::high_resolution_clock::now();
 
   //DEBUG
   std::cout << std::fixed << "\033[33mABSOLUTE\033[0m"
             // <<", ts: " << posePtr->header.stamp.toSec()
             // << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
             // << ", imu t(x,y,z): " << T_G_B.translation().transpose()  //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", Global-Map Frame t(x,y,z):" << _T_G_M.translation().transpose() << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
+            << ", T_G_M t(m):" << _T_G_M.translation().transpose() << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
+            << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
             << std::endl;
   //DEBUG
 }
@@ -391,7 +398,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
     auto parent_itr = _timestampKeyMap.find(parent_ts);
     if (parent_itr != _timestampKeyMap.end()) {
       gtsam::Key parent_key = parent_itr->second;
-      std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Parent Key : " << parent_key << ", ts: " << parent_ts;
+      // std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Parent Key : " << parent_key << ", ts: " << parent_ts;
       //Loop through submap(parent)-submap(child) constraints
       auto t1 = std::chrono::high_resolution_clock::now();
       for (size_t i = 0; i < pathPtr->poses.size(); ++i) {
@@ -400,7 +407,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
         auto child_itr = _timestampKeyMap.find(child_ts);
         if (child_itr != _timestampKeyMap.end()) {
           gtsam::Key child_key = child_itr->second;
-          std::cout << std::fixed << ", Child Key : " << child_key << ", ts: " << child_ts << std::endl;
+          // std::cout << std::fixed << ", Child Key : " << child_key << ", ts: " << child_ts << std::endl;
 
           //Skip if keys are same
           if (child_key == parent_key) {
@@ -413,7 +420,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           int rmIdx = findSubmapFactorIdx(parent_key, child_key, true);
           if (rmIdx != -1) {
             removeFactorIdx.push_back(rmIdx);
-            std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
+            // std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
           }
 
           //Add submap-submap BetweenFactor
@@ -429,15 +436,17 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           incFactorCount();
           updateKeySubmapFactorIdxMap(parent_key, child_key);
         } else {
-          std::cout << std::fixed << ", NO child key found, ts: " << child_ts << std::endl;
+          // std::cout << std::fixed << ", NO child key found, ts: " << child_ts << std::endl;
           continue;
         }
       }
       auto t2 = std::chrono::high_resolution_clock::now();
       //Update results for visualization
       updateResultsForVisualization(pathPtr->header.stamp);
-      // //DEBUG
-      // std::cout << "\033[34mSUBMAP-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+      //DEBUG
+      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - Constraints: " << pathPtr->poses.size()
+                << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
+                << std::endl;
     } else {
       std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << parent_ts << " --- SKIPPING CHILDERN ---" << std::endl;
       return;
@@ -498,7 +507,7 @@ bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) con
 
 void MaplabIntegrator::updateResultsForVisualization(const ros::Time ts) {
   //Check if previous results have been visualized
-  if (!_new_results) {
+  if (!_new_results) {  //Update only if previous results have been processed
     _resultTimestamp = ts;
     _results = _graph->calculateBestEstimate();
     _new_results = true;
@@ -519,6 +528,7 @@ void MaplabIntegrator::visualizeResults() {
   int cloud_count = 0;
 
   //Loop through result values - Result in absolute frame
+  _T_G_M = _results.at<gtsam::Pose3>(X(0));
   for (std::size_t i = 0; i < _results.size(); ++i) {
     gtsam::Pose3 T_G_B = _results.at<gtsam::Pose3>(X(i));
 
@@ -570,7 +580,7 @@ void MaplabIntegrator::visualizeResults() {
 
   //DEBUG
   auto t2 = std::chrono::high_resolution_clock::now();
-  std::cout << "MaplabIntegrator - Map Visualization - accumulated clouds: " << cloud_count << ", points: " << mapCloud->points.size()
+  std::cout << "\033[36mMaplabIntegrator\033[0m - Map Visualization - accumulated clouds: " << cloud_count << ", points: " << mapCloud->points.size()
             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
   //DEBUG
 }
