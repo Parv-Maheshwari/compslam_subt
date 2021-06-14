@@ -57,6 +57,8 @@ class MaplabIntegrator {
   void maplabAnchorCallback(const nav_msgs::Path::ConstPtr& pathPtr);
   void maplabSubmapCallback(const nav_msgs::Path::ConstPtr& pathPtr);
 
+  //Get State key
+  const gtsam::Key stateKey() const { return _state_key; }
   //State Key increment
   const auto newStateKey() { return ++_state_key; }
   //Add prior
@@ -65,14 +67,14 @@ class MaplabIntegrator {
   void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose_delta, const gtsam::Pose3& pose_estimate);
   //Add prior factor from global graph
   bool findClosestKeyForTS(const double ts, gtsam::Key* key) const;  //TODO - deprecate
-  //Visualize the ISAM graph
-  void visualizeResults();
+  //Update ISAM graph
+  void updateGraphResults();
   //Publish associated transforms
   void publishTransforms(const ros::Time& ts);
 
   //Utility methods
   bool createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* pose_msg) const;
-  void updateResultsForVisualization(const ros::Time ts);
+  void convertTransfromToPose(const geometry_msgs::TransformStamped& t, geometry_msgs::PoseStamped& p);
 
   //Lookup maps for key-factor association
   void updateKeyAnchorFactorIdxMap(const gtsam::Key key) { _keyAnchorFactorIdxMap[key] = _factor_count - 1; }
@@ -97,12 +99,13 @@ class MaplabIntegrator {
   boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                       // ROS  Sync Policy Message Filter
 
   //Publishers
-  ros::Publisher _pubGraphPath;    // Current state (Incremental) of graph
-  ros::Publisher _pubUpdatedPath;  // Optimized graph path
-  nav_msgs::Path _pathMsg;         // ROS path message for graph
-  ros::Publisher _pubMap;          // Publish corrected Map
+  ros::Publisher _pubIncrementalPath, _pubIncPoseStamped;  // Current (Incremental) state of graph, path and posestamped
+  ros::Publisher _pubUpdatedPath, _pubOptPoseStamped;      // Optimized graph state, path and posestamped
+  nav_msgs::Path _pathMsg;                                 // ROS path message for graph
+  ros::Publisher _pubMap;                                  // Publish corrected Map
 
   //Frame names and transforms
+  bool _publishWorldtoMapTf = false;
   std::string _world_frame = "world";
   std::string _map_frame = "map";
   std::string _base_frame = "imu";
@@ -145,11 +148,9 @@ class MaplabIntegrator {
   std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;           //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
   std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;  //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
 
-  //Timer-based map/result publisher
-  bool _new_results = false;
-  gtsam::Values _results;
-  ros::Time _resultTimestamp;
-  ros::Timer _timerVisualizeResults;
+  //Timer-based map/result update and publish
+  double _updateResultsInterval = 5.0;  //Interval (seconds) for graph update callback
+  ros::Timer _timerUpdateResults;       //Timer callback for graph update
 
   //Pointcloud
   double _cloudSavePosDelta = 1.0;                                                   //minimum delta position difference Norm to save new pointcoud (meters)
