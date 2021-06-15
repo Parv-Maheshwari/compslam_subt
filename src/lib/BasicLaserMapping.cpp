@@ -74,16 +74,14 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _laserCloudSurfStackDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurround(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurroundDS(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudCornerFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudSurfFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _submapSearchCloud(new pcl::PointCloud<pcl::PointXYZI>()) {
   // setup down size filters
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
   //Logging
-  _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/mapKDTreeTimings.csv", std::ios::out);
-  _mappingLogFile << "CornerPts, SurfacePts, TotalPts, KDtreeFull(ms), KDtree(ms)\n";
+  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/mapKDTreeTimings.csv", std::ios::out);
+  // _mappingLogFile << "CornerPts, SurfacePts, TotalPts, cubeKDtree(ms)\n";
 }
 
 void BasicLaserMapping::resetMapParamsAndContainers() {
@@ -319,7 +317,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
 
   pcl::PointXYZI pointSel;
 
-  // relate incoming data to map
+  // relate incoming data to map - update transform estimates
   transformAssociateToMap();
 
   //CUSTOMIZATION - Use saved submaps and initialization guess for map re-localziation
@@ -347,22 +345,6 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   }
   //CUSTOMIZATION
 
-  for (auto const& pt : _laserCloudCornerLast->points) {
-    pointAssociateToMap(pt, pointSel);  //smk: getting SHARP points and transfroming them to map frame
-    _laserCloudCornerStack->push_back(pointSel);
-  }
-
-  for (auto const& pt : _laserCloudSurfLast->points) {
-    pointAssociateToMap(pt, pointSel);  //smk: getting FLAT points and transfroming them to map frame
-    _laserCloudSurfStack->push_back(pointSel);
-  }
-
-  pcl::PointXYZI pointOnYAxis;  //smk:???
-  pointOnYAxis.x = 0.0;
-  pointOnYAxis.y = 10.0;
-  pointOnYAxis.z = 0.0;
-  pointAssociateToMap(pointOnYAxis, pointOnYAxis);
-
   static float const CUBE_SIZE = _mapCubeSize;
   static float const CUBE_HALF = CUBE_SIZE / 2.0;
 
@@ -377,7 +359,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   if (_transformTobeMapped.pos.z() + CUBE_HALF < 0)
     centerCubeK--;
 
-  while (centerCubeI < 3) {
+  while (centerCubeI < _neighborSubmapCubes) {
     for (int j = 0; j < _laserCloudHeight; j++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int i = _laserCloudWidth - 1; i >= 1; i--) {
@@ -395,7 +377,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenWidth++;
   }
 
-  while (centerCubeI >= _laserCloudWidth - 3) {
+  while (centerCubeI >= _laserCloudWidth - _neighborSubmapCubes) {
     for (int j = 0; j < _laserCloudHeight; j++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int i = 0; i < _laserCloudWidth - 1; i++) {
@@ -413,7 +395,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenWidth--;
   }
 
-  while (centerCubeJ < 3) {
+  while (centerCubeJ < _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int j = _laserCloudHeight - 1; j >= 1; j--) {
@@ -431,7 +413,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenHeight++;
   }
 
-  while (centerCubeJ >= _laserCloudHeight - 3) {
+  while (centerCubeJ >= _laserCloudHeight - _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int j = 0; j < _laserCloudHeight - 1; j++) {
@@ -449,7 +431,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenHeight--;
   }
 
-  while (centerCubeK < 3) {
+  while (centerCubeK < _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int j = 0; j < _laserCloudHeight; j++) {
         for (int k = _laserCloudDepth - 1; k >= 1; k--) {
@@ -467,7 +449,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenDepth++;
   }
 
-  while (centerCubeK >= _laserCloudDepth - 3) {
+  while (centerCubeK >= _laserCloudDepth - _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int j = 0; j < _laserCloudHeight; j++) {
         for (int k = 0; k < _laserCloudDepth - 1; k++) {
@@ -487,6 +469,11 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
 
   _laserCloudValidInd.clear();
   _laserCloudSurroundInd.clear();
+  pcl::PointXYZI pointOnYAxis;  //A random point 10 meters above ground for checking neigboring cubes in the FoV of laser scanner
+  pointOnYAxis.x = 0.0;
+  pointOnYAxis.y = 10.0;
+  pointOnYAxis.z = 0.0;
+  pointAssociateToMap(pointOnYAxis, pointOnYAxis);
   for (int i = centerCubeI - _neighborSubmapCubes; i <= centerCubeI + _neighborSubmapCubes; ++i) {
     for (int j = centerCubeJ - _neighborSubmapCubes; j <= centerCubeJ + _neighborSubmapCubes; ++j) {
       for (int k = centerCubeK - _neighborSubmapCubes; k <= centerCubeK + _neighborSubmapCubes; ++k) {
@@ -500,7 +487,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
           pcl::PointXYZI transform_pos = (pcl::PointXYZI)_transformTobeMapped.pos;
 
           bool isInLaserFOV = false;
-          for (int ii = -1; ii <= 1; ii += 2) {
+          for (int ii = -1; ii <= 1; ii += 2) { // TODO This needs to be fixed as FoV is still checked in only 3 neighbor voxels
             for (int jj = -1; jj <= 1; jj += 2) {
               for (int kk = -1; kk <= 1; kk += 2) {
                 pcl::PointXYZI corner;
@@ -532,22 +519,11 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     }
   }
 
-  // prepare valid map corner and surface cloud for pose optimization
-  _laserCloudCornerFromMap->clear();
-  _laserCloudSurfFromMap->clear();
-  for (auto const& ind : _laserCloudValidInd) {
-    *_laserCloudCornerFromMap += *_laserCloudCornerArray[ind];
-    *_laserCloudSurfFromMap += *_laserCloudSurfArray[ind];
-  }
-
-  // prepare feature stack clouds for pose optimization
-  for (auto& pt : *_laserCloudCornerStack)
-    pointAssociateTobeMapped(pt, pt);
-
-  for (auto& pt : *_laserCloudSurfStack)
-    pointAssociateTobeMapped(pt, pt);
-
-  // Remove out-of-range from search within submap
+  //Copy corner and surface feature clouds (less_sharp and less_flat)
+  _laserCloudCornerStack = _laserCloudCornerLast;
+  _laserCloudSurfStack = _laserCloudSurfLast;
+  
+  //Exclude out-of-range from search within submap
   //Corner points
   _laserCloudCornerStackDS->clear();
   _laserCloudCornerStackDS->reserve(_laserCloudCornerStack->size());
@@ -555,7 +531,6 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     if(calcSquaredPointDistance(pt) < _submapSearchCloudSqRange)
       _laserCloudCornerStackDS->push_back(pt);
   }
-  size_t laserCloudCornerStackNum = _laserCloudCornerStackDS->size();
   //Surface points
   _laserCloudSurfStackDS->clear();
   _laserCloudSurfStackDS->reserve(_laserCloudSurfStack->size());
@@ -563,10 +538,10 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     if(calcSquaredPointDistance(pt) < _submapSearchCloudSqRange)
       _laserCloudSurfStackDS->push_back(pt);
   }
-  size_t laserCloudSurfStackNum = _laserCloudSurfStackDS->size();
-
-  std::cout << "Range Limited corner/surf before: " << _laserCloudCornerStack->size() << "/" << _laserCloudSurfStack->size()
-            << ", after: " << laserCloudCornerStackNum << "/" << laserCloudSurfStackNum << std::endl;
+  //Debug
+  // std::cout << "Range Limited corner/surf before: " << _laserCloudCornerStack->size() << "/" << _laserCloudSurfStack->size()
+  //           << ", after: " << _laserCloudCornerStackDS->size() << "/" << _laserCloudSurfStackDS->size() << std::endl;
+  //Debug
 
   // run pose optimization
   optimizeTransformTobeMapped();
@@ -637,8 +612,6 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _occupiedCubeInd.insert(ind);
   }
 
-  transformFullResToMap();
-
   return true;
 }
 
@@ -660,11 +633,16 @@ void BasicLaserMapping::updateOdometry(Twist const& twist) {
   _transformSum = twist;
 }
 
-nanoflann::KdTreeFLANN<pcl::PointXYZI> kdtreeCornerFromMap;
-nanoflann::KdTreeFLANN<pcl::PointXYZI> kdtreeSurfFromMap;
-
 void BasicLaserMapping::optimizeTransformTobeMapped() {
-  if (_laserCloudCornerFromMap->size() <= 10 || _laserCloudSurfFromMap->size() <= 100)
+  //Check if enough points exist in the submap
+  size_t mapCornerSize = 0, mapSurfSize = 0;
+  for (auto const& ind : _laserCloudValidInd) {
+    mapCornerSize += _laserCloudCornerArray[ind]->size();
+    mapSurfSize += _laserCloudSurfArray[ind]->size();
+  }
+
+  //Skip if not enough points in the submap
+  if (mapCornerSize < 10 || mapSurfSize < 100)
     return;
 
   //CUSTOMIZATION - Increase allowed Iterations for convergence
@@ -678,36 +656,21 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   }
   //CUSTOMIZATION
 
-  pcl::PointXYZI pointSel, pointOri, /*pointProj, */ coeff;
-
-  std::vector<int> pointSearchInd(5, 0);
-  std::vector<float> pointSearchSqDis(5, 0);
-
-  auto t_full = std::clock();
-  kdtreeCornerFromMap.setInputCloud(_laserCloudCornerFromMap);
-  kdtreeSurfFromMap.setInputCloud(_laserCloudSurfFromMap);
-  auto t_full_ms = static_cast<double>(std::clock() - t_full) / CLOCKS_PER_SEC * 1000.0;
-  std::cout << "FULL build - time(ms): " << t_full_ms << std::endl;
-
-  //CUSTOMIZATION
+  //Build KDTrees for Search
   auto t_cube = std::clock();
-  auto surfTh = std::thread([&]{buildSurfKDTrees();});
-  auto t_corner = std::clock();
-  buildCornerKDTrees();
-  auto t_corner_ms = static_cast<double>(std::clock() - t_corner) / CLOCKS_PER_SEC * 1000.0;
-  surfTh.join();
-  // buildSurfKDTrees();
+  auto th1 = std::thread([&]{buildCornerKDTrees();});
+  auto t_surf = std::clock();
+  buildSurfKDTrees();
+  auto t_surf_ms = static_cast<double>(std::clock() - t_surf) / CLOCKS_PER_SEC * 1000.0;
+  th1.join();
   auto t_cube_ms = static_cast<double>(std::clock() - t_cube) / CLOCKS_PER_SEC * 1000.0;
-  std::cout << "CUBE build - time(ms): " << t_cube_ms << ", corner(ms): "<< t_corner_ms <<", ~surf(ms): "<<t_cube_ms-t_corner_ms<<std::endl;
+  //Debug - Logging
+  // std::cout << "CUBE build time(ms)/points - Corner: " << t_cube_ms - t_surf_ms << "/" << mapCornerSize
+  //           << ", Surface: " << t_surf_ms << "/" << mapSurfSize
+  //           << ", Total: " << t_cube_ms << "/" << mapCornerSize + mapSurfSize << std::endl;
+  // _mappingLogFile << mapCornerSize << "," << mapSurfSize << "," << mapCornerSize + mapSurfSize << "," << t_cube_ms << "\n";
 
-  //Logging
-  _mappingLogFile << _laserCloudCornerFromMap->size() << ","
-                  << _laserCloudSurfFromMap->size() << ","
-                  << _laserCloudCornerFromMap->size() + _laserCloudSurfFromMap->size() << ","
-                  << t_full_ms << "," 
-                  << t_cube_ms  << "\n";
-  //CUSTOMIZATION 
-
+  //Optimization
   Eigen::Matrix<float, 5, 3> matA0;
   Eigen::Matrix<float, 5, 1> matB0;
   Eigen::Vector3f matX0;
@@ -735,26 +698,34 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   bool error_converged = false;
   size_t iterCount = 0;
   std::clock_t time_start = std::clock();
+  //Optimization loop
   for (; iterCount < _maxIterations; ++iterCount) {
-    // std::cout << iterCount << ",";
     _laserCloudOri.clear();
     _coeffSel.clear();
 
+    //Corner points
     for (int i = 0; i < laserCloudCornerStackNum; i++) {
+      pcl::PointXYZI pointSel, pointOri;
       pointOri = _laserCloudCornerStackDS->points[i];
       pointAssociateToMap(pointOri, pointSel);
-      // kdtreeCornerFromMap.nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);  //smk: find 5 closest points in KDTree
 
-      // CUSTOMIZATION
+      //Get Cube Index for point 
       size_t ptCubeIdx = getPointCubeIdx(pointSel);
+      //Check KDTree corresponding to cube exists
+      if (_cornerKDTrees.find(ptCubeIdx) == _cornerKDTrees.end())
+        continue;
+      //If KDtree has less than 5 points skip point
+      if(_cornerKDTrees[ptCubeIdx]->getPointCount() < 5)
+        continue;
+      //Search
+      std::vector<int> pointSearchInd(5, 0);
+      std::vector<float> pointSearchSqDis(5, 10.0f);
       _cornerKDTrees[ptCubeIdx]->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
-      // CUSTOMIZATION
 
       if (pointSearchSqDis[4] < 1.0) {
         Vector3 vc(0, 0, 0);  //smk: if all nearest points are within 1.0 squared distance calculate centeroid of the cluster
 
         for (int j = 0; j < 5; j++)
-          // vc += Vector3(_laserCloudCornerFromMap->points[pointSearchInd[j]]);
           vc += Vector3(_laserCloudCornerArray[ptCubeIdx]->points[pointSearchInd[j]]);
         vc /= 5.0;
 
@@ -762,7 +733,6 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         mat_a.setZero();
 
         for (int j = 0; j < 5; j++) {
-          // Vector3 a = Vector3(_laserCloudCornerFromMap->points[pointSearchInd[j]]) - vc;
           Vector3 a = Vector3(_laserCloudCornerArray[ptCubeIdx]->points[pointSearchInd[j]]) - vc;
 
           mat_a(0, 0) += a.x() * a.x();  //smk: https://github.com/laboshinl/loam/commit/b5b326ede5757995cc1583cde51b92e0e2d07796
@@ -802,14 +772,9 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
 
           float ld2 = a012 / l12;
 
-          //                // TODO: Why writing to a variable that's never read? Maybe it should be used afterwards?
-          //                pointProj = pointSel;
-          //                pointProj.x -= la * ld2;
-          //                pointProj.y -= lb * ld2;
-          //                pointProj.z -= lc * ld2;
-
           float s = 1 - 0.9f * fabs(ld2);
 
+          pcl::PointXYZI coeff;
           coeff.x = s * la;
           coeff.y = s * lb;
           coeff.z = s * lc;
@@ -825,15 +790,24 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
 
     cornerMatches = _laserCloudOri.size();
 
+    //Surface points
     for (int i = 0; i < laserCloudSurfStackNum; i++) {
+      pcl::PointXYZI pointSel, pointOri;
       pointOri = _laserCloudSurfStackDS->points[i];
       pointAssociateToMap(pointOri, pointSel);
-      // kdtreeSurfFromMap.nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
 
-      // CUSTOMIZATION
+      //Get Cube Index for point
       size_t ptCubeIdx = getPointCubeIdx(pointSel);
+      //Check KDTree corresponding to cube exists
+      if (_surfKDTrees.find(ptCubeIdx) == _surfKDTrees.end())
+           continue;
+      //If KDtree has less than 5 points skip point
+      if (_surfKDTrees[ptCubeIdx]->getPointCount() < 5)
+        continue;
+      //Search
+      std::vector<int> pointSearchInd(5, 0);
+      std::vector<float> pointSearchSqDis(5, 10.0f);
       _surfKDTrees[ptCubeIdx]->nearestKSearch(pointSel, 5, pointSearchInd, pointSearchSqDis);
-      // CUSTOMIZATION
 
       if (pointSearchSqDis[4] < 1.0) {
         for (int j = 0; j < 5; j++) {
@@ -868,14 +842,9 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         if (planeValid) {
           float pd2 = pa * pointSel.x + pb * pointSel.y + pc * pointSel.z + pd;
 
-          //                // TODO: Why writing to a variable that's never read? Maybe it should be used afterwards?
-          //                pointProj = pointSel;
-          //                pointProj.x -= pa * pd2;
-          //                pointProj.y -= pb * pd2;
-          //                pointProj.z -= pc * pd2;
-
           float s = 1 - 0.9f * fabs(pd2) / sqrt(calcPointDistance(pointSel));
 
+          pcl::PointXYZI coeff;
           coeff.x = s * pa;
           coeff.y = s * pb;
           coeff.z = s * pc;
@@ -898,8 +867,10 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
 
     size_t laserCloudSelNum = _laserCloudOri.size();
 
-    if (iterCount == 0)
-      std::cout << "Matches/Total, Corners: " << cornerMatches << "/" << laserCloudCornerStackNum << ", Surf: " << laserCloudSelNum - cornerMatches << "/" << laserCloudSurfStackNum << std::endl;
+    //DEBUG
+    // if (iterCount == 0)
+    //   std::cout << "Matches/Total, Corners: " << cornerMatches << "/" << laserCloudCornerStackNum << ", Surf: " << laserCloudSelNum - cornerMatches << "/" << laserCloudSurfStackNum << std::endl;
+    //DEBUG
 
     if (laserCloudSelNum < 50)
       continue;
@@ -912,8 +883,8 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
     Eigen::VectorXf matX;
 
     for (int i = 0; i < laserCloudSelNum; i++) {
-      pointOri = _laserCloudOri.points[i];
-      coeff = _coeffSel.points[i];
+      pcl::PointXYZI pointOri = _laserCloudOri.points[i];
+      pcl::PointXYZI coeff = _coeffSel.points[i];
 
       float arx = (crx * sry * srz * pointOri.x + crx * crz * sry * pointOri.y - srx * sry * pointOri.z) * coeff.x + (-srx * srz * pointOri.x - crz * srx * pointOri.y - crx * pointOri.z) * coeff.y + (crx * cry * srz * pointOri.x + crx * cry * crz * pointOri.y - cry * srx * pointOri.z) * coeff.z;
 
@@ -963,10 +934,6 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
       matP = matV.inverse() * matV2;
 
       //CUSTOMIZATION
-      // //Logging
-      // _mappingLogFile << (_currentPCLTime.toSec() + _currentPCLTime.toNSec() * 1e-9) << ","
-      //                 << matE(0, 0) << "," << matE(0, 1) << "," << matE(0, 2) << ","
-      //                 << matE(0, 3) << "," << matE(0, 4) << "," << matE(0, 5) << "\n";
       //Enable External Estimate passthrough if solution was degenerate
       if (isDegenerate && _isExternalPriorHealthy) {
         ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
@@ -1001,14 +968,14 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
                        std::pow(matX(4, 0) * 100, 2) +
                        std::pow(matX(5, 0) * 100, 2));
     if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
-      // //CUSTOMIZATION
-      // //Calculation of the vairance of the solution
+      //CUSTOMIZATION
+      //Calculation of the vairance of the solution
       // Eigen::VectorXf residual = (matA * matX) - matB;
       // float mse = static_cast<float>(residual.transpose() * residual) / (laserCloudSelNum - 6); //smk: matlab nlinfit
-      // //float variance = residual.norm() / (laserCloudSelNum - 6);
+      // float variance = residual.norm() / (laserCloudSelNum - 6);
       // Eigen::Matrix<float, 6, 6> covMat = mse * matAtA.inverse();
       // std::cout << "Mapping, MSE: " << mse << ", covMat diagonal: " << covMat.diagonal().transpose() << std::endl;
-      // //CUSTOMIZATION
+      //CUSTOMIZATION
       error_converged = true;
       break;
     }
@@ -1111,11 +1078,11 @@ void BasicLaserMapping::transformUpdate()  //smk: this just updates roll and pit
 void BasicLaserMapping::updatePCLTime(const ros::Time& currentTimeStamp) {
   _lastPCLTime = _currentPCLTime;
   _currentPCLTime = currentTimeStamp;
-  // //DEBUG
+  //DEBUG
   // std::cout << "\033[32mMAPPING\033[0m _lastPCLTime: " << _lastPCLTime.sec << "," << _lastPCLTime.nsec
   //           << ", _currentPCLTime: " << _currentPCLTime.sec << "," << _currentPCLTime.nsec
   //           << ", diff: " << (_currentPCLTime - _lastPCLTime).toSec() << std::endl;
-  // //DEBUG
+  //DEBUG
 }
 
 bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen::Vector3d& rotPriorXYZ, bool useFallback /*= false*/) {
@@ -1225,10 +1192,9 @@ void BasicLaserMapping::buildCornerKDTrees() {
   //Reserve
   _cornerKDTrees.clear();
   _cornerKDTrees.reserve(_laserCloudValidInd.size());
-
   //Build
   for (auto const& ind : _laserCloudValidInd) {
-    _cornerKDTrees[ind] = std::make_unique<_kdTreeType>();
+    _cornerKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _cornerKDTrees[ind]->setInputCloud(_laserCloudCornerArray[ind]);
   }
 }
@@ -1237,10 +1203,9 @@ void BasicLaserMapping::buildSurfKDTrees() {
   //Reserve
   _surfKDTrees.clear();
   _surfKDTrees.reserve(_laserCloudValidInd.size());
-
   //Build
   for (auto const& ind : _laserCloudValidInd) {
-    _surfKDTrees[ind] = std::make_unique<_kdTreeType>();
+    _surfKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _surfKDTrees[ind]->setInputCloud(_laserCloudSurfArray[ind]);
   }
 }

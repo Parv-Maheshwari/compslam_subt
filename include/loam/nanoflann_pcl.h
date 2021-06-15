@@ -84,6 +84,8 @@ public:
     int radiusSearch (const PointT &point, double radius, std::vector<int> &k_indices,
                       std::vector<float> &k_sqr_distances) const;
 
+    inline size_t getPointCount() {return _adaptor.kdtree_get_point_count();}
+
 private:
 
     nanoflann::SearchParams _params;
@@ -147,7 +149,7 @@ int KdTreeFLANN<PointT>::nearestKSearch(const PointT &point, int num_closest,
 
     nanoflann::KNNResultSet<float,int> resultSet(num_closest);
     resultSet.init( k_indices.data(), k_sqr_distances.data());
-    _kdtree.findNeighbors(resultSet, point.data, nanoflann::SearchParams() );
+    _kdtree.findNeighbors(resultSet, point.data, nanoflann::SearchParams(32, 0.0f, false));
     return resultSet.size();
 }
 

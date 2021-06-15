@@ -47,14 +47,14 @@
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
 #include <nav_msgs/Odometry.h>
+#include <pcl/io/pcd_io.h>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
-#include <pcl/io/pcd_io.h>
 #include <fstream>
-#include <unordered_set>
-#include <unordered_map>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 //CUSTOMIZATION
 
 namespace loam {
@@ -123,6 +123,7 @@ class BasicLaserMapping {
   auto const& laserCloudSurroundDS() const { return *_laserCloudSurroundDS; }
 
   bool createDownsizedMap();
+  void transformFullResToMap();
   bool hasFreshMap() const { return _downsizedMapCreated; }
 
   //CUTOMIZATION
@@ -200,7 +201,7 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  void setSqRangeofSubmapSearchCloud(const float f){_submapSearchCloudSqRange = f*f;}
+  void setSqRangeofSubmapSearchCloud(const float f) { _submapSearchCloudSqRange = f * f; }
   loam::OptStatus _optStatusMsg;
 
   //DEBUG
@@ -216,7 +217,6 @@ class BasicLaserMapping {
   void transformUpdate();
   void pointAssociateToMap(const pcl::PointXYZI& pi, pcl::PointXYZI& po);
   void pointAssociateTobeMapped(const pcl::PointXYZI& pi, pcl::PointXYZI& po);
-  void transformFullResToMap();
 
   size_t toIndex(int i, int j, int k) const { return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k; }
 
@@ -264,8 +264,6 @@ class BasicLaserMapping {
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurround;
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurroundDS;  ///< down sampled
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudCornerFromMap;
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurfFromMap;
 
   pcl::PointCloud<pcl::PointXYZI> _laserCloudOri;
   pcl::PointCloud<pcl::PointXYZI> _coeffSel;
@@ -278,11 +276,9 @@ class BasicLaserMapping {
   std::vector<size_t> _laserCloudValidInd;
   std::vector<size_t> _laserCloudSurroundInd;
 
-  // 
-  typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;
-  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;
-  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _surfKDTrees;
-  // 
+  typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;               //PCL KDTree type
+  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;  //Per-cube Corner submap KDTree data structure
+  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _surfKDTrees;    //Per-cube Surface submap KDTree data structure
 
   Twist _transformSum, _transformIncre, _transformTobeMapped, _transformBefMapped, _transformAftMapped;
   CircularBuffer<IMUState2> _imuHistory;  ///< history of IMU states

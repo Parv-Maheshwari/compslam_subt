@@ -514,7 +514,10 @@ void LaserMapping::publishResult() {
       publishCloudMsg(_pubLaserCloudSurround, laserCloudSurroundDS(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
 
   // publish transformed full resolution input cloud
-  publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
+  if(_pubLaserCloudFullRes.getNumSubscribers() > 0){
+    transformFullResToMap();
+    publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
+  }
 
   //CUTOMIZATION - DEBUG
   //Curent Submaps
