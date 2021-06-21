@@ -149,7 +149,7 @@ int KdTreeFLANN<PointT>::nearestKSearch(const PointT &point, int num_closest,
 
     nanoflann::KNNResultSet<float,int> resultSet(num_closest);
     resultSet.init( k_indices.data(), k_sqr_distances.data());
-    _kdtree.findNeighbors(resultSet, point.data, nanoflann::SearchParams(32, 0.0f, false));
+    _kdtree.findNeighbors(resultSet, point.data, nanoflann::SearchParams());
     return resultSet.size();
 }
 

@@ -11,6 +11,8 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
     ROS_INFO_STREAM("MaplabIntegrator - Robot Map frame set to: " << _map_frame);
   if (privateNode.getParam("base_frame", _base_frame))
     ROS_INFO_STREAM("MaplabIntegrator - Robot Base frame set to: " << _base_frame);
+  if (privateNode.getParam("publishWorldtoMapTransform", _publishWorldtoMapTf))
+    if (_publishWorldtoMapTf) ROS_WARN_STREAM("MaplabIntegrator - WORLD(" << _world_frame << ")-to-MAP(" << _map_frame << ") Transform Pubslihed --- typically used for debugging.");
   //Pointcloud save delta
   if (privateNode.getParam("cloudSavePosDelta", _cloudSavePosDelta))
     ROS_INFO_STREAM("MaplabIntegrator - Minimum Position(m) delta Norm for saving pointcloud: " << _cloudSavePosDelta);
@@ -68,25 +70,30 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
     ROS_INFO_STREAM("MaplabIntegrator - Anchor Factor Noise not defined");
     return false;
   }
+  //Full graph result update interval
+  privateNode.getParam("updateResultsInterval", _updateResultsInterval);
+  ROS_INFO_STREAM("MaplabIntegrator - Full Graph Result Updated Every: " << _updateResultsInterval << " seconds");
 
   //Synced subscriber
   _subOdom.subscribe(node, "odometry", 10);
   _subCloud.subscribe(node, "pointcloud", 10);
-  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subOdom, _subCloud));
+  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subCloud));
   _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2));
   //Subscribers
-  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 2, &MaplabIntegrator::absolutePoseCallback, this);
-  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("anchor_constraints", 2, &MaplabIntegrator::maplabAnchorCallback, this);
-  _subMaplabSubmap = node.subscribe<nav_msgs::Path>("submap_constraints", 2, &MaplabIntegrator::maplabSubmapCallback, this);
+  _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 100, &MaplabIntegrator::absolutePoseCallback, this);
+  _subMaplabAnchor = node.subscribe<nav_msgs::Path>("anchor_constraints", 100, &MaplabIntegrator::maplabAnchorCallback, this);
+  _subMaplabSubmap = node.subscribe<nav_msgs::Path>("submap_constraints", 100, &MaplabIntegrator::maplabSubmapCallback, this);
 
   //Publisher
-  _pubGraphPath = node.advertise<nav_msgs::Path>("/incremental_trajectory", 5);
-  _pubUpdatedPath = node.advertise<nav_msgs::Path>("/updated_trajectory", 5);
-  _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
-  _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser/map_optimized", 5);
+  _pubIncrementalPath = node.advertise<nav_msgs::Path>("/incremental_trajectory", 10);
+  _pubUpdatedPath = node.advertise<nav_msgs::Path>("/optimized_path", 10);
+  _pathMsg.poses.reserve(40000);  //1 hour path @ 10Hz ~ 36000
+  _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map_optimized", 10);
+  _pubIncPoseStamped = node.advertise<geometry_msgs::PoseStamped>("/incremental_pose", 10);
+  _pubOptPoseStamped = node.advertise<geometry_msgs::PoseStamped>("/optimized_pose", 10);
 
-  //Timer-callback for map visualization
-  _timerVisualizeResults = node.createTimer(ros::Duration(2.0), std::bind(&MaplabIntegrator::visualizeResults, this));
+  //Timer-callback for graph update
+  _timerUpdateResults = node.createTimer(ros::Duration(_updateResultsInterval), std::bind(&MaplabIntegrator::updateGraphResults, this));
 
   //Set factor graph params
   _params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
@@ -141,8 +148,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
     std::lock_guard<std::mutex> lock(_graphMutex);
     if (_firstOdomMsg) {
       //Initialize - Add temporary identity prior factor
-      new_key = _state_key;
-      addPriorFactor(_state_key, gtsam::Pose3::identity());
+      new_key = stateKey();
+      addPriorFactor(new_key, gtsam::Pose3::identity());
       saveCloud = true;
       _firstOdomMsg = false;
     } else {
@@ -191,7 +198,7 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   _pathMsg.poses.emplace_back(std::move(poseMsg));
 
   //Publish Path
-  _pubGraphPath.publish(_pathMsg);
+  _pubIncrementalPath.publish(_pathMsg);
 
   //Publish Transforms
   publishTransforms(odomPtr->header.stamp);
@@ -252,7 +259,7 @@ void MaplabIntegrator::cloudCallback(int key, const sensor_msgs::PointCloud2Cons
 
   // VoxelGrid Filter
   pcl::VoxelGrid<pcl::PointXYZ> voxGrid;
-  voxGrid.setLeafSize(0.3, 0.3, 0.3);
+  voxGrid.setLeafSize(0.4, 0.4, 0.4);
   voxGrid.setInputCloud(cloud);
   voxGrid.filter(*cloud);
 
@@ -296,11 +303,6 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
     //Increment total factor count
     incFactorCount();
 
-    //Update DARPA(G) to Robot (Local) Map(M)
-    static size_t minAbsCount = 0;
-    if (minAbsCount > 5)
-      updateResultsForVisualization(posePtr->header.stamp);
-    ++minAbsCount;
   }
   auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -378,7 +380,6 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       updateKeyAnchorFactorIdxMap(key);    //Assosicate index of new prior factor to graph key
       updateKeyAnchorPoseMap(key, T_G_B);  //Associate Anchor pose to key
     }
-    updateResultsForVisualization(pathPtr->header.stamp);
     auto t2 = std::chrono::high_resolution_clock::now();
     std::cout << "\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
   }
@@ -441,12 +442,12 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
         }
       }
       auto t2 = std::chrono::high_resolution_clock::now();
-      //Update results for visualization
-      updateResultsForVisualization(pathPtr->header.stamp);
+
       //DEBUG
-      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - Constraints: " << pathPtr->poses.size()
+      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - Constraints added: " << pathPtr->poses.size()
                 << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
                 << std::endl;
+      //DEBUG
     } else {
       std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << parent_ts << " --- SKIPPING CHILDERN ---" << std::endl;
       return;
@@ -505,37 +506,37 @@ bool MaplabIntegrator::findClosestKeyForTS(const double ts, gtsam::Key* key) con
   return true;
 }
 
-void MaplabIntegrator::updateResultsForVisualization(const ros::Time ts) {
-  //Check if previous results have been visualized
-  if (!_new_results) {  //Update only if previous results have been processed
-    _resultTimestamp = ts;
-    _results = _graph->calculateBestEstimate();
-    _new_results = true;
-
-    // //DEBUG
-    // std::cout << "----- \033[34mVisualization Results Updated\033[0m-----" << std::endl;
-  }
-}
-
-void MaplabIntegrator::visualizeResults() {
-  if (!_new_results)
+void MaplabIntegrator::updateGraphResults() {
+  //Check if graph has initialized
+  if(_firstOdomMsg)
     return;
 
-  // gtsam::Values result = _results; //Make local copy
+  //Update results
+  gtsam::Values result;
+  auto t_0 = std::chrono::high_resolution_clock::now();
+  {
+    std::lock_guard<std::mutex> lock(_graphMutex);
+    result = _graph->calculateBestEstimate();
+  }
+  auto t_update = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t_0).count();
+
+  //Update result timestamp
+  ros::Time resultTimestamp = ros::Time::now();
+
   auto t1 = std::chrono::high_resolution_clock::now();
   nav_msgs::Path pathMsg;
   pcl::PointCloud<pcl::PointXYZ>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZ>);
   int cloud_count = 0;
 
   //Loop through result values - Result in absolute frame
-  _T_G_M = _results.at<gtsam::Pose3>(X(0));
-  for (std::size_t i = 0; i < _results.size(); ++i) {
-    gtsam::Pose3 T_G_B = _results.at<gtsam::Pose3>(X(i));
+  _T_G_M = result.at<gtsam::Pose3>(X(0));
+  for (std::size_t i = 0; i < result.size(); ++i) {
+    gtsam::Pose3 T_G_B = result.at<gtsam::Pose3>(X(i));
 
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = _world_frame;
-    poseMsg.header.stamp = _resultTimestamp;
+    poseMsg.header.stamp = resultTimestamp;
     createPoseMessage(T_G_B, &poseMsg);
     pathMsg.poses.emplace_back(poseMsg);
 
@@ -554,51 +555,52 @@ void MaplabIntegrator::visualizeResults() {
     }
   }
   pathMsg.header.frame_id = _world_frame;
-  pathMsg.header.stamp = _resultTimestamp;
+  pathMsg.header.stamp = resultTimestamp;
   _pubUpdatedPath.publish(pathMsg);
 
   //Publish Map
   if (_pubMap.getNumSubscribers() > 0) {
     //Downsample Map
     pcl::VoxelGrid<pcl::PointXYZ> voxGrid;
-    voxGrid.setLeafSize(0.3, 0.3, 0.3);
+    voxGrid.setLeafSize(0.4, 0.4, 0.4);
     voxGrid.setInputCloud(mapCloud);
     voxGrid.filter(*mapCloud);
     //Publish
     sensor_msgs::PointCloud2 rosCloud;
     pcl::toROSMsg(*mapCloud, rosCloud);
     rosCloud.header.frame_id = _world_frame;
-    rosCloud.header.stamp = _resultTimestamp;
+    rosCloud.header.stamp = resultTimestamp;
     _pubMap.publish(rosCloud);
   }
 
   //Update last optimzed pose
-  _T_G_B_opt = _results.at<gtsam::Pose3>(X(_results.size() - 1));
-
-  //Reset results flag
-  _new_results = false;
+  _T_G_B_opt = result.at<gtsam::Pose3>(X(result.size() - 1));
 
   //DEBUG
   auto t2 = std::chrono::high_resolution_clock::now();
-  std::cout << "\033[36mMaplabIntegrator\033[0m - Map Visualization - accumulated clouds: " << cloud_count << ", points: " << mapCloud->points.size()
-            << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+  std::cout << "\033[36mMaplabIntegrator\033[0m - Graph Update(ms): " << t_update 
+            <<", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() 
+            // <<", clouds: " << cloud_count << ", points: " << mapCloud->points.size()
+            << std::endl;
   //DEBUG
 }
 
 void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   // Absolute(DARPA)-to-RobotMap
-  geometry_msgs::TransformStamped T_G_M;
-  T_G_M.header.stamp = ts;
-  T_G_M.header.frame_id = _world_frame;
-  T_G_M.child_frame_id = _map_frame;
-  T_G_M.transform.rotation.x = _T_G_M.rotation().toQuaternion().x();
-  T_G_M.transform.rotation.y = _T_G_M.rotation().toQuaternion().y();
-  T_G_M.transform.rotation.z = _T_G_M.rotation().toQuaternion().z();
-  T_G_M.transform.rotation.w = _T_G_M.rotation().toQuaternion().w();
-  T_G_M.transform.translation.x = _T_G_M.translation().x();
-  T_G_M.transform.translation.y = _T_G_M.translation().y();
-  T_G_M.transform.translation.z = _T_G_M.translation().z();
-  _tb.sendTransform(T_G_M);
+  if (_publishWorldtoMapTf) {
+    geometry_msgs::TransformStamped T_G_M;
+    T_G_M.header.stamp = ts;
+    T_G_M.header.frame_id = _world_frame;
+    T_G_M.child_frame_id = _map_frame;
+    T_G_M.transform.rotation.x = _T_G_M.rotation().toQuaternion().x();
+    T_G_M.transform.rotation.y = _T_G_M.rotation().toQuaternion().y();
+    T_G_M.transform.rotation.z = _T_G_M.rotation().toQuaternion().z();
+    T_G_M.transform.rotation.w = _T_G_M.rotation().toQuaternion().w();
+    T_G_M.transform.translation.x = _T_G_M.translation().x();
+    T_G_M.transform.translation.y = _T_G_M.translation().y();
+    T_G_M.transform.translation.z = _T_G_M.translation().z();
+    _tb.sendTransform(T_G_M);
+  }
 
   // Base(IMU)-to-Absolute(DARPA) - Incremental Update
   geometry_msgs::TransformStamped T_G_B_inc;
@@ -613,6 +615,12 @@ void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   T_G_B_inc.transform.translation.y = _T_G_B_inc.translation().y();
   T_G_B_inc.transform.translation.z = _T_G_B_inc.translation().z();
   _tb.sendTransform(T_G_B_inc);
+  //PoseStamped message
+  if (_pubIncPoseStamped.getNumSubscribers() > 0) {
+    geometry_msgs::PoseStamped T_G_B_inc_poseMsg;
+    convertTransfromToPose(T_G_B_inc, T_G_B_inc_poseMsg);
+    _pubIncPoseStamped.publish(T_G_B_inc_poseMsg);
+  }
 
   // Base(IMU)-to-Absolute(DARPA) - Optimized
   geometry_msgs::TransformStamped T_G_B_opt;
@@ -627,6 +635,12 @@ void MaplabIntegrator::publishTransforms(const ros::Time& ts) {
   T_G_B_opt.transform.translation.y = _T_G_B_opt.translation().y();
   T_G_B_opt.transform.translation.z = _T_G_B_opt.translation().z();
   _tb.sendTransform(T_G_B_opt);
+  //PoseStamped message
+  if (_pubOptPoseStamped.getNumSubscribers() > 0) {
+    geometry_msgs::PoseStamped T_G_B_opt_poseMsg;
+    convertTransfromToPose(T_G_B_opt, T_G_B_opt_poseMsg);
+    _pubOptPoseStamped.publish(T_G_B_opt_poseMsg);
+  }
 }
 
 bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs::PoseStamped* poseMsg) const {
@@ -644,12 +658,23 @@ bool MaplabIntegrator::createPoseMessage(const gtsam::Pose3& pose, geometry_msgs
   return true;
 }
 
+void MaplabIntegrator::convertTransfromToPose(const geometry_msgs::TransformStamped& t, geometry_msgs::PoseStamped& p){
+  //Header
+  p.header = t.header;
+  //Translation
+  p.pose.position.x = t.transform.translation.x;
+  p.pose.position.y = t.transform.translation.y;
+  p.pose.position.z = t.transform.translation.z;
+  //Rotation
+  p.pose.orientation = t.transform.rotation;
+}
+
 void MaplabIntegrator::updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, const gtsam::Key child_key) {
   size_t factor_idx = getFactorCount() - 1;
   _keySubmapFactorIdxMap[parent_key].emplace(factor_idx);
   _keySubmapFactorIdxMap[child_key].emplace(factor_idx);
 
-  // //DEBUG
+  //DEBUG
   // std::cout << "\033[34mSUBMAP\033[0m NEW Factor added at Index: " << factor_idx << ", between keys: " << parent_key << "/" << child_key << std::endl;
 }
 
