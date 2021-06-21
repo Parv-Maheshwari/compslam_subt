@@ -221,10 +221,11 @@ class BasicLaserMapping {
   size_t toIndex(int i, int j, int k) const { return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k; }
 
   // CUSTOMIZATION
-  void processDegeneration(bool is_degenerating);
-  size_t getPointCubeIdx(const pcl::PointXYZI& pt);
-  void buildCornerKDTrees();
-  void buildSurfKDTrees();
+  size_t getPointCubeIdx(const pcl::PointXYZI& pt);  //Get Cube Index of Map point
+  void buildCornerKDTrees();                         //Build KDtree tree for corner point search
+  void buildSurfKDTrees();                           //Build KDtree tree for surface point search
+  void searchCornerPts(int numCornerPts);            //Search Corner points in KDTrees
+  void searchSurfPts(int numSurfPts);                //Search Surface points in KDTrees
 
   //Members
   Time _laserOdometryTime;
@@ -265,8 +266,8 @@ class BasicLaserMapping {
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurround;
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurroundDS;  ///< down sampled
 
-  pcl::PointCloud<pcl::PointXYZI> _laserCloudOri;
-  pcl::PointCloud<pcl::PointXYZI> _coeffSel;
+  pcl::PointCloud<pcl::PointXYZI> _laserCloudOri, _coeffSel;              //Selected surface points and coefficients
+  pcl::PointCloud<pcl::PointXYZI> _laserCloudOriCorner, _coeffSelCorner;  //Selected corner points and coefficients
 
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudCornerArray;
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudSurfArray;
