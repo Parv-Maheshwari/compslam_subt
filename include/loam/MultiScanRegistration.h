@@ -33,6 +33,8 @@
 #ifndef LOAM_MULTISCANREGISTRATION_H
 #define LOAM_MULTISCANREGISTRATION_H
 
+#define PCL_NO_PRECOMPILE
+
 #include "loam/ScanRegistration.h"
 #include "math_utils.h"
 #include <sensor_msgs/PointCloud2.h>
