@@ -1017,6 +1017,8 @@ void BasicLaserMapping::searchCornerPts(int numCornerPts) {
   //Clear
   _laserCloudOriCorner.clear();
   _coeffSelCorner.clear();
+  _laserCloudOriCorner.reserve(numCornerPts);
+  _coeffSelCorner.reserve(numCornerPts);
   //Loop
   for (int i = 0; i < numCornerPts; ++i) {
     pcl::PointXYZI pointSel, pointOri;
@@ -1106,6 +1108,8 @@ void BasicLaserMapping::searchSurfPts(int numSurfPts) {
   //Clear
   _laserCloudOri.clear();
   _coeffSel.clear();
+  _laserCloudOri.reserve(numSurfPts);
+  _coeffSel.reserve(numSurfPts);
   //Loop
   for (int i = 0; i < numSurfPts; ++i) {
     pcl::PointXYZI pointSel, pointOri;
