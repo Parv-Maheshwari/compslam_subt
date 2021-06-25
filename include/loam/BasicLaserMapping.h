@@ -221,11 +221,12 @@ class BasicLaserMapping {
   size_t toIndex(int i, int j, int k) const { return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k; }
 
   // CUSTOMIZATION
-  size_t getPointCubeIdx(const pcl::PointXYZI& pt);  //Get Cube Index of Map point
-  void buildCornerKDTrees();                         //Build KDtree tree for corner point search
-  void buildSurfKDTrees();                           //Build KDtree tree for surface point search
-  void searchCornerPts(int numCornerPts);            //Search Corner points in KDTrees
-  void searchSurfPts(int numSurfPts);                //Search Surface points in KDTrees
+  size_t getPointCubeIdx(const pcl::PointXYZI& pt);    //Get Cube Index of Map point
+  void buildCornerKDTrees();                           //Build KDtree tree for corner point search
+  void buildSurfKDTrees();                             //Build KDtree tree for surface point search
+  void searchCornerPts(int numCornerPts);              //Search Corner points in KDTrees
+  void searchSurfPts(int numSurfPts);                  //Search Surface points in KDTrees
+  void savePointMapCubeIdx(const pcl::PointXYZI& pt);  //Convert cloud point into Map and calculate Map cube index
 
   //Members
   Time _laserOdometryTime;
@@ -274,8 +275,8 @@ class BasicLaserMapping {
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudCornerDSArray;  ///< down sampled
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudSurfDSArray;    ///< down sampled
 
-  std::vector<size_t> _laserCloudValidInd;
-  std::vector<size_t> _laserCloudSurroundInd;
+  std::unordered_set<size_t> _submapCubeIdx;      //Indices of Map cubes within FoV of _submapSearchCloud to build submap for search
+  std::unordered_set<size_t> _updatedMapCubeIdx;  //Indices of Map cubes updated with with full current cloud
 
   typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;               //PCL KDTree type
   std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;  //Per-cube Corner submap KDTree data structure

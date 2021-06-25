@@ -298,7 +298,7 @@ bool BasicLaserMapping::createDownsizedMap() {
 
   // accumulate map cloud
   _laserCloudSurround->clear();
-  for (auto ind : _laserCloudSurroundInd) {
+  for (auto ind : _submapCubeIdx) {
     *_laserCloudSurround += *_laserCloudCornerArray[ind];
     *_laserCloudSurround += *_laserCloudSurfArray[ind];
   }
@@ -467,83 +467,44 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenDepth--;
   }
 
-  _laserCloudValidInd.clear();
-  _laserCloudSurroundInd.clear();
-  pcl::PointXYZI pointOnYAxis;  //A random point 10 meters above ground for checking neigboring cubes in the FoV of laser scanner
-  pointOnYAxis.x = 0.0;
-  pointOnYAxis.y = 10.0;
-  pointOnYAxis.z = 0.0;
-  pointAssociateToMap(pointOnYAxis, pointOnYAxis);
-  for (int i = centerCubeI - _neighborSubmapCubes; i <= centerCubeI + _neighborSubmapCubes; ++i) {
-    for (int j = centerCubeJ - _neighborSubmapCubes; j <= centerCubeJ + _neighborSubmapCubes; ++j) {
-      for (int k = centerCubeK - _neighborSubmapCubes; k <= centerCubeK + _neighborSubmapCubes; ++k) {
-        if (i >= 0 && i < _laserCloudWidth &&
-            j >= 0 && j < _laserCloudHeight &&
-            k >= 0 && k < _laserCloudDepth) {
-          float centerX = CUBE_SIZE * (i - _laserCloudCenWidth);   //smk: 50 * (i - 10) // so if starting cube CenterX=0 //center of starting cube is 0 next cube center is 50
-          float centerY = CUBE_SIZE * (j - _laserCloudCenHeight);  //smk: this is expresing center of current cube in meters
-          float centerZ = CUBE_SIZE * (k - _laserCloudCenDepth);
-
-          pcl::PointXYZI transform_pos = (pcl::PointXYZI)_transformTobeMapped.pos;
-
-          bool isInLaserFOV = false;
-          for (int ii = -1; ii <= 1; ii += 2) {  // TODO This needs to be fixed as FoV is still checked in only 3 neighbor voxels
-            for (int jj = -1; jj <= 1; jj += 2) {
-              for (int kk = -1; kk <= 1; kk += 2) {
-                pcl::PointXYZI corner;
-                corner.x = centerX + CUBE_HALF * ii;  //smk: centerX=0 for start cube so corner.x will be +/- 25 i.e. boundary of cube infront and behind the cube
-                corner.y = centerY + CUBE_HALF * jj;  //smk: expressing boundries of the cube in meters
-                corner.z = centerZ + CUBE_HALF * kk;
-
-                float squaredSide1 = calcSquaredDiff(transform_pos, corner);  //smk: squared distance from all three boundaries
-                float squaredSide2 = calcSquaredDiff(pointOnYAxis, corner);   //smk: this is a point at the current robot position but offset by 10 meters in height
-
-                float check1 = 100.0f + squaredSide1 - squaredSide2 - 10.0f * sqrt(3.0f) * sqrt(squaredSide1);
-
-                float check2 = 100.0f + squaredSide1 - squaredSide2 + 10.0f * sqrt(3.0f) * sqrt(squaredSide1);
-
-                if (check1 < 0 && check2 > 0) {
-                  isInLaserFOV = true;
-                }
-              }
-            }
-          }
-
-          size_t cubeIdx = i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k;
-          if (isInLaserFOV) {
-            _laserCloudValidInd.push_back(cubeIdx);
-          }
-          _laserCloudSurroundInd.push_back(cubeIdx);
-        }
-      }
-    }
-  }
-
   //Copy corner and surface feature clouds (less_sharp and less_flat)
   _laserCloudCornerStack = _laserCloudCornerLast;
   _laserCloudSurfStack = _laserCloudSurfLast;
+
+  //Map cube indcies to build current submap
+  _submapCubeIdx.clear();
+  _submapCubeIdx.reserve(_laserCloudCornerStack->size()); //Mostly smaller than reservation size
 
   //Exclude out-of-range from search within submap
   //Corner points
   _laserCloudCornerStackDS->clear();
   _laserCloudCornerStackDS->reserve(_laserCloudCornerStack->size());
   for (const auto& pt : _laserCloudCornerStack->points) {
-    if (calcSquaredPointDistance(pt) < _submapSearchCloudSqRange)
+    if (calcSquaredPointDistance(pt) < _submapSearchCloudSqRange) {
       _laserCloudCornerStackDS->push_back(pt);
+      savePointMapCubeIdx(pt);  //Add associated map cube index
+    }
   }
   //Surface points
   _laserCloudSurfStackDS->clear();
   _laserCloudSurfStackDS->reserve(_laserCloudSurfStack->size());
   for (const auto& pt : _laserCloudSurfStack->points) {
-    if (calcSquaredPointDistance(pt) < _submapSearchCloudSqRange)
+    if (calcSquaredPointDistance(pt) < _submapSearchCloudSqRange) {
       _laserCloudSurfStackDS->push_back(pt);
+      savePointMapCubeIdx(pt);  //Add associated map cube index
+    }
   }
   //Debug
   // std::cout << "Range Limited corner/surf before: " << _laserCloudCornerStack->size() << "/" << _laserCloudSurfStack->size()
   //           << ", after: " << _laserCloudCornerStackDS->size() << "/" << _laserCloudSurfStackDS->size() << std::endl;
+  // std::cout << "\033[32mMAPPING\033[0m Submap cubes used: " << _submapCubeIdx.size() << std::endl;
 
   // run pose optimization
   optimizeTransformTobeMapped();
+
+  //Map cube indices to be updated using full input cloud range
+  _updatedMapCubeIdx.clear();
+  _updatedMapCubeIdx.reserve(_laserCloudCornerStack->size());
 
   // store down sized corner stack points in corresponding cube clouds
   for (int i = 0; i < _laserCloudCornerStack->size(); ++i) {
@@ -565,6 +526,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
         cubeK >= 0 && cubeK < _laserCloudDepth) {
       size_t cubeInd = cubeI + _laserCloudWidth * cubeJ + _laserCloudWidth * _laserCloudHeight * cubeK;
       _laserCloudCornerArray[cubeInd]->push_back(pointSel);
+      _updatedMapCubeIdx.insert(cubeInd); //Save index of updated map cube
     }
   }
   _laserCloudCornerStack->clear();
@@ -589,12 +551,13 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
         cubeK >= 0 && cubeK < _laserCloudDepth) {
       size_t cubeInd = cubeI + _laserCloudWidth * cubeJ + _laserCloudWidth * _laserCloudHeight * cubeK;
       _laserCloudSurfArray[cubeInd]->push_back(pointSel);
+      _updatedMapCubeIdx.insert(cubeInd); //Save index of updated map cube
     }
   }
   _laserCloudSurfStack->clear();
 
-  // down size all valid (within field of view) feature cube clouds
-  for (auto const& ind : _laserCloudValidInd) {
+  // down size all updated (within field of view) feature cube clouds
+  for (auto const& ind : _updatedMapCubeIdx) {
     _laserCloudCornerDSArray[ind]->clear();
     _downSizeFilterCorner.setInputCloud(_laserCloudCornerArray[ind]);
     _downSizeFilterCorner.filter(*_laserCloudCornerDSArray[ind]);
@@ -607,7 +570,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCornerArray[ind].swap(_laserCloudCornerDSArray[ind]);
     _laserCloudSurfArray[ind].swap(_laserCloudSurfDSArray[ind]);
 
-    //Add valid cloud indices to occupied map cube list
+    //Add indices to occupied map cube list - for visualization only
     _occupiedCubeInd.insert(ind);
   }
 
@@ -635,7 +598,7 @@ void BasicLaserMapping::updateOdometry(Twist const& twist) {
 void BasicLaserMapping::optimizeTransformTobeMapped() {
   //Check if enough points exist in the submap
   size_t mapCornerSize = 0, mapSurfSize = 0;
-  for (auto const& ind : _laserCloudValidInd) {
+  for (auto const& ind : _submapCubeIdx) {
     mapCornerSize += _laserCloudCornerArray[ind]->size();
     mapSurfSize += _laserCloudSurfArray[ind]->size();
   }
@@ -1031,9 +994,9 @@ size_t BasicLaserMapping::getPointCubeIdx(const pcl::PointXYZI& pt) {
 void BasicLaserMapping::buildCornerKDTrees() {
   //Reserve
   _cornerKDTrees.clear();
-  _cornerKDTrees.reserve(_laserCloudValidInd.size());
+  _cornerKDTrees.reserve(_submapCubeIdx.size());
   //Build
-  for (auto const& ind : _laserCloudValidInd) {
+  for (auto const& ind : _submapCubeIdx) {
     _cornerKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _cornerKDTrees[ind]->setInputCloud(_laserCloudCornerArray[ind]);
   }
@@ -1042,9 +1005,9 @@ void BasicLaserMapping::buildCornerKDTrees() {
 void BasicLaserMapping::buildSurfKDTrees() {
   //Reserve
   _surfKDTrees.clear();
-  _surfKDTrees.reserve(_laserCloudValidInd.size());
+  _surfKDTrees.reserve(_submapCubeIdx.size());
   //Build
-  for (auto const& ind : _laserCloudValidInd) {
+  for (auto const& ind : _submapCubeIdx) {
     _surfKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _surfKDTrees[ind]->setInputCloud(_laserCloudSurfArray[ind]);
   }
@@ -1213,6 +1176,12 @@ void BasicLaserMapping::searchSurfPts(int numSurfPts) {
       }
     }
   }
+}
+
+void BasicLaserMapping::savePointMapCubeIdx(const pcl::PointXYZI& pt){
+  pcl::PointXYZI mapPt;
+  pointAssociateToMap(pt, mapPt);
+  _submapCubeIdx.insert(getPointCubeIdx(mapPt));
 }
 
 pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserMap() {
