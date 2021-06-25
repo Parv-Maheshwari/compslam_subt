@@ -291,12 +291,12 @@ class BasicLaserMapping {
   bool _downsizedMapCreated = false;
 
   //CUSTOMIZATION
-  std::ofstream _mappingLogFile;            // logging file for debugging
-  float _mapDegenEigVal;                    // optimization degeneracy checking eigen value threshold
-  double _mapPriorNormThresh;               // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
-  bool _isLaserOdometryDegenerate = false;  // flag to check if laser odometry is degenrate
-  ros::Time _currentPCLTime, _lastPCLTime;  // timestamps of last and current pointclouds
-  float _submapSearchCloudSqRange = 1225;   // squared-range of points in current cloud to be allowed to be searched with the submap
+  std::ofstream _mappingLogFile;                    // logging file for debugging
+  float _mapDegenEigVal;                            // optimization degeneracy checking eigen value threshold
+  double _mapPriorNormThresh;                       // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
+  bool _isLaserOdometryDegenerate = false;          // flag to check if laser odometry is degenrate
+  ros::Time _currentPCLTime, _lastPCLTime;          // timestamps of last and current pointclouds
+  float _submapSearchCloudSqRange = 35.0f * 35.0f;  // squared-range of points in current cloud to be allowed to be searched with the submap
 
   //Submap Co-Localization
   pcl::PointCloud<pcl::PointXYZI>::Ptr _savedCornerSubmap, _savedSurfSubmap;
