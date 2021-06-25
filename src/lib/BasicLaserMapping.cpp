@@ -80,8 +80,8 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
   //Logging
-  _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/KDTreeTimings.csv", std::ios::out);
-  _mappingLogFile << "CornerPts, SurfacePts, TotalPts, cubeKDtree-build(ms), Search\n";
+  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/KDTreeTimings.csv", std::ios::out);
+  // _mappingLogFile << "CornerPts, SurfacePts, TotalPts, cubeKDtree-build(ms), Search\n";
 }
 
 void BasicLaserMapping::resetMapParamsAndContainers() {
@@ -298,7 +298,7 @@ bool BasicLaserMapping::createDownsizedMap() {
 
   // accumulate map cloud
   _laserCloudSurround->clear();
-  for (auto ind : _cubeIdxSet) {
+  for (auto ind : _submapCubeIdx) {
     *_laserCloudSurround += *_laserCloudCornerArray[ind];
     *_laserCloudSurround += *_laserCloudSurfArray[ind];
   }
@@ -472,8 +472,8 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   _laserCloudSurfStack = _laserCloudSurfLast;
 
   //Map cube indcies to build current submap
-  _cubeIdxSet.clear();
-  _cubeIdxSet.reserve(_laserCloudCornerStack->size() + _laserCloudSurfStack->size());
+  _submapCubeIdx.clear();
+  _submapCubeIdx.reserve(_laserCloudCornerStack->size()); //Mostly smaller than reservation size
 
   //Exclude out-of-range from search within submap
   //Corner points
@@ -497,14 +497,14 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   //Debug
   // std::cout << "Range Limited corner/surf before: " << _laserCloudCornerStack->size() << "/" << _laserCloudSurfStack->size()
   //           << ", after: " << _laserCloudCornerStackDS->size() << "/" << _laserCloudSurfStackDS->size() << std::endl;
-  // std::cout << "\033[32mMAPPING\033[0m Submap cubes used: " << _cubeIdxSet.size() << std::endl;
+  // std::cout << "\033[32mMAPPING\033[0m Submap cubes used: " << _submapCubeIdx.size() << std::endl;
 
   // run pose optimization
   optimizeTransformTobeMapped();
 
-  //Map cube indices to be updated
-  _updatedCubeIdx.clear();
-  _updatedCubeIdx.reserve(_laserCloudCornerStack->size());
+  //Map cube indices to be updated using full input cloud range
+  _updatedMapCubeIdx.clear();
+  _updatedMapCubeIdx.reserve(_laserCloudCornerStack->size());
 
   // store down sized corner stack points in corresponding cube clouds
   for (int i = 0; i < _laserCloudCornerStack->size(); ++i) {
@@ -526,7 +526,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
         cubeK >= 0 && cubeK < _laserCloudDepth) {
       size_t cubeInd = cubeI + _laserCloudWidth * cubeJ + _laserCloudWidth * _laserCloudHeight * cubeK;
       _laserCloudCornerArray[cubeInd]->push_back(pointSel);
-      _updatedCubeIdx.insert(cubeInd); //Save index of updated map cube
+      _updatedMapCubeIdx.insert(cubeInd); //Save index of updated map cube
     }
   }
   _laserCloudCornerStack->clear();
@@ -551,13 +551,13 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
         cubeK >= 0 && cubeK < _laserCloudDepth) {
       size_t cubeInd = cubeI + _laserCloudWidth * cubeJ + _laserCloudWidth * _laserCloudHeight * cubeK;
       _laserCloudSurfArray[cubeInd]->push_back(pointSel);
-      _updatedCubeIdx.insert(cubeInd); //Save index of updated map cube
+      _updatedMapCubeIdx.insert(cubeInd); //Save index of updated map cube
     }
   }
   _laserCloudSurfStack->clear();
 
   // down size all updated (within field of view) feature cube clouds
-  for (auto const& ind : _updatedCubeIdx) {
+  for (auto const& ind : _updatedMapCubeIdx) {
     _laserCloudCornerDSArray[ind]->clear();
     _downSizeFilterCorner.setInputCloud(_laserCloudCornerArray[ind]);
     _downSizeFilterCorner.filter(*_laserCloudCornerDSArray[ind]);
@@ -598,7 +598,7 @@ void BasicLaserMapping::updateOdometry(Twist const& twist) {
 void BasicLaserMapping::optimizeTransformTobeMapped() {
   //Check if enough points exist in the submap
   size_t mapCornerSize = 0, mapSurfSize = 0;
-  for (auto const& ind : _cubeIdxSet) {
+  for (auto const& ind : _submapCubeIdx) {
     mapCornerSize += _laserCloudCornerArray[ind]->size();
     mapSurfSize += _laserCloudSurfArray[ind]->size();
   }
@@ -630,7 +630,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   // std::cout << "CUBE build time(ms)/points - Corner: " << t_cube_ms - t_surf_ms << "/" << mapCornerSize
   //           << ", Surface: " << t_surf_ms << "/" << mapSurfSize
   //           << ", Total: " << t_cube_ms << "/" << mapCornerSize + mapSurfSize << std::endl;
-  _mappingLogFile << mapCornerSize << "," << mapSurfSize << "," << mapCornerSize + mapSurfSize << "," << t_cube_ms << ",";
+  // _mappingLogFile << mapCornerSize << "," << mapSurfSize << "," << mapCornerSize + mapSurfSize << "," << t_cube_ms << ",";
 
   //Optimization 
   double deltaT = std::numeric_limits<double>::quiet_NaN();
@@ -793,7 +793,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
               << ", Time(ms):" << t
               << (t < 175 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
   }
-  _mappingLogFile << t << "\n";
+  // _mappingLogFile << t << "\n";
   //DEBUG - Optimization Status
 
   //Update Optimization Status Message
@@ -994,9 +994,9 @@ size_t BasicLaserMapping::getPointCubeIdx(const pcl::PointXYZI& pt) {
 void BasicLaserMapping::buildCornerKDTrees() {
   //Reserve
   _cornerKDTrees.clear();
-  _cornerKDTrees.reserve(_cubeIdxSet.size());
+  _cornerKDTrees.reserve(_submapCubeIdx.size());
   //Build
-  for (auto const& ind : _cubeIdxSet) {
+  for (auto const& ind : _submapCubeIdx) {
     _cornerKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _cornerKDTrees[ind]->setInputCloud(_laserCloudCornerArray[ind]);
   }
@@ -1005,9 +1005,9 @@ void BasicLaserMapping::buildCornerKDTrees() {
 void BasicLaserMapping::buildSurfKDTrees() {
   //Reserve
   _surfKDTrees.clear();
-  _surfKDTrees.reserve(_cubeIdxSet.size());
+  _surfKDTrees.reserve(_submapCubeIdx.size());
   //Build
-  for (auto const& ind : _cubeIdxSet) {
+  for (auto const& ind : _submapCubeIdx) {
     _surfKDTrees[ind] = std::make_unique<_kdTreeType>(false);
     _surfKDTrees[ind]->setInputCloud(_laserCloudSurfArray[ind]);
   }
@@ -1181,7 +1181,7 @@ void BasicLaserMapping::searchSurfPts(int numSurfPts) {
 void BasicLaserMapping::savePointMapCubeIdx(const pcl::PointXYZI& pt){
   pcl::PointXYZI mapPt;
   pointAssociateToMap(pt, mapPt);
-  _cubeIdxSet.insert(getPointCubeIdx(mapPt));
+  _submapCubeIdx.insert(getPointCubeIdx(mapPt));
 }
 
 pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserMap() {

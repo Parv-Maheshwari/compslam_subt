@@ -275,8 +275,8 @@ class BasicLaserMapping {
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudCornerDSArray;  ///< down sampled
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudSurfDSArray;    ///< down sampled
 
-  std::unordered_set<size_t> _cubeIdxSet;      //Indices of Map cubes within FoV of _submapSearchCloud to build submap for search
-  std::unordered_set<size_t> _updatedCubeIdx;  //Indices of Map cubes updated with with full current cloud
+  std::unordered_set<size_t> _submapCubeIdx;      //Indices of Map cubes within FoV of _submapSearchCloud to build submap for search
+  std::unordered_set<size_t> _updatedMapCubeIdx;  //Indices of Map cubes updated with with full current cloud
 
   typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;               //PCL KDTree type
   std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;  //Per-cube Corner submap KDTree data structure
