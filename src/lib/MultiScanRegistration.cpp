@@ -180,13 +180,13 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
 
   //Check if OS0-128
   if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128") {
-    // Map PCL Pointcloud2 binary into PointOuster
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointOuster>
     pcl::PointCloud<PointOuster> pclPointOuster;
     pcl::fromROSMsg(*laserCloudMsg, pclPointOuster);
     // process
     process(pclPointOuster, fromROSTime(laserCloudMsg->header.stamp));
   } else {  //TODO - Currently treating all other inputs in Velodyne format
-    // Map PCL Pointcloud2 binary into PointVelodyne (velodyne)
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
     pcl::PointCloud<PointVelodyne> pclPointVelodyne;
     pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyne);
     // process
