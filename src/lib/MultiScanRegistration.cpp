@@ -178,31 +178,20 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
   //Preserve ROS timestamp
   updatedROSPCLTimestamp(laserCloudMsg->header.stamp);
 
-  //Create PCL Pointcloud2 from ROS Pointcloud2
-  pcl::PCLPointCloud2 pcl_pc2;
-  pcl_conversions::toPCL(*laserCloudMsg, pcl_pc2);
-
   //Check if OS0-128
   if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128") {
-    // Create fields map
-    pcl::MsgFieldMap field_map;
-    pcl::createMapping<PointOuster>(pcl_pc2.fields, field_map);
-    // Map PCL Pointcloud2 binary into PointOuster
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointOuster>
     pcl::PointCloud<PointOuster> pclPointOuster;
-    pcl::fromPCLPointCloud2(pcl_pc2, pclPointOuster, field_map);
+    pcl::fromROSMsg(*laserCloudMsg, pclPointOuster);
     // process
     process(pclPointOuster, fromROSTime(laserCloudMsg->header.stamp));
   } else {  //TODO - Currently treating all other inputs in Velodyne format
-    // Create fields map
-    pcl::MsgFieldMap field_map;
-    pcl::createMapping<PointVelodyne>(pcl_pc2.fields, field_map);
-    // Map PCL Pointcloud2 binary into PointVelodyne (velodyne)
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
     pcl::PointCloud<PointVelodyne> pclPointVelodyne;
-    pcl::fromPCLPointCloud2(pcl_pc2, pclPointVelodyne, field_map);
+    pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyne);
     // process
     process(pclPointVelodyne, fromROSTime(laserCloudMsg->header.stamp));
   }
-
 }
 
 template <typename pointType>
