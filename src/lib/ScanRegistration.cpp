@@ -263,7 +263,7 @@ void ScanRegistration::publishInvalidFeatureMarkers(const pcl::PointCloud<pcl::P
 
   marker.action = visualization_msgs::Marker::DELETEALL;
   arrows.markers.push_back(marker); 
-  _pubInvalidFeaturesMarkers.publish( arrows.markers ); 
+  _pubInvalidFeaturesMarkers.publish(arrows); 
   arrows.markers.clear();
 
   marker.action = visualization_msgs::Marker::ADD;
@@ -279,7 +279,7 @@ void ScanRegistration::publishInvalidFeatureMarkers(const pcl::PointCloud<pcl::P
     arrows.markers.push_back(marker);
   }
 
-  _pubInvalidFeaturesMarkers.publish( arrows.markers );
+  _pubInvalidFeaturesMarkers.publish(arrows);
 }
 
 }  // end namespace loam
