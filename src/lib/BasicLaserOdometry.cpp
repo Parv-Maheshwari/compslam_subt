@@ -222,12 +222,8 @@ void BasicLaserOdometry::process() {
     gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
 
     //Initialize pose in LOAM frame from LiDAR pose
-    _transformSum.pos.z() = initLiDARPose.translation().x();
-    _transformSum.pos.x() = initLiDARPose.translation().y();
-    _transformSum.pos.y() = initLiDARPose.translation().z();
     _transformSum.rot_z = Angle(initLiDARPose.rotation().roll());
     _transformSum.rot_x = Angle(initLiDARPose.rotation().pitch());
-    _transformSum.rot_y = Angle(initLiDARPose.rotation().yaw());
     std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << initLiDARPose.translation().transpose() << ", RPY(deg): " << initLiDARPose.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
 
     //Set TF for debug purposes
