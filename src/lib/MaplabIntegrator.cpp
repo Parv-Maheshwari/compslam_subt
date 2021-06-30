@@ -179,10 +179,6 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
     saveCloud = true;
   }
 
-  //TODO-This is not needed-But need to be verified with anchor pose callback //Update vector of states in (B) frame
-  StatePtr state = std::make_unique<State>(new_key, ts, gtsam::NavState(_T_G_B_inc, gtsam::Vector3(0, 0, 0)));
-  _states.emplace_back(std::move(state));
-
   //Publish Graph path
   //Pose Message
   static size_t poseMsgCount = 0;
@@ -335,13 +331,16 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       //Update timestamp
       const double ts = pose_msg.header.stamp.toSec();
 
-      //Find corresponding key in graph //TODO use map lookup after fixing timestamps & remove _states vector
+      //Find corresponding key in graph
       gtsam::Key key;
-      if (!findClosestKeyForTS(ts, &key)) {
+      auto key_itr = _timestampKeyMap.find(ts);
+      if (key_itr != _timestampKeyMap.end()) {
+        key = key_itr->second; //Save Key
+        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
+      } else {
         std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
         continue;
-      } else
-        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
+      }
 
       //Only Absolute poses can be attached to Key 0
       if (key == 0)
@@ -356,7 +355,7 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       auto anchor_itr = _keyAnchorPoseMap.find(key);
       if (anchor_itr != _keyAnchorPoseMap.end()) {
         bool equal = anchor_itr->second.equals(T_G_B, 1.0e-02);
-        std::cout << ", Equal: " << (equal ? " \033[32mYES\033[0m" : "\033[31mNO\033[0m") << std::endl;
+        std::cout << ", Equal: " << (equal ? " \033[32mYES\033[0m - SKIP\n" : "\033[31mNO\033[0m");
         if (equal)
           continue;
       }
