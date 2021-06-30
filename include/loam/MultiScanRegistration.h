@@ -52,15 +52,14 @@
 //Register Custom Velodyne and Ouster data types to use custom fields e.g. 'ring'
 ////////////////// VLP-16 Data structure support //////////////////
 /** Velodyne Point struct */
-struct PointVelodyne
-{
-  PCL_ADD_POINT4D;                    // quad-word XYZ
-  float    intensity;                 ///< laser intensity reading
-  uint16_t ring;                      ///< laser ring number
-  float    time;                      ///< laser time reading
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW     // ensure proper alignment
+struct PointVelodyne {
+  PCL_ADD_POINT4D;                 // quad-word XYZ
+  float intensity;                 // laser intensity reading
+  uint16_t ring;                   // laser ring number
+  float time;                      // laser time reading
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
 } EIGEN_ALIGN16;
-/** Register as pointcloud struct for using in pcl::createMapping method */
+/** Register as pointcloud struct */
 POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyne,
                                   (float, x, x)
                                   (float, y, y)
@@ -69,7 +68,26 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyne,
                                   (std::uint16_t, ring, ring)
                                   (float, time, time)
 )
-////////////////// VLP-16 Data structure support //////////////////
+
+////////////////// ANYbotics VLP-16 Data structure support //////////////////
+/** ANYbotics Velodyne Point struct - difference in ring field type*/
+struct PointVelodyneANYbotics
+{
+  PCL_ADD_POINT4D;                 // quad-word XYZ
+  float intensity;                 // laser intensity reading
+  float ring;                      // laser ring number
+  float time;                      // laser time reading
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
+} EIGEN_ALIGN16;
+/** Register as pointcloud struct */
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyneANYbotics,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (float, ring, ring)
+                                  (float, time, time)
+)
 
 ////////////////// OS0-128 Data structure support //////////////////
 /** Ouster Point struct */
@@ -83,13 +101,13 @@ struct EIGEN_ALIGN16 PointOuster {
   uint32_t range;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
-/** Register as pointcloud struct for using in pcl::createMapping method */
+/** Register as pointcloud struct for using */
 POINT_CLOUD_REGISTER_POINT_STRUCT(PointOuster,
                                   (float, x, x)
                                   (float, y, y)
                                   (float, z, z)
                                   (float, intensity, intensity)
-                                  (std::uint32_t, t, t) // use std::uint32_t to avoid conflicting with pcl::uint32_t
+                                  (std::uint32_t, t, t)
                                   (std::uint16_t, reflectivity, reflectivity)
                                   (std::uint8_t, ring, ring)
                                   (std::uint16_t, ambient, ambient)

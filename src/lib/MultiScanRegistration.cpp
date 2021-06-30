@@ -80,7 +80,7 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
   std::string lidarName;
 
   if (privateNode.getParam("lidar", lidarName)) {
-    if (lidarName == "VLP-16") {
+    if (lidarName == "VLP-16" || "VLP-16-ANYbotics") {
       _scanMapper = MultiScanMapper::Velodyne_VLP_16();
     } else if (lidarName == "HDL-32") {
       _scanMapper = MultiScanMapper::Velodyne_HDL_32();
@@ -178,13 +178,21 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
   //Preserve ROS timestamp
   updatedROSPCLTimestamp(laserCloudMsg->header.stamp);
 
-  //Check if OS0-128
-  if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128") {
+  //Check if OUster
+  if (_scanMapper.getLiDARName() == "O0-128-Div2" ||
+      _scanMapper.getLiDARName() == "O0-128" ||
+      _scanMapper.getLiDARName() == "O1-64") {
     // Convert ROS Pointcloud2 into PCL Pointcloud<PointOuster>
     pcl::PointCloud<PointOuster> pclPointOuster;
     pcl::fromROSMsg(*laserCloudMsg, pclPointOuster);
     // process
     process(pclPointOuster, fromROSTime(laserCloudMsg->header.stamp));
+  } else if (_scanMapper.getLiDARName() == "VLP-16-ANYbotics") {
+    // Convert ROS Pointcloud2 into PCL Pointcloud<pclPointVelodyneANYbotics>
+    pcl::PointCloud<PointVelodyneANYbotics> pclPointVelodyneANYbotics;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyneANYbotics);
+    // process
+    process(pclPointVelodyneANYbotics, fromROSTime(laserCloudMsg->header.stamp));
   } else {  //TODO - Currently treating all other inputs in Velodyne format
     // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
     pcl::PointCloud<PointVelodyne> pclPointVelodyne;
@@ -307,4 +315,5 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
 template void MultiScanRegistration::process(const pcl::PointCloud<PointVelodyne>&, const Time&);
 template void MultiScanRegistration::process(const pcl::PointCloud<PointOuster>&, const Time&);
+template void MultiScanRegistration::process(const pcl::PointCloud<PointVelodyneANYbotics>&, const Time&);
 }  // end namespace loam
