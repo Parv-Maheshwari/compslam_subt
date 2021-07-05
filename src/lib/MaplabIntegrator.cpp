@@ -200,14 +200,11 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   publishTransforms(odomPtr->header.stamp);
 
   // DEBUG
-  if (new_key % 10 == 0) {
-    std::cout << std::fixed << "\033[35mODOMETRY\033[0m"
-              << ", ts: " << odomPtr->header.stamp.toSec()
-              << ", key: " << new_key
-              // << ", Total factors: " << getFactorCount()
-              << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()  //<< ", RPY(deg): " << _T_G_B_inc.rotation().rpy().transpose() * (180.0 / M_PI)
-              << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-              << std::endl;
+  if (true) {
+    ROS_INFO_STREAM_THROTTLE(1.0, "\033[35mODOMETRY\033[0m"<< ", ts: " << odomPtr->header.stamp
+                                             << ", key: " << new_key
+                                             << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
+                                             << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
   // DEBUG
 
@@ -303,13 +300,12 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //DEBUG
-  std::cout << std::fixed << "\033[33mABSOLUTE\033[0m"
-            // <<", ts: " << posePtr->header.stamp.toSec()
-            // << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            // << ", imu t(x,y,z): " << T_G_B.translation().transpose()  //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", T_G_M t(m):" << _T_G_M.translation().transpose() << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-            << std::endl;
+  if (true) {
+    ROS_INFO_STREAM("\033[33mABSOLUTE\033[0m"
+                    << ", T_G_M t(m):" << _T_G_M.translation().transpose() 
+                    << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
+                    << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+  }
   //DEBUG
 }
 
@@ -319,8 +315,6 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
     std::cout << std::fixed << "\033[31mANCHOR\033[0m - Passed nullptr or graph not initialized from odometry yet" << std::endl;
     return;
   }
-
-  std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq << ", ts: " << pathPtr->header.stamp.toSec() << ", Poses: " << pathPtr->poses.size() << std::endl;
 
   //Loop through all pose updates and add prior factor on graph nodes
   {
@@ -336,9 +330,8 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       auto key_itr = _timestampKeyMap.find(ts);
       if (key_itr != _timestampKeyMap.end()) {
         key = key_itr->second; //Save Key
-        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
-      } else {
-        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
+        } else {
+        ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ros::Time(ts) );
         continue;
       }
 
@@ -355,18 +348,27 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       auto anchor_itr = _keyAnchorPoseMap.find(key);
       if (anchor_itr != _keyAnchorPoseMap.end()) {
         bool equal = anchor_itr->second.equals(T_G_B, 1.0e-02);
-        std::cout << ", Equal: " << (equal ? " \033[32mYES\033[0m - SKIP\n" : "\033[31mNO\033[0m");
-        if (equal)
+        if (equal) {
+          ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                                << ", ts: " << ros::Time(ts)
+                                                                << ", Equal: \033[32mYES\033[0m - SKIP");
           continue;
+        }
       }
 
       //Find if Prior factor exists at Key and get Factor Index
       auto itr = _keyAnchorFactorIdxMap.find(key);
       if (itr != _keyAnchorFactorIdxMap.end()) {
-        std::cout << " - Removing Prior with Index: " << itr->second << ", at Key: " << key << std::endl;
+        ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                                << ", ts: " << ros::Time(ts)
+                                                                << ", Equal: \033[31mNO\033[0m"
+                                                                << ", Removing Prior with Index: " << itr->second);
         removeFactorIdx.push_back(itr->second);
       } else
-        std::cout << " - New Prior Added" << std::endl;
+        ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                              << ", ts: " << ros::Time(ts)
+                                                              << ", Equal: \033[31mNO\033[0m"
+                                                              << ", New Prior Added");
 
       //Update graph
       static auto anchorNoise = gtsam::noiseModel::Diagonal::Sigmas(_anchorNoise);
@@ -380,7 +382,7 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       updateKeyAnchorPoseMap(key, T_G_B);  //Associate Anchor pose to key
     }
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+    ROS_INFO_STREAM("\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
 }
 
@@ -398,7 +400,6 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
     auto parent_itr = _timestampKeyMap.find(parent_ts);
     if (parent_itr != _timestampKeyMap.end()) {
       gtsam::Key parent_key = parent_itr->second;
-      // std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Parent Key : " << parent_key << ", ts: " << parent_ts;
       //Loop through submap(parent)-submap(child) constraints
       auto t1 = std::chrono::high_resolution_clock::now();
       for (size_t i = 0; i < pathPtr->poses.size(); ++i) {
@@ -418,10 +419,8 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           //Check if a previous BetweenFactor exists between two keys
           gtsam::FactorIndices removeFactorIdx;
           int rmIdx = findSubmapFactorIdx(parent_key, child_key, true);
-          if (rmIdx != -1) {
+          if (rmIdx != -1)
             removeFactorIdx.push_back(rmIdx);
-            // std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
-          }
 
           //Add submap-submap BetweenFactor
           static auto submapNoise = gtsam::noiseModel::Diagonal::Sigmas(_submapNoise);
@@ -435,20 +434,17 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           _newFactors.resize(0);
           incFactorCount();
           updateKeySubmapFactorIdxMap(parent_key, child_key);
-        } else {
-          // std::cout << std::fixed << ", NO child key found, ts: " << child_ts << std::endl;
+        } else 
           continue;
-        }
       }
       auto t2 = std::chrono::high_resolution_clock::now();
 
       //DEBUG
-      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - Constraints added: " << pathPtr->poses.size()
-                << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-                << std::endl;
+      ROS_INFO_STREAM("\033[34mSUBMAP-UPDATE\033[0m - Constraints added: " << pathPtr->poses.size() << 
+                      ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
       //DEBUG
     } else {
-      std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << parent_ts << " --- SKIPPING CHILDERN ---" << std::endl;
+      ROS_INFO_STREAM("\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << ros::Time(parent_ts) << " --- SKIPPING CHILDERN ---");
       return;
     }
   }
@@ -577,10 +573,7 @@ void MaplabIntegrator::updateGraphResults() {
 
   //DEBUG
   auto t2 = std::chrono::high_resolution_clock::now();
-  std::cout << "\033[36mMaplabIntegrator\033[0m - Graph Update(ms): " << t_update 
-            <<", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() 
-            // <<", clouds: " << cloud_count << ", points: " << mapCloud->points.size()
-            << std::endl;
+  ROS_INFO_STREAM("\033[36mGRAPH UPDATE\033[0m - time((ms):" << t_update << ", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   //DEBUG
 }
 
