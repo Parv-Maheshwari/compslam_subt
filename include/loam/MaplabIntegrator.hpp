@@ -86,6 +86,9 @@ class MaplabIntegrator {
   void incFactorCount() { ++_factor_count; }
   size_t getFactorCount() { return _factor_count; }
 
+  //Intialize Sensor extrinsic transforms
+  void initSensorTransforms();
+
   //Members
 
   //Subscribers
@@ -114,11 +117,15 @@ class MaplabIntegrator {
   geometry_msgs::TransformStamped _incPose;  // incremental Pose
 
   //Transforms
-  gtsam::Pose3 _T_L_B;      //IMU(B) to LiDAR(L)
-  gtsam::Pose3 _T_B_C;      //camera(C) to  IMU(B)
-  gtsam::Pose3 _T_G_M;      //Robot(Local) Map(M) to DARPA(G) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
-  gtsam::Pose3 _T_G_B_opt;  //IMU to DARPA(G) - optimized
-  gtsam::Pose3 _T_G_B_inc;  //IMU to DARPA(G) - incremental
+  tf::TransformListener _tl;       // Transform Listener for calculating external estimate
+  std::string _lidar_frame = "";   //LiDAR frame name - used for LiDAR-to-Sensor transform lookup
+  std::string _camera_frame = "";  //Frame of camera used for apriltag detection (absolute poses)
+  std::string _imu_frame = "";     //Frame of IMU used by maplab
+  gtsam::Pose3 _T_L_B;             //IMU(B) to LiDAR(L)
+  gtsam::Pose3 _T_B_C;             //camera(C) to  IMU(B)
+  gtsam::Pose3 _T_G_M;             //Robot(Local) Map(M) to DARPA(G) - Local Robot Map start at origin MUST BE SET TO ZERO ON INIT in (B) frame - this needs to be updated to make the local graph expressed w.r.t (G)
+  gtsam::Pose3 _T_G_B_opt;         //IMU to DARPA(G) - optimized
+  gtsam::Pose3 _T_G_B_inc;         //IMU to DARPA(G) - incremental
 
   //Factor graph
   size_t _factor_count = 0;                 //Counter for Total factors (existing + removed)

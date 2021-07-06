@@ -18,25 +18,21 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
     ROS_INFO_STREAM("MaplabIntegrator - Minimum Position(m) delta Norm for saving pointcloud: " << _cloudSavePosDelta);
   if (privateNode.getParam("cloudSaveRotDelta", _cloudSaveRotDelta))
     ROS_INFO_STREAM("MaplabIntegrator - Minimum Rotation(rad) delta Norm for saving pointcloud: " << _cloudSaveRotDelta);
+
   //Extrinsic Calibrations
-  std::vector<double> T_cam2imu;  //Camera to IMU
-  if (privateNode.getParam("T_cam2imu", T_cam2imu)) {
-    _T_B_C = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_cam2imu.data()));
-    std::cout << "MaplabIntegrator - T_cam2imu:\n"
-              << _T_B_C.matrix() << std::endl;
-  } else {
-    ROS_INFO_STREAM("MaplabIntegrator - T_cam2imu not defined");
-    return false;
-  }
-  std::vector<double> T_imu2lidar;  //IMU to Lidar
-  if (privateNode.getParam("T_imu2lidar", T_imu2lidar)) {
-    _T_L_B = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_imu2lidar.data()));
-    std::cout << "MaplabIntegrator - T_imu2lidar:\n"
-              << _T_L_B.matrix() << std::endl;
-  } else {
-    ROS_INFO_STREAM("MaplabIntegrator - T_imu2lidar not defined");
-    return false;
-  }
+  //LiDAR frame for look-up
+  if (privateNode.getParam("lidarFrame", _lidar_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - LiDAR Frame: " << _lidar_frame);
+  ROS_ERROR_COND(_lidar_frame.empty(), "MaplabIntegrator - No LiDAR frame provided");
+  //Camera frame for look-up
+  if (privateNode.getParam("maplab_camera_frame", _camera_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - Camera Frame: " << _camera_frame);
+  ROS_ERROR_COND(_camera_frame.empty(), "MaplabIntegrator - No Camera frame provided");
+  //IMU frame for look-up
+  if (privateNode.getParam("maplab_imu_frame", _imu_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - IMU Frame: " << _imu_frame);
+  ROS_ERROR_COND(_imu_frame.empty(), "MaplabIntegrator - No IMU frame provided");
+
   //Factor Noise parameters
   std::vector<double> odomNoise;
   if (privateNode.getParam("odometryFactorNoise", odomNoise)) {
@@ -151,6 +147,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
       new_key = stateKey();
       addPriorFactor(new_key, gtsam::Pose3::identity());
       saveCloud = true;
+      //Intialize sensor transforms
+      initSensorTransforms();
       _firstOdomMsg = false;
     } else {
       //Update keys
@@ -700,5 +698,37 @@ int MaplabIntegrator::findSubmapFactorIdx(const gtsam::Key parent_key, const gts
   }
 
   return output;
+}
+
+void MaplabIntegrator::initSensorTransforms(){
+  //Setup IMU-to-LiDAR transforms
+  tf::StampedTransform T_LB;
+  try {
+    _tl.waitForTransform(_lidar_frame, _imu_frame, ros::Time(0), ros::Duration(0.1));
+    _tl.lookupTransform(_lidar_frame, _imu_frame, ros::Time(0), T_LB);
+    Eigen::Vector3d t(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
+    Eigen::Quaterniond q(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
+    q.normalize();
+    _T_L_B = gtsam::Pose3(gtsam::Rot3(q.toRotationMatrix()), t);
+    std::cout << "\033[36mMaplabIntegrator\033[0m - T_imu2lidar(T_LB):\n"
+              << _T_L_B.matrix() << std::endl;
+  } catch (tf::TransformException ex) {
+    ROS_WARN("%s", ex.what());
+  }
+
+  //Setup IMU-to-Camera transforms
+  tf::StampedTransform T_BC;
+  try {
+    _tl.waitForTransform(_imu_frame, _camera_frame, ros::Time(0), ros::Duration(0.1));
+    _tl.lookupTransform(_imu_frame, _camera_frame, ros::Time(0), T_BC);
+    Eigen::Vector3d t(T_BC.getOrigin().x(), T_BC.getOrigin().y(), T_BC.getOrigin().z());
+    Eigen::Quaterniond q(T_BC.getRotation().w(), T_BC.getRotation().x(), T_BC.getRotation().y(), T_BC.getRotation().z());
+    q.normalize();
+    _T_B_C = gtsam::Pose3(gtsam::Rot3(q.toRotationMatrix()), t);
+    std::cout << "\033[36mMaplabIntegrator\033[0m - T_cam2imu(T_BC):\n"
+              << _T_B_C.matrix() << std::endl;
+  } catch (tf::TransformException ex) {
+    ROS_WARN("%s", ex.what());
+  }
 }
 }  // namespace loam
