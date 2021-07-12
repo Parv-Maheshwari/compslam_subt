@@ -37,8 +37,12 @@
 #include <nav_msgs/Path.h>
 #include <ros/node_handle.h>
 #include <tf/transform_broadcaster.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/synchronizer.h>
 
 #include "loam/BasicTransformMaintenance.h"
+#include "loam/OptStatus.h"
 
 namespace loam {
 
@@ -56,17 +60,19 @@ class TransformMaintenance : public BasicTransformMaintenance {
    */
   virtual bool setup(ros::NodeHandle& node, ros::NodeHandle& privateNode);
 
-  /** \brief Handler method for laser odometry messages.
+  /** \brief Handler method for laser odometry and status messages.
    *
    * @param laserOdometry the new laser odometry
+   * @param laserStatus status of laser odometry
    */
-  void laserOdometryHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry);
+  void syncLaserOdomHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry, const OptStatusConstPtr& laserStatus);
 
-  /** \brief Handler method for mapping odometry messages.
+  /** \brief Handler method for mapping odometry and statusmessages.
    *
    * @param odomAftMapped the new mapping odometry
+   * @param mapStatus status of the new mapping odometry
    */
-  void odomAftMappedHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped);
+  void syncMapOdomHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped, const OptStatusConstPtr& mapStatus);
 
  private:
   nav_msgs::Odometry _laserOdometry2;         ///< latest integrated laser odometry message
@@ -75,8 +81,19 @@ class TransformMaintenance : public BasicTransformMaintenance {
   ros::Publisher _pubLaserOdometry2;         ///< integrated laser odometry publisher
   tf::TransformBroadcaster _tfBroadcaster2;  ///< integrated laser odometry transformation broadcaster
 
-  ros::Subscriber _subLaserOdometry;  ///< (high frequency) laser odometry subscriber
-  ros::Subscriber _subOdomAftMapped;  ///< (low frequency) mapping odometry subscriber
+  //Synced subscriber
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, OptStatus> _syncPolicy;  // ROS Sync Policy Object
+  //Scan-to-Scan Odometry - High frequency
+  message_filters::Subscriber<nav_msgs::Odometry> _subLaserOdom;
+  message_filters::Subscriber<OptStatus> _subLaserOdomStatus;
+  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _laserSyncPtr;  // ROS Sync Policy Message Filter
+  //Scan-to-Map Odometry - Low frequency
+  message_filters::Subscriber<nav_msgs::Odometry> _subMapOdom;
+  message_filters::Subscriber<OptStatus> _subMapOdomStatus;
+  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _mapSyncPtr;  // ROS Sync Policy Message Filter
+
+  bool _isMappingDegenerate = false;  //Flag to store status of scan-to-map alignment
+  ros::Publisher _pubOdomStatus;
 
   // ARL Coordinate Frame Facilitators
   nav_msgs::Odometry _laserOdometry2_CORRECTED;                          ///< latest integrated laser odometry message CORRECTED

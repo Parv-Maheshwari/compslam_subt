@@ -49,10 +49,18 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   // advertise integrated laser odometry topic
   _pubLaserOdometry2 = node.advertise<nav_msgs::Odometry>("/integrated_to_init", 5);
 
-  // subscribe to laser odometry and mapping odometry topics
-  _subLaserOdometry = node.subscribe<nav_msgs::Odometry>("/laser_odom_to_init", 5, &TransformMaintenance::laserOdometryHandler, this);
-
-  _subOdomAftMapped = node.subscribe<nav_msgs::Odometry>("/aft_mapped_to_init", 5, &TransformMaintenance::odomAftMappedHandler, this);
+  //Synced scan-to-scan odometry subscriber
+  _subLaserOdom.subscribe(node, "/laser_odom_to_init", 10);
+  _subLaserOdomStatus.subscribe(node, "/laser_odom_optimization_status", 10);
+  _laserSyncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subLaserOdom, _subLaserOdomStatus));
+  _laserSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncLaserOdomHandler, this, _1, _2));
+  //Synced scan-to-map odometry subscriber
+  _subMapOdom.subscribe(node, "/aft_mapped_to_init", 10);
+  _subMapOdomStatus.subscribe(node, "/laser_mapping_optimization_status", 10);
+  _mapSyncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subMapOdom, _subMapOdomStatus));
+  _mapSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncMapOdomHandler, this, _1, _2));
+  //Combined odometry status publisher
+  _pubOdomStatus = node.advertise<OptStatus>("/laser_integrated_status", 5);
 
   // ARL Coordinate Frame Facilitators
   _laserOdometry2_CORRECTED.header.frame_id = "camera_init_CORRECTED";
@@ -75,7 +83,7 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   return true;
 }
 
-void TransformMaintenance::laserOdometryHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry) {
+void TransformMaintenance::syncLaserOdomHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry, const OptStatusConstPtr& laserStatus){
   double roll, pitch, yaw;
   geometry_msgs::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
   tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
@@ -130,6 +138,16 @@ void TransformMaintenance::laserOdometryHandler(const nav_msgs::Odometry::ConstP
   // END ARL Coordinate Frame Correction
 
   //CUSTOMIZATION
+  // Publish odometry status message based on if scan-to-scan or scan-to-map alignment was degenerate
+  if (_pubOdomStatus.getNumSubscribers() > 0) {
+    OptStatus optMsg;
+    optMsg.header.stamp = laserOdometry->header.stamp;
+    //Status degeneracy status
+    optMsg.degenerate = (laserStatus->degenerate || _isMappingDegenerate);
+    //Publish
+    _pubOdomStatus.publish(optMsg);
+  }
+
   // Publish Path
   if (_pubPath.getNumSubscribers() > 0) {
     //Pose Message
@@ -143,11 +161,9 @@ void TransformMaintenance::laserOdometryHandler(const nav_msgs::Odometry::ConstP
     poseMsg.pose.orientation.y = -geoQuat.y;
     poseMsg.pose.orientation.z = -geoQuat.z;
     poseMsg.pose.orientation.w = geoQuat.w;
-
     // Path message
-    _pathMsg.header.stamp = laserOdometry->header.stamp;;
+    _pathMsg.header.stamp = laserOdometry->header.stamp;
     _pathMsg.poses.push_back(poseMsg);
-
     //Publish
     _pubPath.publish(_pathMsg);
   }
@@ -156,7 +172,7 @@ void TransformMaintenance::laserOdometryHandler(const nav_msgs::Odometry::ConstP
 
 }
 
-void TransformMaintenance::odomAftMappedHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped) {
+void TransformMaintenance::syncMapOdomHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped, const OptStatusConstPtr& mapStatus) {
   double roll, pitch, yaw;
   geometry_msgs::Quaternion geoQuat = odomAftMapped->pose.pose.orientation;
   tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
@@ -173,6 +189,9 @@ void TransformMaintenance::odomAftMappedHandler(const nav_msgs::Odometry::ConstP
                          odomAftMapped->twist.twist.linear.x,
                          odomAftMapped->twist.twist.linear.y,
                          odomAftMapped->twist.twist.linear.z);
+
+  //Save mapping degeneracy status
+  _isMappingDegenerate = mapStatus->degenerate;
 }
 
 }  // end namespace loam
