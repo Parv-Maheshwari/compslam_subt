@@ -39,6 +39,7 @@
 
 //CUSTOM
 #include "loam/GraphState.hpp"
+#include "loam/OptStatus.h"
 
 using gtsam::symbol_shorthand::X;  // Pose3 (R,t)
 
@@ -50,7 +51,7 @@ class MaplabIntegrator {
 
  private:
   //Callbacks
-  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
+  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr, const OptStatusConstPtr& odomStatusPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   int lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void cloudCallback(int key, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
@@ -96,10 +97,11 @@ class MaplabIntegrator {
   ros::Subscriber _subMaplabAnchor;  // Maplab published Anchor constraints
   ros::Subscriber _subMaplabSubmap;  // Maplab published Submap-to-Submap contraints
   //Synced subscriber
-  message_filters::Subscriber<nav_msgs::Odometry> _subOdom;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> _subCloud;
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
-  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                       // ROS  Sync Policy Message Filter
+  message_filters::Subscriber<nav_msgs::Odometry> _subOdom;                                                                //Odometry subscriber for odometry constraints
+  message_filters::Subscriber<OptStatus> _subOdomStatus;                                                                   //Odometry status subscriber for marking variables at which odometry is degenerate
+  message_filters::Subscriber<sensor_msgs::PointCloud2> _subCloud;                                                         //Pointcloud subscriber for saving clouds for building a map
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, OptStatus, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
+  boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                                  // ROS  Sync Policy Message Filter
 
   //Publishers
   ros::Publisher _pubIncrementalPath, _pubIncPoseStamped;  // Current (Incremental) state of graph, path and posestamped
@@ -145,6 +147,7 @@ class MaplabIntegrator {
   //Odometry factor
   bool _firstOdomMsg = true;
   gtsam::Pose3 _lastIMUPose;
+  bool _isOdomDegenerate = false;
 
   //Absolute pose factor
   bool _firstAbsolutePose = true;
@@ -164,6 +167,9 @@ class MaplabIntegrator {
   double _cloudSaveRotDelta = 0.2;                                                   //minimum delta rotation difference Norm to save new pointcoud (radians)
   gtsam::Pose3 _lastCloudSavePose;                                                   //pose of last pointcloud saved
   std::unordered_map<gtsam::Key, pcl::PointCloud<pcl::PointXYZ>::Ptr> _keyCloudMap;  //Key-Cloud map for lookup of pointclouds at keys to build map
+
+  //Debug
+  int _verbose = 0;
 };
 
 }  // namespace loam

@@ -98,6 +98,7 @@ minZeroMoitionDetections: 10                      #Minimum number of consective 
 gravityRollPitchFactors: false                    #Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)
 
 #MaplabIntegrator
+maplabIntegratorVerbosity: 0                      #Verbosity level of MaplabIntegrator (0:quiet)
 world_frame: darpa                                #World(Absolute) frame
 map_frame: map                                    #Robot Map frame
 base_frame: imu                                   #Base(IMU) frame
