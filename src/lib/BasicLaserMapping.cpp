@@ -800,7 +800,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   _optStatusMsg.converged = error_converged;
   _optStatusMsg.translation_residual = deltaT;
   _optStatusMsg.rotation_residual = deltaR;
-  _optStatusMsg.degenerated = isDegenerate;
+  _optStatusMsg.degenerate = isDegenerate;
   _optStatusMsg.iteration_count = iterCount + 1;
   _optStatusMsg.iteration_max = _maxIterations;
   _optStatusMsg.optimization_time = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC;

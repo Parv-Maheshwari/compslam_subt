@@ -4,6 +4,8 @@ namespace loam {
 
 bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Parameters
+  if (privateNode.getParam("maplabIntegratorVerbosity", _verbose))
+    ROS_INFO_STREAM("MaplabIntegrator - Verbosity level set to: " << _verbose);
   //Frames
   if (privateNode.getParam("world_frame", _world_frame))
     ROS_INFO_STREAM("MaplabIntegrator - World/Global frame set to: " << _world_frame);
@@ -18,25 +20,21 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
     ROS_INFO_STREAM("MaplabIntegrator - Minimum Position(m) delta Norm for saving pointcloud: " << _cloudSavePosDelta);
   if (privateNode.getParam("cloudSaveRotDelta", _cloudSaveRotDelta))
     ROS_INFO_STREAM("MaplabIntegrator - Minimum Rotation(rad) delta Norm for saving pointcloud: " << _cloudSaveRotDelta);
+
   //Extrinsic Calibrations
-  std::vector<double> T_cam2imu;  //Camera to IMU
-  if (privateNode.getParam("T_cam2imu", T_cam2imu)) {
-    _T_B_C = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_cam2imu.data()));
-    std::cout << "MaplabIntegrator - T_cam2imu:\n"
-              << _T_B_C.matrix() << std::endl;
-  } else {
-    ROS_INFO_STREAM("MaplabIntegrator - T_cam2imu not defined");
-    return false;
-  }
-  std::vector<double> T_imu2lidar;  //IMU to Lidar
-  if (privateNode.getParam("T_imu2lidar", T_imu2lidar)) {
-    _T_L_B = gtsam::Pose3(Eigen::Map<Eigen::Matrix<double, 4, 4, Eigen::RowMajor>>(T_imu2lidar.data()));
-    std::cout << "MaplabIntegrator - T_imu2lidar:\n"
-              << _T_L_B.matrix() << std::endl;
-  } else {
-    ROS_INFO_STREAM("MaplabIntegrator - T_imu2lidar not defined");
-    return false;
-  }
+  //LiDAR frame for look-up
+  if (privateNode.getParam("lidarFrame", _lidar_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - LiDAR Frame: " << _lidar_frame);
+  ROS_ERROR_COND(_lidar_frame.empty(), "MaplabIntegrator - No LiDAR frame provided");
+  //Camera frame for look-up
+  if (privateNode.getParam("maplab_camera_frame", _camera_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - Camera Frame: " << _camera_frame);
+  ROS_ERROR_COND(_camera_frame.empty(), "MaplabIntegrator - No Camera frame provided");
+  //IMU frame for look-up
+  if (privateNode.getParam("maplab_imu_frame", _imu_frame))
+    ROS_INFO_STREAM("MaplabIntegrator - IMU Frame: " << _imu_frame);
+  ROS_ERROR_COND(_imu_frame.empty(), "MaplabIntegrator - No IMU frame provided");
+
   //Factor Noise parameters
   std::vector<double> odomNoise;
   if (privateNode.getParam("odometryFactorNoise", odomNoise)) {
@@ -76,9 +74,11 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
 
   //Synced subscriber
   _subOdom.subscribe(node, "odometry", 10);
+  _subOdomStatus.subscribe(node, "odometry_status", 10);
   _subCloud.subscribe(node, "pointcloud", 10);
-  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subCloud));
-  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2));
+  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subOdomStatus, _subCloud));
+  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2, _3));
+
   //Subscribers
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 100, &MaplabIntegrator::absolutePoseCallback, this);
   _subMaplabAnchor = node.subscribe<nav_msgs::Path>("anchor_constraints", 100, &MaplabIntegrator::maplabAnchorCallback, this);
@@ -115,9 +115,12 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   return true;
 }
 
-void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& OdomPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
-  //Add odometry factor and check if pointcloud needs to be stored
-  int key = lidarOdomCallback(OdomPtr);
+void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr,
+                                           const OptStatusConstPtr& odomStatusPtr,
+                                           const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
+  //Set odometry status, add odometry factor and check if pointcloud needs to be stored
+  _isOdomDegenerate = odomStatusPtr->degenerate;
+  int key = lidarOdomCallback(odomPtr);
   cloudCallback(key, cloudPtr);
 }
 
@@ -151,6 +154,8 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
       new_key = stateKey();
       addPriorFactor(new_key, gtsam::Pose3::identity());
       saveCloud = true;
+      //Intialize sensor transforms
+      initSensorTransforms();
       _firstOdomMsg = false;
     } else {
       //Update keys
@@ -183,7 +188,7 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   //Pose Message
   static size_t poseMsgCount = 0;
   geometry_msgs::PoseStamped poseMsg;
-  poseMsg.header.frame_id = _world_frame;
+  poseMsg.header.frame_id = (_isOdomDegenerate ? "degenerate" : "");
   poseMsg.header.stamp = odomPtr->header.stamp;
   poseMsg.header.seq = ++poseMsgCount;
   createPoseMessage(_T_G_B_inc, &poseMsg);
@@ -200,14 +205,11 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   publishTransforms(odomPtr->header.stamp);
 
   // DEBUG
-  if (new_key % 10 == 0) {
-    std::cout << std::fixed << "\033[35mODOMETRY\033[0m"
-              << ", ts: " << odomPtr->header.stamp.toSec()
-              << ", key: " << new_key
-              // << ", Total factors: " << getFactorCount()
-              << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()  //<< ", RPY(deg): " << _T_G_B_inc.rotation().rpy().transpose() * (180.0 / M_PI)
-              << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-              << std::endl;
+  if (_verbose > 0) {
+    ROS_INFO_STREAM_THROTTLE(1.0, "\033[35mODOMETRY\033[0m" << ", ts: " << odomPtr->header.stamp
+                                      << ", key: " << new_key
+                                      << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
+                                      << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
   // DEBUG
 
@@ -303,13 +305,12 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //DEBUG
-  std::cout << std::fixed << "\033[33mABSOLUTE\033[0m"
-            // <<", ts: " << posePtr->header.stamp.toSec()
-            // << ", camera t(x,y,z): " << T_G_C.translation().transpose()  //<< ", RPY(deg): " << lidar_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            // << ", imu t(x,y,z): " << T_G_B.translation().transpose()  //<< ", RPY(deg): " << imu_pose.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", T_G_M t(m):" << _T_G_M.translation().transpose() << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
-            << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-            << std::endl;
+  if (_verbose > 0) {
+    ROS_INFO_STREAM("\033[33mABSOLUTE\033[0m"
+                    << ", T_G_M t(m):" << _T_G_M.translation().transpose()
+                    << ", RPY(deg): " << _T_G_M.rotation().rpy().transpose() * (180.0 / M_PI)
+                    << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+  }
   //DEBUG
 }
 
@@ -319,8 +320,6 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
     std::cout << std::fixed << "\033[31mANCHOR\033[0m - Passed nullptr or graph not initialized from odometry yet" << std::endl;
     return;
   }
-
-  std::cout << std::fixed << "\033[36mANCHOR\033[0m - seq:" << pathPtr->header.seq << ", ts: " << pathPtr->header.stamp.toSec() << ", Poses: " << pathPtr->poses.size() << std::endl;
 
   //Loop through all pose updates and add prior factor on graph nodes
   {
@@ -336,10 +335,9 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       auto key_itr = _timestampKeyMap.find(ts);
       if (key_itr != _timestampKeyMap.end()) {
         key = key_itr->second; //Save Key
-        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found Key: " << key << ", ts: " << ts;
-      } else {
-        std::cout << std::fixed << "\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ts << std::endl;
-        continue;
+        } else {
+          if (_verbose) ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found no closest key for ts: :" << ros::Time(ts));
+          continue;
       }
 
       //Only Absolute poses can be attached to Key 0
@@ -355,18 +353,28 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       auto anchor_itr = _keyAnchorPoseMap.find(key);
       if (anchor_itr != _keyAnchorPoseMap.end()) {
         bool equal = anchor_itr->second.equals(T_G_B, 1.0e-02);
-        std::cout << ", Equal: " << (equal ? " \033[32mYES\033[0m - SKIP\n" : "\033[31mNO\033[0m");
-        if (equal)
+        if (equal) {
+          if (_verbose) ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                                << ", ts: " << ros::Time(ts)
+                                                                << ", Equal: \033[32mYES\033[0m - SKIP");
+
           continue;
+        }
       }
 
       //Find if Prior factor exists at Key and get Factor Index
       auto itr = _keyAnchorFactorIdxMap.find(key);
       if (itr != _keyAnchorFactorIdxMap.end()) {
-        std::cout << " - Removing Prior with Index: " << itr->second << ", at Key: " << key << std::endl;
+        if (_verbose) ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                                            << ", ts: " << ros::Time(ts)
+                                                                            << ", Equal: \033[31mNO\033[0m"
+                                                                            << ", Removing Prior with Index: " << itr->second);
         removeFactorIdx.push_back(itr->second);
-      } else
-        std::cout << " - New Prior Added" << std::endl;
+      } else if (_verbose)
+        ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
+                                                              << ", ts: " << ros::Time(ts)
+                                                              << ", Equal: \033[31mNO\033[0m"
+                                                              << ", New Prior Added");
 
       //Update graph
       static auto anchorNoise = gtsam::noiseModel::Diagonal::Sigmas(_anchorNoise);
@@ -380,7 +388,7 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       updateKeyAnchorPoseMap(key, T_G_B);  //Associate Anchor pose to key
     }
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+    if (_verbose) ROS_INFO_STREAM("\033[36mANCHOR-UPDATE\033[0m - time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
 }
 
@@ -398,7 +406,6 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
     auto parent_itr = _timestampKeyMap.find(parent_ts);
     if (parent_itr != _timestampKeyMap.end()) {
       gtsam::Key parent_key = parent_itr->second;
-      // std::cout << std::fixed << "\033[34mSUBMAP\033[0m - Parent Key : " << parent_key << ", ts: " << parent_ts;
       //Loop through submap(parent)-submap(child) constraints
       auto t1 = std::chrono::high_resolution_clock::now();
       for (size_t i = 0; i < pathPtr->poses.size(); ++i) {
@@ -411,17 +418,15 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
 
           //Skip if keys are same
           if (child_key == parent_key) {
-            ROS_WARN_STREAM("MaplabIntegrator - Same Submap Parent/Child keys, key:" << child_key);
+            if (_verbose) ROS_WARN_STREAM("MaplabIntegrator - Same Submap Parent/Child keys, key:" << child_key);
             continue;
           }
 
           //Check if a previous BetweenFactor exists between two keys
           gtsam::FactorIndices removeFactorIdx;
           int rmIdx = findSubmapFactorIdx(parent_key, child_key, true);
-          if (rmIdx != -1) {
+          if (rmIdx != -1)
             removeFactorIdx.push_back(rmIdx);
-            // std::cout << "Factor index to be removed: " << rmIdx << ", between keys: " << parent_key << "/" << child_key << std::endl;
-          }
 
           //Add submap-submap BetweenFactor
           static auto submapNoise = gtsam::noiseModel::Diagonal::Sigmas(_submapNoise);
@@ -435,20 +440,16 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           _newFactors.resize(0);
           incFactorCount();
           updateKeySubmapFactorIdxMap(parent_key, child_key);
-        } else {
-          // std::cout << std::fixed << ", NO child key found, ts: " << child_ts << std::endl;
+        } else
           continue;
-        }
       }
       auto t2 = std::chrono::high_resolution_clock::now();
 
       //DEBUG
-      std::cout << "\033[34mSUBMAP-UPDATE\033[0m - Constraints added: " << pathPtr->poses.size()
-                << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()
-                << std::endl;
+      if (_verbose) ROS_INFO_STREAM("\033[34mSUBMAP-UPDATE\033[0m - Constraints added: " << pathPtr->poses.size() << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
       //DEBUG
     } else {
-      std::cout << std::fixed << "\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << parent_ts << " --- SKIPPING CHILDERN ---" << std::endl;
+      if (_verbose) ROS_INFO_STREAM("\033[34mSUBMAP\033[0m  - Found no key for parent at ts: " << ros::Time(parent_ts) << " --- SKIPPING CHILDERN ---");
       return;
     }
   }
@@ -577,10 +578,7 @@ void MaplabIntegrator::updateGraphResults() {
 
   //DEBUG
   auto t2 = std::chrono::high_resolution_clock::now();
-  std::cout << "\033[36mMaplabIntegrator\033[0m - Graph Update(ms): " << t_update 
-            <<", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() 
-            // <<", clouds: " << cloud_count << ", points: " << mapCloud->points.size()
-            << std::endl;
+  if (_verbose) ROS_INFO_STREAM("\033[36mGRAPH UPDATE\033[0m - time((ms):" << t_update << ", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   //DEBUG
 }
 
@@ -707,5 +705,37 @@ int MaplabIntegrator::findSubmapFactorIdx(const gtsam::Key parent_key, const gts
   }
 
   return output;
+}
+
+void MaplabIntegrator::initSensorTransforms(){
+  //Setup IMU-to-LiDAR transforms
+  tf::StampedTransform T_LB;
+  try {
+    _tl.waitForTransform(_lidar_frame, _imu_frame, ros::Time(0), ros::Duration(0.1));
+    _tl.lookupTransform(_lidar_frame, _imu_frame, ros::Time(0), T_LB);
+    Eigen::Vector3d t(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
+    Eigen::Quaterniond q(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
+    q.normalize();
+    _T_L_B = gtsam::Pose3(gtsam::Rot3(q.toRotationMatrix()), t);
+    std::cout << "\033[36mMaplabIntegrator\033[0m - T_imu2lidar(T_LB):\n"
+              << _T_L_B.matrix() << std::endl;
+  } catch (tf::TransformException ex) {
+    ROS_WARN("%s", ex.what());
+  }
+
+  //Setup IMU-to-Camera transforms
+  tf::StampedTransform T_BC;
+  try {
+    _tl.waitForTransform(_imu_frame, _camera_frame, ros::Time(0), ros::Duration(0.1));
+    _tl.lookupTransform(_imu_frame, _camera_frame, ros::Time(0), T_BC);
+    Eigen::Vector3d t(T_BC.getOrigin().x(), T_BC.getOrigin().y(), T_BC.getOrigin().z());
+    Eigen::Quaterniond q(T_BC.getRotation().w(), T_BC.getRotation().x(), T_BC.getRotation().y(), T_BC.getRotation().z());
+    q.normalize();
+    _T_B_C = gtsam::Pose3(gtsam::Rot3(q.toRotationMatrix()), t);
+    std::cout << "\033[36mMaplabIntegrator\033[0m - T_cam2imu(T_BC):\n"
+              << _T_B_C.matrix() << std::endl;
+  } catch (tf::TransformException ex) {
+    ROS_WARN("%s", ex.what());
+  }
 }
 }  // namespace loam

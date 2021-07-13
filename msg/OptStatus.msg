@@ -2,7 +2,7 @@ Header header
 
 string status
 bool converged
-bool degenerated
+bool degenerate
 float32 optimization_time
 int32 iteration_count
 int32 iteration_max
