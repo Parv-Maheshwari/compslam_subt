@@ -21,6 +21,8 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
+#include "visualization_msgs/Marker.h"
+#include "visualization_msgs/MarkerArray.h"
 
 //PCL
 #include <pcl/common/transforms.h>
@@ -51,7 +53,7 @@ class MaplabIntegrator {
 
  private:
   //Callbacks
-  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr, const OptStatusConstPtr& odomStatusPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
+  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr, /*const OptStatusConstPtr& odomStatusPtr,*/ const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   int lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void cloudCallback(int key, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
@@ -100,7 +102,7 @@ class MaplabIntegrator {
   message_filters::Subscriber<nav_msgs::Odometry> _subOdom;                                                                //Odometry subscriber for odometry constraints
   message_filters::Subscriber<OptStatus> _subOdomStatus;                                                                   //Odometry status subscriber for marking variables at which odometry is degenerate
   message_filters::Subscriber<sensor_msgs::PointCloud2> _subCloud;                                                         //Pointcloud subscriber for saving clouds for building a map
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, OptStatus, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, /*OptStatus,*/ sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
   boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                                  // ROS  Sync Policy Message Filter
 
   //Publishers
@@ -157,6 +159,7 @@ class MaplabIntegrator {
   std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;                      //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
   std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;           //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
   std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;  //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
+  std::unordered_map<gtsam::Key, std::set<gtsam::Key>> _submapParentChildKeyMap;
 
   //Timer-based map/result update and publish
   double _updateResultsInterval = 5.0;  //Interval (seconds) for graph update callback
@@ -170,6 +173,10 @@ class MaplabIntegrator {
 
   //Debug
   int _verbose = 0;
+  ros::Publisher _pubConstraintMarkers;
+  visualization_msgs::Marker _absoluteMarkerMsg;
+  visualization_msgs::Marker _anchorMarkerMsg;
+  visualization_msgs::Marker _submapMarkerMsg;
 };
 
 }  // namespace loam

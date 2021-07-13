@@ -76,8 +76,8 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _subOdom.subscribe(node, "odometry", 10);
   _subOdomStatus.subscribe(node, "odometry_status", 10);
   _subCloud.subscribe(node, "pointcloud", 10);
-  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subOdomStatus, _subCloud));
-  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2, _3));
+  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, /*_subOdomStatus,*/ _subCloud));
+  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2/*, _3*/));
 
   //Subscribers
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 100, &MaplabIntegrator::absolutePoseCallback, this);
@@ -91,6 +91,7 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map_optimized", 10);
   _pubIncPoseStamped = node.advertise<geometry_msgs::PoseStamped>("/incremental_pose", 10);
   _pubOptPoseStamped = node.advertise<geometry_msgs::PoseStamped>("/optimized_pose", 10);
+  _pubConstraintMarkers = node.advertise<visualization_msgs::Marker>("/constraint_markers", 10); 
 
   //Timer-callback for graph update
   _timerUpdateResults = node.createTimer(ros::Duration(_updateResultsInterval), std::bind(&MaplabIntegrator::updateGraphResults, this));
@@ -112,14 +113,41 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _graph = std::make_shared<gtsam::ISAM2>(_params);
   _graph->params().print("Graph Integrator - Parameters:");
 
+  //Initialize Anchor Marker types
+  _anchorMarkerMsg.header.frame_id = _world_frame;
+  _anchorMarkerMsg.ns = "anchor_constraints";
+  _anchorMarkerMsg.type = visualization_msgs::Marker::CUBE_LIST;
+  _anchorMarkerMsg.action = visualization_msgs::Marker::ADD;
+  _anchorMarkerMsg.scale.x = _anchorMarkerMsg.scale.y = _anchorMarkerMsg.scale.z = 0.25f;
+  _anchorMarkerMsg.color.r = 0.0f;
+  _anchorMarkerMsg.color.g = 1.0f;
+  _anchorMarkerMsg.color.b = 1.0f;
+  _anchorMarkerMsg.color.a = 1.0f;
+  _anchorMarkerMsg.pose.orientation.w = 1.0;
+  //Initialize Absolute Marker types
+  _absoluteMarkerMsg = _anchorMarkerMsg;
+  _absoluteMarkerMsg.ns = "absolute_constraints";
+  _absoluteMarkerMsg.color.r = 1.0f;
+  _absoluteMarkerMsg.color.g = 1.0f;
+  _absoluteMarkerMsg.color.b = 0.0f;
+  //
+  _submapMarkerMsg = _anchorMarkerMsg;
+  _submapMarkerMsg.ns = "submap_constraints";
+  _submapMarkerMsg.type = visualization_msgs::Marker::LINE_LIST;
+  _submapMarkerMsg.color.r = 0.0f;
+  _submapMarkerMsg.color.g = 0.0f;
+  _submapMarkerMsg.color.b = 1.0f;
+  _submapMarkerMsg.color.a = 1.0f;
+  _submapMarkerMsg.scale.x = 0.1f;
+
   return true;
 }
 
 void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr,
-                                           const OptStatusConstPtr& odomStatusPtr,
+                                           //const OptStatusConstPtr& odomStatusPtr,
                                            const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
   //Set odometry status, add odometry factor and check if pointcloud needs to be stored
-  _isOdomDegenerate = odomStatusPtr->degenerate;
+  //_isOdomDegenerate = odomStatusPtr->degenerate;
   int key = lidarOdomCallback(odomPtr);
   cloudCallback(key, cloudPtr);
 }
@@ -305,6 +333,13 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   auto t2 = std::chrono::high_resolution_clock::now();
 
   //DEBUG
+  //Visualization markers
+  geometry_msgs::Point mPt;
+  mPt.x = T_G_B.translation().x();
+  mPt.y = T_G_B.translation().y();
+  mPt.z = T_G_B.translation().z();
+  _absoluteMarkerMsg.points.push_back(mPt);
+
   if (_verbose > 0) {
     ROS_INFO_STREAM("\033[33mABSOLUTE\033[0m"
                     << ", T_G_M t(m):" << _T_G_M.translation().transpose()
@@ -355,8 +390,9 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
         bool equal = anchor_itr->second.equals(T_G_B, 1.0e-02);
         if (equal) {
           if (_verbose) ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
-                                                                << ", ts: " << ros::Time(ts)
-                                                                << ", Equal: \033[32mYES\033[0m - SKIP");
+                                                                              << ", ts: " << ros::Time(ts)
+                                                                              << ", t(x,y,z): " << T_G_B.translation().transpose()
+                                                                              << ", Equal: \033[32mYES\033[0m - SKIP");
 
           continue;
         }
@@ -373,8 +409,8 @@ void MaplabIntegrator::maplabAnchorCallback(const nav_msgs::Path::ConstPtr& path
       } else if (_verbose)
         ROS_INFO_STREAM("\033[36mANCHOR\033[0m - Found Key: " << key
                                                               << ", ts: " << ros::Time(ts)
-                                                              << ", Equal: \033[31mNO\033[0m"
-                                                              << ", New Prior Added");
+                                                              << ", t(x,y,z): " << T_G_B.translation().transpose()
+                                                              << ", Equal: \033[31mNO\033[0m - New Prior Added");
 
       //Update graph
       static auto anchorNoise = gtsam::noiseModel::Diagonal::Sigmas(_anchorNoise);
@@ -523,6 +559,14 @@ void MaplabIntegrator::updateGraphResults() {
   //Update result timestamp
   ros::Time resultTimestamp = ros::Time::now();
 
+  //
+  _anchorMarkerMsg.points.clear();
+  _anchorMarkerMsg.header.stamp = resultTimestamp;
+  _absoluteMarkerMsg.header.stamp = resultTimestamp;
+  _submapMarkerMsg.points.clear();
+  _submapMarkerMsg.header.stamp = resultTimestamp;
+  //
+
   auto t1 = std::chrono::high_resolution_clock::now();
   nav_msgs::Path pathMsg;
   pcl::PointCloud<pcl::PointXYZ>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -553,10 +597,50 @@ void MaplabIntegrator::updateGraphResults() {
         ++cloud_count;
       }
     }
+
+    //Create Constraint Markers
+    if (_pubConstraintMarkers.getNumSubscribers() > 0) {
+      //Anchors - Check if current key has anchor attached
+      auto anchor_itr = _keyAnchorPoseMap.find(i);
+      if (anchor_itr != _keyAnchorPoseMap.end()) {
+        geometry_msgs::Point p;
+        p.x = anchor_itr->second.translation().x();
+        p.y = anchor_itr->second.translation().y();
+        p.z = anchor_itr->second.translation().z();
+        _anchorMarkerMsg.points.push_back(p);
+      }
+
+      //Submaps - Check if current key is a parent node for a submap constraint
+      auto parent_itr = _submapParentChildKeyMap.find(i);
+      if (parent_itr != _submapParentChildKeyMap.end()) {
+        //Get parent pose
+        gtsam::Pose3 parent_pose = result.at<gtsam::Pose3>(X(i));
+        geometry_msgs::Point parent_pt;
+        parent_pt.x = parent_pose.translation().x();
+        parent_pt.y = parent_pose.translation().y();
+        parent_pt.z = parent_pose.translation().z();
+        //Loop through children
+        for (const auto& childKey : parent_itr->second) {
+          //Get Child pose
+          gtsam::Pose3 child_pose = result.at<gtsam::Pose3>(X(childKey));
+          geometry_msgs::Point child_pt;
+          child_pt.x = child_pose.translation().x();
+          child_pt.y = child_pose.translation().y();
+          child_pt.z = child_pose.translation().z();
+          //Add parent and child points to marker msg
+          _submapMarkerMsg.points.push_back(parent_pt);
+          _submapMarkerMsg.points.push_back(child_pt);
+        }
+      }
+    }
   }
-  pathMsg.header.frame_id = _world_frame;
-  pathMsg.header.stamp = resultTimestamp;
-  _pubUpdatedPath.publish(pathMsg);
+
+  //Publish Path
+  if (_pubUpdatedPath.getNumSubscribers() > 0) {
+    pathMsg.header.frame_id = _world_frame;
+    pathMsg.header.stamp = resultTimestamp;
+    _pubUpdatedPath.publish(pathMsg);
+  }
 
   //Publish Map
   if (_pubMap.getNumSubscribers() > 0) {
@@ -571,6 +655,16 @@ void MaplabIntegrator::updateGraphResults() {
     rosCloud.header.frame_id = _world_frame;
     rosCloud.header.stamp = resultTimestamp;
     _pubMap.publish(rosCloud);
+  }
+
+  //Publish Constraint Markers
+  if (_pubConstraintMarkers.getNumSubscribers() > 0) {
+    ROS_INFO_STREAM("\033[36m Anchor Markers: \033[0m" << _anchorMarkerMsg.points.size() << 
+                    "\033[33m Absolute Markers: \033[0m" << _absoluteMarkerMsg.points.size() <<
+                    "\033[34m Submap Markers: \033[0m" << _submapMarkerMsg.points.size()/2);
+    _pubConstraintMarkers.publish(_anchorMarkerMsg);
+    _pubConstraintMarkers.publish(_absoluteMarkerMsg);
+    _pubConstraintMarkers.publish(_submapMarkerMsg);
   }
 
   //Update last optimzed pose
@@ -671,6 +765,8 @@ void MaplabIntegrator::updateKeySubmapFactorIdxMap(const gtsam::Key parent_key, 
   _keySubmapFactorIdxMap[parent_key].emplace(factor_idx);
   _keySubmapFactorIdxMap[child_key].emplace(factor_idx);
 
+  //
+  _submapParentChildKeyMap[parent_key].emplace(child_key);
   //DEBUG
   // std::cout << "\033[34mSUBMAP\033[0m NEW Factor added at Index: " << factor_idx << ", between keys: " << parent_key << "/" << child_key << std::endl;
 }
