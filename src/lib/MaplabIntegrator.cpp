@@ -76,8 +76,8 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _subOdom.subscribe(node, "odometry", 10);
   _subOdomStatus.subscribe(node, "odometry_status", 10);
   _subCloud.subscribe(node, "pointcloud", 10);
-  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subOdomStatus, _subCloud));
-  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2, _3));
+  _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, /*_subOdomStatus,*/ _subCloud));
+  _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2/*, _3*/));
 
   //Subscribers
   _subAbsolutePose = node.subscribe<geometry_msgs::PoseWithCovarianceStamped>("absolute_constraints", 100, &MaplabIntegrator::absolutePoseCallback, this);
@@ -151,10 +151,10 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
 }
 
 void MaplabIntegrator::syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr,
-                                           const OptStatusConstPtr& odomStatusPtr,
+                                           //const OptStatusConstPtr& odomStatusPtr,
                                            const sensor_msgs::PointCloud2ConstPtr& cloudPtr) {
   //Set odometry status, add odometry factor and check if pointcloud needs to be stored
-  _isOdomDegenerate = odomStatusPtr->degenerate;
+  //_isOdomDegenerate = odomStatusPtr->degenerate;
   int key = lidarOdomCallback(odomPtr);
   cloudCallback(key, cloudPtr);
 }
@@ -347,6 +347,13 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   _absoluteMarkerMsg.points.push_back(mPt);
 
   //DEBUG
+  //Visualization markers
+  geometry_msgs::Point mPt;
+  mPt.x = T_G_B.translation().x();
+  mPt.y = T_G_B.translation().y();
+  mPt.z = T_G_B.translation().z();
+  _absoluteMarkerMsg.points.push_back(mPt);
+
   if (_verbose > 0) {
     ROS_INFO_STREAM("\033[33mABSOLUTE\033[0m"
                     << ", T_G_M t(m):" << _T_G_M.translation().transpose()

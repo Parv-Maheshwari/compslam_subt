@@ -53,7 +53,7 @@ class MaplabIntegrator {
 
  private:
   //Callbacks
-  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr, const OptStatusConstPtr& odomStatusPtr, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
+  void syncCallbackHandler(const nav_msgs::OdometryConstPtr& odomPtr, /*const OptStatusConstPtr& odomStatusPtr,*/ const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   int lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odomPtr);
   void cloudCallback(int key, const sensor_msgs::PointCloud2ConstPtr& cloudPtr);
   void absolutePoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& posePtr);
@@ -102,7 +102,7 @@ class MaplabIntegrator {
   message_filters::Subscriber<nav_msgs::Odometry> _subOdom;                                                                //Odometry subscriber for odometry constraints
   message_filters::Subscriber<OptStatus> _subOdomStatus;                                                                   //Odometry status subscriber for marking variables at which odometry is degenerate
   message_filters::Subscriber<sensor_msgs::PointCloud2> _subCloud;                                                         //Pointcloud subscriber for saving clouds for building a map
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, OptStatus, sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, /*OptStatus,*/ sensor_msgs::PointCloud2> _syncPolicy;  // ROS Sync Policy Object
   boost::shared_ptr<message_filters::Synchronizer<_syncPolicy>> _syncPtr;                                                  // ROS  Sync Policy Message Filter
 
   //Publishers
