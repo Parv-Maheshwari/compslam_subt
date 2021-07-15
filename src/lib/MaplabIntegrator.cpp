@@ -338,7 +338,7 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
 
   }
   auto t2 = std::chrono::high_resolution_clock::now();
-  
+
   //Visualization markers
   geometry_msgs::Point mPt;
   mPt.x = T_G_B.translation().x();
@@ -347,13 +347,6 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
   _absoluteMarkerMsg.points.push_back(mPt);
 
   //DEBUG
-  //Visualization markers
-  geometry_msgs::Point mPt;
-  mPt.x = T_G_B.translation().x();
-  mPt.y = T_G_B.translation().y();
-  mPt.z = T_G_B.translation().z();
-  _absoluteMarkerMsg.points.push_back(mPt);
-
   if (_verbose > 0) {
     ROS_INFO_STREAM("\033[33mABSOLUTE\033[0m"
                     << ", T_G_M t(m):" << _T_G_M.translation().transpose()
