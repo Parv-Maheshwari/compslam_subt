@@ -21,6 +21,8 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
+#include "visualization_msgs/Marker.h"
+#include "visualization_msgs/MarkerArray.h"
 
 //PCL
 #include <pcl/common/transforms.h>
@@ -153,10 +155,11 @@ class MaplabIntegrator {
   bool _firstAbsolutePose = true;
 
   //Lookup map objects for key-to-factorIndex associations
-  std::map<double, gtsam::Key> _timestampKeyMap;                            //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
-  std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;                      //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
-  std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;           //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
-  std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;  //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
+  std::map<double, gtsam::Key> _timestampKeyMap;                                  //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
+  std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;                            //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
+  std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;                 //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
+  std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;        //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
+  std::unordered_map<gtsam::Key, std::set<gtsam::Key>> _submapParentChildKeyMap;  //Parent-Child keys for visualization of relative submap constrinats
 
   //Timer-based map/result update and publish
   double _updateResultsInterval = 5.0;  //Interval (seconds) for graph update callback
@@ -169,7 +172,15 @@ class MaplabIntegrator {
   std::unordered_map<gtsam::Key, pcl::PointCloud<pcl::PointXYZ>::Ptr> _keyCloudMap;  //Key-Cloud map for lookup of pointclouds at keys to build map
 
   //Debug
-  int _verbose = 0;
+  int _verbose = 0;                                           //Verbosity level of MaplabIntegrator (0:quiet)
+  ros::Publisher _pubConstraintMarkers;                       //Constraint marker publisher
+  visualization_msgs::Marker _absoluteMarkerMsg;              //Absolute contraint marker messages
+  visualization_msgs::Marker _anchorMarkerMsg;                //Anchor(Unary) contraint marker messages
+  visualization_msgs::Marker _submapMarkerMsg;                //Submap(Relative) contraint marker messages
+  visualization_msgs::Marker _submapParentMarkerMsg;          //Submap-Parent node contraint marker messages
+  ros::Publisher _pubConstraintTextMarkers;                   //Constraint text marker publisher
+  visualization_msgs::Marker _submapTextMarkerMsg;            //Constraint text marker message
+  visualization_msgs::MarkerArray _submapTextMarkerArrayMsg;  //Constraint text marker message array
 };
 
 }  // namespace loam
