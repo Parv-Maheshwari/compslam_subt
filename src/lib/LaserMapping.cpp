@@ -361,12 +361,6 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserMapping - Full Map Published at: " << (1.0 / (scanPeriod() * float(ioRatio) * float(_mapPublishRateDivider))) << " Hz");
   }
 
-  //Range of point in current cloud to be allowed to be search within the submap
-  if (privateNode.getParam("submapSearchCloudRange", fParam)) {
-    setSqRangeofSubmapSearchCloud(fParam);
-    ROS_INFO_STREAM("LaserMapping - Range of current pointcloud for search in submap: " << fParam);
-  }
-
   //Verbose Ouput
   iParam = 0;
   if (privateNode.getParam("loamVerbosity", iParam)) {

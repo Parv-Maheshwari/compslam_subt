@@ -42,8 +42,6 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
-#include "loam/nanoflann_pcl.h"
-
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
 #include <nav_msgs/Odometry.h>
@@ -52,8 +50,6 @@
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
 #include <fstream>
-#include <thread>
-#include <unordered_map>
 #include <unordered_set>
 //CUSTOMIZATION
 
@@ -201,7 +197,6 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  void setSqRangeofSubmapSearchCloud(const float f) { _submapSearchCloudSqRange = f * f; }
   loam::OptStatus _optStatusMsg;
 
   //DEBUG
@@ -219,14 +214,6 @@ class BasicLaserMapping {
   void pointAssociateTobeMapped(const pcl::PointXYZI& pi, pcl::PointXYZI& po);
 
   size_t toIndex(int i, int j, int k) const { return i + _laserCloudWidth * j + _laserCloudWidth * _laserCloudHeight * k; }
-
-  // CUSTOMIZATION
-  size_t getPointCubeIdx(const pcl::PointXYZI& pt);    //Get Cube Index of Map point
-  void buildCornerKDTrees();                           //Build KDtree tree for corner point search
-  void buildSurfKDTrees();                             //Build KDtree tree for surface point search
-  void searchCornerPts(int numCornerPts);              //Search Corner points in KDTrees
-  void searchSurfPts(int numSurfPts);                  //Search Surface points in KDTrees
-  void savePointMapCubeIdx(const pcl::PointXYZI& pt);  //Convert cloud point into Map and calculate Map cube index
 
   //Members
   Time _laserOdometryTime;
@@ -266,21 +253,19 @@ class BasicLaserMapping {
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurround;
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurroundDS;  ///< down sampled
+  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudCornerFromMap;
+  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurfFromMap;
 
-  pcl::PointCloud<pcl::PointXYZI> _laserCloudOri, _coeffSel;              //Selected surface points and coefficients
-  pcl::PointCloud<pcl::PointXYZI> _laserCloudOriCorner, _coeffSelCorner;  //Selected corner points and coefficients
+  pcl::PointCloud<pcl::PointXYZI> _laserCloudOri;
+  pcl::PointCloud<pcl::PointXYZI> _coeffSel;
 
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudCornerArray;
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudSurfArray;
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudCornerDSArray;  ///< down sampled
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> _laserCloudSurfDSArray;    ///< down sampled
 
-  std::unordered_set<size_t> _submapCubeIdx;      //Indices of Map cubes within FoV of _submapSearchCloud to build submap for search
-  std::unordered_set<size_t> _updatedMapCubeIdx;  //Indices of Map cubes updated with with full current cloud
-
-  typedef nanoflann::KdTreeFLANN<pcl::PointXYZI> _kdTreeType;               //PCL KDTree type
-  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _cornerKDTrees;  //Per-cube Corner submap KDTree data structure
-  std::unordered_map<size_t, std::unique_ptr<_kdTreeType>> _surfKDTrees;    //Per-cube Surface submap KDTree data structure
+  std::vector<size_t> _laserCloudValidInd;
+  std::vector<size_t> _laserCloudSurroundInd;
 
   Twist _transformSum, _transformIncre, _transformTobeMapped, _transformBefMapped, _transformAftMapped;
   CircularBuffer<IMUState2> _imuHistory;  ///< history of IMU states
@@ -291,12 +276,11 @@ class BasicLaserMapping {
   bool _downsizedMapCreated = false;
 
   //CUSTOMIZATION
-  std::ofstream _mappingLogFile;                    // logging file for debugging
-  float _mapDegenEigVal;                            // optimization degeneracy checking eigen value threshold
-  double _mapPriorNormThresh;                       // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
-  bool _isLaserOdometryDegenerate = false;          // flag to check if laser odometry is degenrate
-  ros::Time _currentPCLTime, _lastPCLTime;          // timestamps of last and current pointclouds
-  float _submapSearchCloudSqRange = 35.0f * 35.0f;  // squared-range of points in current cloud to be allowed to be searched with the submap
+  std::ofstream _mappingLogFile;            // logging file for debugging
+  float _mapDegenEigVal;                    // optimization degeneracy checking eigen value threshold
+  double _mapPriorNormThresh;               // external odometry prior norm threshold(e.g. allowed max velocity is 1m/s so at 5Hz of LaserMapping max distance can be 0.2m (0.25m with some tolerance))
+  bool _isLaserOdometryDegenerate = false;  // flag to check if laser odometry is degenrate
+  ros::Time _currentPCLTime, _lastPCLTime;  // timestamps of last and current pointclouds
 
   //Submap Co-Localization
   pcl::PointCloud<pcl::PointXYZI>::Ptr _savedCornerSubmap, _savedSurfSubmap;
