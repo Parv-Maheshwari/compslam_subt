@@ -73,9 +73,9 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   ROS_INFO_STREAM("MaplabIntegrator - Full Graph Result Updated Every: " << _updateResultsInterval << " seconds");
 
   //Synced subscriber
-  _subOdom.subscribe(node, "odometry", 10);
-  _subOdomStatus.subscribe(node, "odometry_status", 10);
-  _subCloud.subscribe(node, "pointcloud", 10);
+  _subOdom.subscribe(node, "odometry", 100);
+  _subOdomStatus.subscribe(node, "odometry_status", 100);
+  _subCloud.subscribe(node, "pointcloud", 100);
   _syncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(100), _subOdom, _subOdomStatus, _subCloud));
   _syncPtr->registerCallback(boost::bind(&MaplabIntegrator::syncCallbackHandler, this, _1, _2, _3));
 
@@ -483,7 +483,7 @@ void MaplabIntegrator::maplabSubmapCallback(const nav_msgs::Path::ConstPtr& path
           _newFactors.resize(0);
           incFactorCount();
           updateKeySubmapFactorIdxMap(parent_key, child_key);
-          if (_verbose) ROS_INFO_STREAM("\033[34mSUBMAP\033[0m - Added: P(" << parent_key << ")-C(" << child_key << "), delta_t(x,y,z):" << T_B1B2.translation().transpose());
+          if (_verbose) ROS_INFO_STREAM("\033[34mSUBMAP\033[0m - " << (rmIdx == -1 ? "Added" : "Replaced") << ": P(" << parent_key << ")-C(" << child_key << "), delta_t(x,y,z):" << T_B1B2.translation().transpose());
         } else
           continue;
       }
@@ -709,7 +709,7 @@ void MaplabIntegrator::updateGraphResults() {
 
   //DEBUG
   auto t2 = std::chrono::high_resolution_clock::now();
-  if (_verbose) ROS_INFO_STREAM("\033[36mGRAPH UPDATE\033[0m - time((ms):" << t_update << ", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+  if (_verbose) ROS_INFO_STREAM("\033[36mGRAPH UPDATE\033[0m - time(ms):" << t_update << ", Map Build(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   //DEBUG
 }
 
