@@ -122,6 +122,16 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     }
   }
 
+  if (privateNode.getParam("mapVisFilterSize", fParam)) {
+    if (fParam < 0.001) {
+      ROS_ERROR("Invalid mapVisFilterSize parameter: %f (expected >= 0.001)", fParam);
+      return false;
+    } else {
+      downSizeFilterMapVis().setLeafSize(fParam, fParam, fParam);
+      ROS_INFO("Set map visualization down size filter leaf size: %g", fParam);
+    }
+  }
+
   //CUSTOMIZATION
   //Set LOAM internal Map Cube Size
   if (privateNode.getParam("mapCubeSize", dParam)) {
