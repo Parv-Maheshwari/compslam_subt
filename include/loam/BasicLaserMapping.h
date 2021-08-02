@@ -106,6 +106,7 @@ class BasicLaserMapping {
 
   auto& downSizeFilterCorner() { return _downSizeFilterCorner; }
   auto& downSizeFilterSurf() { return _downSizeFilterSurf; }
+  auto& downSizeFilterMapVis() { return _downSizeFilterMapVis; }
 
   auto frameCount() const { return _frameCount; }
   auto scanPeriod() const { return _scanPeriod; }
@@ -272,6 +273,7 @@ class BasicLaserMapping {
 
   pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterCorner;  ///< voxel filter for down sizing corner clouds
   pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterSurf;    ///< voxel filter for down sizing surface clouds
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterMapVis;  ///< voxel filter for down sizing map clouds for visualization
 
   bool _downsizedMapCreated = false;
 
