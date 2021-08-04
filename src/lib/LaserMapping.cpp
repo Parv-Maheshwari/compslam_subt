@@ -327,6 +327,15 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     setFallbackExternalPriorStatus(false);
   }
 
+  //Set if external frame should be used for gravity rotation alignment
+  if (privateNode.getParam("useExtRotationAlignment", bParam)) {
+    if (bParam) {
+      ROS_INFO_STREAM("LaserMapping - Using External Odometry for Gravity Alignment Fix");
+      useExtRotationAlignment(bParam);
+    } else
+      ROS_INFO_STREAM("LaserMapping - External Odometry for Gravity Alignment Fix - DISABLED");
+  }
+
   //Set input PCL rotation w.r.t LiDAR frame
   if (privateNode.getParam("rotateInputCloud", bParam)) {
     setInputPCLRotationStatus(bParam);
