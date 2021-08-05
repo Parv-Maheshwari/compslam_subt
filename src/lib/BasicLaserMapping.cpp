@@ -287,12 +287,13 @@ void BasicLaserMapping::transformAssociateToMap() {
 
       //Apply rotation fix to LiDAR-to-Map rotation
       gtsam::Rot3 r_ML_aligned = r_ML_fix * T_ML.rotation();
-
-      std::cout << "Gravity dir BEFORE alignment: " << M_gravDir.transpose() << std::endl;
-      std::cout << "Gravity dir AFTER alignment: " << r_ML_aligned.rotate(T_LO.rotation().rotate(gtsam::Vector3::UnitZ())).normalized().transpose() << std::endl;
-      //  T_MR_gAligned.getRotation().rotate(T_RO.getRotation().rotate(O_gravDir)).normalized().transpose());
-      std::cout << "\033[32mMAPPING\033[0m - RPY(deg) Fix - before: " << _transformTobeMapped.rot_z.deg() << "," << _transformTobeMapped.rot_x.deg() << "," << _transformTobeMapped.rot_y.deg()
-                << ", after: " << r_ML_aligned.rpy().transpose() * 180.0 / M_PI << std::endl;
+      
+      //DEUBG
+      // std::cout << "Gravity vector alignment - before: " << M_gravDir.transpose()
+      //           << ", after: " << r_ML_aligned.rotate(T_LO.rotation().rotate(gtsam::Vector3::UnitZ())).normalized().transpose() << std::endl;
+      // std::cout << "Gravity alignment RPY(deg) - before: " << _transformTobeMapped.rot_z.deg() << "," << _transformTobeMapped.rot_x.deg() << "," << _transformTobeMapped.rot_y.deg()
+      //           << ", after: " << r_ML_aligned.rpy().transpose() * 180.0 / M_PI << std::endl;
+      //DEUBG
 
       //Overwrite
       _transformTobeMapped.rot_x = Angle(r_ML_aligned.pitch());
