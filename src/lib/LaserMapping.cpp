@@ -330,10 +330,10 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Set if external frame should be used for gravity rotation alignment
   if (privateNode.getParam("useExtRotationAlignment", bParam)) {
     if (bParam) {
-      ROS_INFO_STREAM("LaserMapping - Using External Odometry for Gravity Alignment Fix");
+      ROS_WARN_STREAM("LaserMapping - Using External Fixed Frame to Fix Map Frame Gravity Alignment");
       useExtRotationAlignment(bParam);
     } else
-      ROS_INFO_STREAM("LaserMapping - External Odometry for Gravity Alignment Fix - DISABLED");
+      ROS_INFO_STREAM("LaserMapping - External Fixed Frame for Gravity Alignment - DISABLED");
   }
 
   //Set input PCL rotation w.r.t LiDAR frame
