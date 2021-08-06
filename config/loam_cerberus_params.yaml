@@ -64,6 +64,7 @@ useSavedSubmapsForInitialization: false  #Use saved submap on disc for initializ
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
 forcePathPublishing: true                #Force ROS path message publishing for mapping odometry
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider),  default: 20(0.25 Hz)
+useExtRotationAlignment: true            #Use external fixed & map frame to detemine gravity misalignment, default: true
 
 #Factor Graph
 imuFrame: imu_link                       #Frame of IMU used in integrator - Used for lookup transform with lidarFrame 

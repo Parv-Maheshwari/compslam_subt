@@ -51,6 +51,7 @@
 #include <tf/transform_listener.h>
 #include <fstream>
 #include <unordered_set>
+#include <gtsam/geometry/Pose3.h>
 //CUSTOMIZATION
 
 namespace loam {
@@ -103,6 +104,7 @@ class BasicLaserMapping {
   void setMinIterations(size_t val) { _minIterations = val; }
   void setDeltaTAbort(float val) { _deltaTAbort = val; }
   void setDeltaRAbort(float val) { _deltaRAbort = val; }
+  void useExtRotationAlignment(bool b) { _useExtRotationAlignment = b; }
 
   auto& downSizeFilterCorner() { return _downSizeFilterCorner; }
   auto& downSizeFilterSurf() { return _downSizeFilterSurf; }
@@ -305,6 +307,7 @@ class BasicLaserMapping {
   std::string _fallbackExtSensorFrame = "";       // Fallback External Prior sensor frame name
   double _fallbackExtOdomTimeOffset = 0.0;        // Timeoffset between LiDAR pointcloud and Fallbackexternal source
   std::string _lidarFrame = "";                   // LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
+  bool _useExtRotationAlignment = false;          // Use external frame for gravity alignment (use a prior)
   Twist _externalEstimate;                        // Calcualted External Estimate
   bool _forceExternalPriorUseForMapping = false;  // Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
   bool _isInputPCLRotated = false;

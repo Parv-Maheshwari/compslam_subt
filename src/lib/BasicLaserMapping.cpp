@@ -255,6 +255,52 @@ void BasicLaserMapping::transformAssociateToMap() {
       _transformTobeMapped.rot_z = Angle(_externalEstimate.rot_z.rad());
     }
 
+    //Use external frame for gravity alignment - Use as Prior
+    if (_useExtRotationAlignment) {
+      //Get Odom pose in LiDAR
+      tf::StampedTransform tf_LO;
+      static ros::Duration time_offset(_extOdomTimeOffset);
+      ros::Time currPCL_ts = _currentPCLTime + time_offset;
+      _tfListener.lookupTransform(_lidarFrame, _extFixedFrame, currPCL_ts, tf_LO);
+      Eigen::Vector3d t_LO(tf_LO.getOrigin().x(), tf_LO.getOrigin().y(), tf_LO.getOrigin().z());
+      Eigen::Quaterniond q_LO(tf_LO.getRotation().w(), tf_LO.getRotation().x(), tf_LO.getRotation().y(), tf_LO.getRotation().z());
+      q_LO.normalize();
+      gtsam::Pose3 T_LO = gtsam::Pose3(gtsam::Rot3(q_LO.toRotationMatrix()), t_LO);
+
+      //Get Robot in Map
+      Eigen::Vector3d t_ML(_transformTobeMapped.pos.z(), _transformTobeMapped.pos.x(), _transformTobeMapped.pos.y());
+      Eigen::Quaterniond q_ML;
+      q_ML = Eigen::AngleAxisd(_transformTobeMapped.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
+             Eigen::AngleAxisd(_transformTobeMapped.rot_x.rad(), Eigen::Vector3d::UnitY()) *
+             Eigen::AngleAxisd(_transformTobeMapped.rot_z.rad(), Eigen::Vector3d::UnitX());
+      q_ML.normalize();
+      gtsam::Pose3 T_ML = gtsam::Pose3(gtsam::Rot3(q_ML.toRotationMatrix()), t_ML);
+
+      //Get transformation of Odometry frame in Map frame (capture relative drift)
+      gtsam::Pose3 T_MO = T_ML * T_LO;
+
+      //Estimate gravity vector in Map frame (Z-up)
+      gtsam::Vector3 M_gravDir = T_MO.rotation().rotate(gtsam::Vector3::UnitZ()).normalized();
+
+      //Estimate relative rotation between gravity vectors in Map and Odom frame(assumed to be perfectly aligned with gravity)
+      gtsam::Rot3 r_ML_fix = gtsam::Rot3(gtsam::Quaternion().setFromTwoVectors(M_gravDir, gtsam::Vector3::UnitZ()).normalized());
+
+      //Apply rotation fix to LiDAR-to-Map rotation
+      gtsam::Rot3 r_ML_aligned = r_ML_fix * T_ML.rotation();
+      
+      //DEUBG
+      // std::cout << "Gravity vector alignment - before: " << M_gravDir.transpose()
+      //           << ", after: " << r_ML_aligned.rotate(T_LO.rotation().rotate(gtsam::Vector3::UnitZ())).normalized().transpose() << std::endl;
+      // std::cout << "Gravity alignment RPY(deg) - before: " << _transformTobeMapped.rot_z.deg() << "," << _transformTobeMapped.rot_x.deg() << "," << _transformTobeMapped.rot_y.deg()
+      //           << ", after: " << r_ML_aligned.rpy().transpose() * 180.0 / M_PI << std::endl;
+      //DEUBG
+
+      //Overwrite
+      _transformTobeMapped.rot_x = Angle(r_ML_aligned.pitch());
+      _transformTobeMapped.rot_y = Angle(r_ML_aligned.yaw());
+      _transformTobeMapped.rot_z = Angle(r_ML_aligned.roll());
+    }
+
     //DEBUG
     if (_verboseLevel > 1)
       std::cout << "\033[32mMAPPING\033[0m EXT PRIOR (x,y,z): [" << _externalEstimate.pos.z() << " " << _externalEstimate.pos.x() << " " << _externalEstimate.pos.y()
