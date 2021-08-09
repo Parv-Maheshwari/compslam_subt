@@ -315,6 +315,10 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     _graphMgr.setGyroNoiseDensity(dParam);
   if (privateNode.getParam("gyrBiasRandomWalk", dParam))
     _graphMgr.setGyrBiasRandomWalk(dParam);
+  if (privateNode.getParam("imuIntegrationCovariance", dParam))
+    _graphMgr.setImuIntegrationCovariance(dParam);
+  if (privateNode.getParam("imuBiasAccOmegaInt", dParam))
+    _graphMgr.setImuBiasAccOmegaInt(dParam);
   if (privateNode.getParam("accBiasPrior", dvParam))
     _graphMgr.setAccBiasPrior(dvParam);
   if (privateNode.getParam("gyrBiasPrior", dvParam))
