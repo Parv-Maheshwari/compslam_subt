@@ -194,15 +194,16 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
       _firstOdomMsg = false;
     } else {
       //Update keys
-      auto old_key = _timestampKeyMap.rbegin()->second;
+      auto old_key = stateKey();
       new_key = newStateKey();
       //Calculate new IMU pose estimate in G
       gtsam::Pose3 T_G_B = _T_G_B_inc * T_B1_B2;
       //Add delta and estimate as between factor
       addPoseBetweenFactor(old_key, new_key, T_B1_B2, T_G_B);
     }
-    //Update Timestamp-Key Map
+    //Update Timestamp-Key & Key-Timestamp Map
     _timestampKeyMap[ts] = new_key;
+    _keyTimestampMap[new_key] = ts;
     //Get updated result
     _T_G_B_inc = _graph->calculateEstimate<gtsam::Pose3>(X(new_key));
   }
@@ -241,10 +242,10 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 
   // DEBUG
   if (_verbose > 0) {
-    ROS_INFO_STREAM_THROTTLE(1.0, "\033[35mODOMETRY\033[0m" << ", ts: " << odomPtr->header.stamp
-                                      << ", key: " << new_key
-                                      << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
-                                      << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+    ROS_INFO_STREAM_COND(new_key % 10 == 0, "\033[35mODOMETRY\033[0m ts: " << odomPtr->header.stamp
+                                                                           << ", key: " << new_key
+                                                                           << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
+                                                                           << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
   // DEBUG
 

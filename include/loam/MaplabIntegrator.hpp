@@ -155,8 +155,9 @@ class MaplabIntegrator {
   bool _firstAbsolutePose = true;
 
   //Lookup map objects for key-to-factorIndex associations
-  std::map<double, gtsam::Key> _timestampKeyMap;                                  //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
-  std::map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;                            //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
+  std::unordered_map<double, gtsam::Key> _timestampKeyMap;                        //Timestamp-Key map for lookup of keys corresponding to odometry timestamps
+  std::unordered_map<gtsam::Key, double> _keyTimestampMap;                        //Key-Timestamp map used for publishing graph node timestamps for path message publishing
+  std::unordered_map<gtsam::Key, size_t> _keyAnchorFactorIdxMap;                  //Key-PriorFactorIndex map for lookup of indices of prior factor add at key for Anchor poses
   std::unordered_map<gtsam::Key, gtsam::Pose3> _keyAnchorPoseMap;                 //Key-AnchorPose map for lookup of applied anchor pose as prior factor at Key
   std::unordered_map<gtsam::Key, std::set<size_t>> _keySubmapFactorIdxMap;        //Key-SubmapBetweenFactorIndex map for lookup of indices of betweenfactor added at key for Submap constraints
   std::unordered_map<gtsam::Key, std::set<gtsam::Key>> _submapParentChildKeyMap;  //Parent-Child keys for visualization of relative submap constrinats
