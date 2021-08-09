@@ -62,6 +62,8 @@ class GraphManager {
   void setAccBiasRandomWalk(double val) { _accBiasRandomWalk = val; }
   void setGyroNoiseDensity(double val) { _gyrNoiseDensity = val; }
   void setGyrBiasRandomWalk(double val) { _gyrBiasRandomWalk = val; }
+  void setImuIntegrationCovariance(double val) {_integrationCovariance = val;}
+  void setImuBiasAccOmegaInt(double val) {_biasAccOmegaInt = val;}
   void setAccBiasPrior(const std::vector<double>& v) { _accBiasPrior << v[0], v[1], v[2]; }
   void setGyrBiasPrior(const std::vector<double>& v) { _gyrBiasPrior << v[0], v[1], v[2]; }
   auto& setInitGyrBias() { return _gyrBiasPrior; }
@@ -95,6 +97,8 @@ class GraphManager {
   double _accBiasRandomWalk;                     // continuous-time "Covariance" describing accelerometer bias random walk
   double _gyrNoiseDensity;                       // continuous-time "Covariance" of gyroscope measurements
   double _gyrBiasRandomWalk;                     // continuous-time "Covariance" describing gyroscope bias random walk
+  double _integrationCovariance;                 // continuous-time "Covariance" describing integration uncertainty
+  double _biasAccOmegaInt;                       // covariance of bias used for pre-integration
   Eigen::Vector3d _accBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of accelerometer bias
   Eigen::Vector3d _gyrBiasPrior{0.0, 0.0, 0.0};  // prior/starting value of gyroscope bias
   //Factor Graph

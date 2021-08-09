@@ -53,7 +53,7 @@ mapDeltaTAbort: 0.05                     #Translation threshold for optimization
 mapDeltaRAbort: 0.05                     #Rotation threshold for optimization convergence, deafult 0.05 (deg)
 cornerFilterSize: 0.2                    #Leaf Size for downsampling current CORNER pointcloud before merging in map, default 0.2 
 surfaceFilterSize: 0.2                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
-mapVisFilterSize: 0.5                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
+mapVisFilterSize: 0.4                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
 mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
 mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
 mapStartLocationInCubes: [50,10,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
@@ -72,10 +72,12 @@ imuRate: 400                             #Rate of IMU input (Hz) used for initia
 imuTimeForInit: 0.5                      #Time interval of IMU measurements used for initialization
 imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
 initGraphRollPicthFromIMU: true          #Initialize graph roll/pitch from IMU  
-accNoiseDensity: 1.3e-04                 #Continuous-time "Covariance" of accelerometer
-accBiasRandomWalk: 1.0e-05               #Continuous-time "Covariance" describing accelerometer bias random walk
-gyrNoiseDensity: 5.398e-06               #Continuous-time "Covariance" of gyroscope measurements
-gyrBiasRandomWalk: 9.33e-06              #Continuous-time "Covariance" describing gyroscope bias random walk
+accNoiseDensity:  7.84e-04               #Continuous-time "Covariance" of accelerometer
+accBiasRandomWalk: 1.0e-04               #Continuous-time "Covariance" describing accelerometer bias random walk (biasAccCovariance)
+gyrNoiseDensity:  3.4906585e-5           #Continuous-time "Covariance" of gyroscope measurements
+gyrBiasRandomWalk: 1.0e-04               #Continuous-time "Covariance" describing gyroscope bias random walk (biasOmegaCovariance)
+imuIntegrationCovariance: 1.0e-08        #Continuous-time "Covariance" describing integration uncertainty
+imuBiasAccOmegaInt: 1.0                  #Covariance of bias used for pre-integration
 accBiasPrior: [0.0, 0.0, 0.0]            #Prior/starting value of accelerometer bias
 gyrBiasPrior: [0.0, 0.0, 0.0]            #Prior/starting value of gyroscope bias
 smootherLag: 3.0                         #Lag of fixed lag smoother[seconds]
