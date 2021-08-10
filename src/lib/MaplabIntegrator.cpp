@@ -85,7 +85,7 @@ bool MaplabIntegrator::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode
   _subMaplabSubmap = node.subscribe<nav_msgs::Path>("submap_constraints", 100, &MaplabIntegrator::maplabSubmapCallback, this);
 
   //Publisher
-  _pubIncrementalPath = node.advertise<nav_msgs::Path>("/incremental_trajectory", 10);
+  _pubIncrementalPath = node.advertise<nav_msgs::Path>("/incremental_path", 10);
   _pubUpdatedPath = node.advertise<nav_msgs::Path>("/optimized_path", 10);
   _pathMsg.poses.reserve(40000);  //1 hour path @ 10Hz ~ 36000
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map_optimized", 10);
@@ -194,15 +194,16 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
       _firstOdomMsg = false;
     } else {
       //Update keys
-      auto old_key = _timestampKeyMap.rbegin()->second;
+      auto old_key = stateKey();
       new_key = newStateKey();
       //Calculate new IMU pose estimate in G
       gtsam::Pose3 T_G_B = _T_G_B_inc * T_B1_B2;
       //Add delta and estimate as between factor
       addPoseBetweenFactor(old_key, new_key, T_B1_B2, T_G_B);
     }
-    //Update Timestamp-Key Map
+    //Update Timestamp-Key & Key-Timestamp Map
     _timestampKeyMap[ts] = new_key;
+    _keyTimestampMap[new_key] = ts;
     //Get updated result
     _T_G_B_inc = _graph->calculateEstimate<gtsam::Pose3>(X(new_key));
   }
@@ -221,11 +222,10 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 
   //Publish Graph path
   //Pose Message
-  static size_t poseMsgCount = 0;
   geometry_msgs::PoseStamped poseMsg;
   poseMsg.header.frame_id = (_isOdomDegenerate ? "degenerate" : "");
   poseMsg.header.stamp = odomPtr->header.stamp;
-  poseMsg.header.seq = ++poseMsgCount;
+  poseMsg.header.seq = new_key;
   createPoseMessage(_T_G_B_inc, &poseMsg);
 
   //Node Message
@@ -241,10 +241,10 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
 
   // DEBUG
   if (_verbose > 0) {
-    ROS_INFO_STREAM_THROTTLE(1.0, "\033[35mODOMETRY\033[0m" << ", ts: " << odomPtr->header.stamp
-                                      << ", key: " << new_key
-                                      << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
-                                      << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+    ROS_INFO_STREAM_COND(new_key % 10 == 0, "\033[35mODOMETRY\033[0m ts: " << odomPtr->header.stamp
+                                                                           << ", key: " << new_key
+                                                                           << ", T_G_B t(m): " << _T_G_B_inc.translation().transpose()
+                                                                           << ", time(ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
   }
   // DEBUG
 
@@ -335,7 +335,6 @@ void MaplabIntegrator::absolutePoseCallback(const geometry_msgs::PoseWithCovaria
 
     //Increment total factor count
     incFactorCount();
-
   }
   auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -557,14 +556,16 @@ void MaplabIntegrator::updateGraphResults() {
 
   //Update results
   gtsam::Values result;
+  std::unordered_map<gtsam::Key, double> keyTimestampMap;
   auto t_0 = std::chrono::high_resolution_clock::now();
   {
     std::lock_guard<std::mutex> lock(_graphMutex);
     result = _graph->calculateBestEstimate();
+    keyTimestampMap = _keyTimestampMap;  //copy cost 36000 elements(10Hz * 1Hr) ~10ms
   }
   auto t_update = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t_0).count();
 
-  //Update result timestamp
+  //Publish result at now() timestamp to account for optmization delay
   ros::Time resultTimestamp = ros::Time::now();
 
   //Clear constraint marker messages
@@ -592,7 +593,8 @@ void MaplabIntegrator::updateGraphResults() {
     // Create pose message.
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = _world_frame;
-    poseMsg.header.stamp = resultTimestamp;
+    poseMsg.header.seq = i;
+    poseMsg.header.stamp = ros::Time(keyTimestampMap[i]);  //Publish each pose at timestamp corresponding to node in the graph (Note: ts=0 in case of map lookup failure)
     createPoseMessage(T_G_B, &poseMsg);
     pathMsg.poses.emplace_back(poseMsg);
 
