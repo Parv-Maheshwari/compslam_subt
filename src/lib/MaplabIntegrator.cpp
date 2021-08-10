@@ -565,8 +565,8 @@ void MaplabIntegrator::updateGraphResults() {
   }
   auto t_update = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - t_0).count();
 
-  //Publish result at timestamp corresponding to last node in graph
-  ros::Time resultTimestamp = ros::Time(keyTimestampMap[result.size() - 1]);
+  //Publish result at now() timestamp to account for optmization delay
+  ros::Time resultTimestamp = ros::Time::now();
 
   //Clear constraint marker messages
   _anchorMarkerMsg.header.stamp = resultTimestamp;
