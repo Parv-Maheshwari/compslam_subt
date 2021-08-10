@@ -231,7 +231,6 @@ int MaplabIntegrator::lidarOdomCallback(const nav_msgs::Odometry::ConstPtr& odom
   //Node Message
   _pathMsg.header.frame_id = _world_frame;
   _pathMsg.header.stamp = poseMsg.header.stamp;
-  _pathMsg.header.seq = poseMsg.header.seq;
   _pathMsg.poses.emplace_back(std::move(poseMsg));
 
   //Publish Path
@@ -595,7 +594,7 @@ void MaplabIntegrator::updateGraphResults() {
     geometry_msgs::PoseStamped poseMsg;
     poseMsg.header.frame_id = _world_frame;
     poseMsg.header.seq = i;
-    poseMsg.header.stamp = ros::Time(keyTimestampMap[i]);  //Publish each pose at timestamp corresponding to node in the graph (Note: ts=0 incase of map lookup failure)
+    poseMsg.header.stamp = ros::Time(keyTimestampMap[i]);  //Publish each pose at timestamp corresponding to node in the graph (Note: ts=0 in case of map lookup failure)
     createPoseMessage(T_G_B, &poseMsg);
     pathMsg.poses.emplace_back(poseMsg);
 
@@ -679,7 +678,6 @@ void MaplabIntegrator::updateGraphResults() {
   if (_pubUpdatedPath.getNumSubscribers() > 0) {
     pathMsg.header.frame_id = _world_frame;
     pathMsg.header.stamp = resultTimestamp;
-    pathMsg.header.seq = static_cast<uint32_t>(result.size());  //Seq same as last node key of graph
     _pubUpdatedPath.publish(pathMsg);
   }
 
