@@ -1119,7 +1119,6 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
   rotPriorXYZ.setZero();
   tf::StampedTransform T_S2S1;  //Relative Transform of S1 w.r.t S2 using fixed frame
   tf::StampedTransform T_LS;    //Transform from external Sensor to LiDAR Frame - Extrinsic Calibration
-  static auto waitTime = ros::Duration(0.195);
   static ros::Duration time_offset(_extOdomTimeOffset);
   static ros::Duration fallback_time_offset(_fallbackExtOdomTimeOffset);
 
@@ -1134,11 +1133,6 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + time_offset;
-      // std::cout << "ExtPriorCompensated _lastPCLTime: " << lastPCL_ts.sec << "," << lastPCL_ts.nsec
-      //           << ", _currentPCLTime: " << currPCL_ts.sec << "," << currPCL_ts.nsec << std::endl;
-      _tfListener.waitForTransform(_extOdomFrame, currPCL_ts,
-                                   _extOdomFrame, lastPCL_ts,
-                                   _extFixedFrame, waitTime);
       _tfListener.lookupTransform(_extOdomFrame, currPCL_ts,
                                   _extOdomFrame, lastPCL_ts,
                                   _extFixedFrame, T_S2S1);
@@ -1153,11 +1147,6 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + fallback_time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + fallback_time_offset;
-      // std::cout << "FallbackPriorCompensated _lastPCLTime: " << lastPCL_ts.sec << "," << lastPCL_ts.nsec
-      //           << ", _currentPCLTime: " << currPCL_ts.sec << "," << currPCL_ts.nsec << std::endl;
-      _tfListener.waitForTransform(_fallbackExtOdomFrame, currPCL_ts,
-                                   _fallbackExtOdomFrame, lastPCL_ts,
-                                   _fallbackExtFixedFrame, waitTime);
       _tfListener.lookupTransform(_fallbackExtOdomFrame, currPCL_ts,
                                   _fallbackExtOdomFrame, lastPCL_ts,
                                   _fallbackExtFixedFrame, T_S2S1);
