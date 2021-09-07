@@ -74,8 +74,6 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _laserCloudSurfStack(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudCornerStackDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurfStackDS(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudSurround(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudSurroundDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudCornerFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurfFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserMap(new pcl::PointCloud<pcl::PointXYZI>()),
@@ -84,6 +82,8 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
   _downSizeFilterMapVis.setLeafSize(0.4, 0.4, 0.4);
+  // cropbox filter 
+  _submapVisCropbox.setFilterLimitsNegative(false);
   //Logging
   // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/KDTreeTimings.csv", std::ios::out);
   // _mappingLogFile << "CornerPts, SurfacePts, TotalPts, cubeKDtree-build(ms), Search\n";
@@ -126,7 +126,8 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
             << "\nTotal MAP Size (WxHxD): " << _laserCloudWidth << "x" << _laserCloudHeight << "x" << _laserCloudDepth << " cube units"
             << "\nRobot Start Position in Map (WxHxD): " << _laserCloudCenWidth << "x" << _laserCloudCenHeight << "x" << _laserCloudCenDepth << " cube units"
             << "\nMap Downsample Leaf Size, Corners: " << _downSizeFilterCorner.getLeafSize().transpose() << ", Surface: " << _downSizeFilterSurf.getLeafSize().transpose()
-            << ", Map: " << _downSizeFilterMapVis.getLeafSize().transpose() << std::endl;
+            << ", Map: " << _downSizeFilterMapVis.getLeafSize().transpose()
+            << "\nSubmap Crop range: " << _submapVisCropRange << std::endl;
 }
 
 void BasicLaserMapping::transformAssociateToMap() {
@@ -338,28 +339,6 @@ void BasicLaserMapping::transformFullResToMap() {
   // transform full resolution input cloud to map
   for (auto& pt : *_laserCloudFullRes)
     pointAssociateToMap(pt, pt);
-}
-
-bool BasicLaserMapping::createDownsizedMap() {
-  // create new map cloud according to the input output ratio
-  _mapFrameCount++;
-  if (_mapFrameCount < _mapFrameNum)
-    return false;
-
-  _mapFrameCount = 0;
-
-  // accumulate map cloud
-  _laserCloudSurround->clear();
-  for (auto ind : _laserCloudSurroundInd) {
-    *_laserCloudSurround += *_laserCloudCornerArray[ind];
-    *_laserCloudSurround += *_laserCloudSurfArray[ind];
-  }
-
-  // down size map cloud
-  _laserCloudSurroundDS->clear();
-  _downSizeFilterCorner.setInputCloud(_laserCloudSurround);
-  _downSizeFilterCorner.filter(*_laserCloudSurroundDS);
-  return true;
 }
 
 bool BasicLaserMapping::process(Time const& laserOdometryTime) {
@@ -1185,20 +1164,60 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
 }
 
 pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserMap() {
+  // auto t_map = std::clock();
   // Accumulate Surface Map
   pcl::PointCloud<pcl::PointXYZI>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZI>());
   for (const auto& idx : _occupiedCubeInd)
     *mapCloud += *_laserCloudSurfArray[idx];
 
   //Downsample map cloud
-  // auto t_map = std::clock();
   _laserMap->clear();
   _downSizeFilterMapVis.setInputCloud(mapCloud);
   _downSizeFilterMapVis.filter(*_laserMap);
-  // auto t_map_ms = static_cast<double>(std::clock() - t_map) / CLOCKS_PER_SEC * 1000.0;
-  // std::cout << "\033[32mMAPPING\033[0m Map visualization points, Org:" << mapCloud->size() << ", Downsampled: " << _laserMap->size() << ", time(ms): " << t_map_ms << std::endl;
+ 
+  // //Debug
+  // std::cout << "\033[32mMAPPING\033[0m Map points, Org:" << mapCloud->size() << ", Downsampled: " << _laserMap->size()
+  //           << ", time(ms): " << static_cast<double>(std::clock() - t_map) / CLOCKS_PER_SEC * 1000.0 << std::endl;
 
   return *_laserMap;
+}
+
+pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserSubmap()
+{
+  // auto t_submap = std::clock();
+  //Accumulate corner and flat submaps
+  pcl::PointCloud<pcl::PointXYZI>::Ptr submapCloud(new pcl::PointCloud<pcl::PointXYZI>());
+  *submapCloud += *_laserCloudCornerFromMap;
+  *submapCloud += *_laserCloudSurfFromMap;
+
+    // Crop box passthrough filter
+  if (_submapVisCropRange != 0.0) {
+    // X-axis
+    _submapVisCropbox.setFilterFieldName("x");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.x() - _submapVisCropRange, _transformAftMapped.pos.x() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+    // Y-axis
+    _submapVisCropbox.setFilterFieldName("y");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.y() - _submapVisCropRange, _transformAftMapped.pos.y() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+    // Z-axis
+    _submapVisCropbox.setFilterFieldName("z");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.z() - _submapVisCropRange, _transformAftMapped.pos.z() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+  }
+
+  //Downsample
+  _downSizeFilterMapVis.setInputCloud(submapCloud);
+  _downSizeFilterMapVis.filter(*submapCloud);
+
+  // //Debug
+  // std::cout << "\033[32mMAPPING\033[0m Submap points: " << submapCloud->size()
+  //           << ", time(ms): " << static_cast<double>(std::clock() - t_submap) / CLOCKS_PER_SEC * 1000.0 << std::endl;
+
+  return *submapCloud;
 }
 
 pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::getSubmapSearchCloud() {
