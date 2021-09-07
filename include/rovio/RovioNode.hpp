@@ -606,10 +606,10 @@ class RovioNode {
     //Covert Color/Gray/16bit images to float
     cv::Mat cv_img;
     if (cv_ptr->encoding == "bgr8") {
-      cv::cvtColor(cv_ptr->image, cv_img, cv::COLOR_GRAY2RGB);
+      cv::cvtColor(cv_ptr->image, cv_img, cv::COLOR_BGR2GRAY);
       cv_img.convertTo(cv_img, CV_32FC1);
     } else if (cv_ptr->encoding == "rgb8") {
-      cv::cvtColor(cv_ptr->image, cv_img, cv::COLOR_GRAY2RGB);
+      cv::cvtColor(cv_ptr->image, cv_img, cv::COLOR_RGB2GRAY);
       cv_img.convertTo(cv_img, CV_32FC1);
     } else {
       cv_ptr->image.convertTo(cv_img, CV_32FC1);  //smk: convert incoming image to floating point value, this can deal with single channel 8 and 16 bit images
