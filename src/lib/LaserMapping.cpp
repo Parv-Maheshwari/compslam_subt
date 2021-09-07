@@ -132,6 +132,18 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     }
   }
 
+  if (privateNode.getParam("submapVisCropRange", fParam)) {
+    if (fParam < 0.0) {
+      ROS_ERROR("Invalid submapVisCropRange parameter: %f (expected >= 0.0)", fParam);
+      return false;
+    } else if (fParam == 0.0)
+      ROS_INFO("Full submap visualized - Cropbox disabled");
+    else {
+      setSubmapVisCropRange(fParam);
+      ROS_INFO("Set submap visualization cropbox range: %g", fParam);
+    }
+  }
+
   //CUSTOMIZATION
   //Set LOAM internal Map Cube Size
   if (privateNode.getParam("mapCubeSize", dParam)) {
@@ -390,7 +402,6 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
 
   // advertise laser mapping topics
-  _pubLaserCloudSurround = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 1);
   _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_registered", 2);
   _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("/aft_mapped_to_init", 5);
 
@@ -425,6 +436,7 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subLaserOdometryStatus = node.subscribe<std_msgs::Header>("/laser_odom_status", 5, &LaserMapping::laserOdometryStatusHandler, this);
   _srvSaveSubmapsToFile = node.advertiseService("/save_submaps_to_file", &LaserMapping::saveSubMapsToFile, this);
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map", 1);
+  _pubSubmap = node.advertise<sensor_msgs::PointCloud2>("/laser_submap", 1);
   _pubSubMapSearchCloud = node.advertise<sensor_msgs::PointCloud2>("/submap_search_cloud", 1);
   //DEBUG
   _pubCurrentCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("/current_corner_submap", 1);
@@ -521,11 +533,6 @@ void LaserMapping::process() {
 }
 
 void LaserMapping::publishResult() {
-  // publish new map cloud according to the input output ratio
-  if (_pubLaserCloudSurround.getNumSubscribers() > 0)
-    if (createDownsizedMap())
-      publishCloudMsg(_pubLaserCloudSurround, laserCloudSurroundDS(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
-
   // publish transformed full resolution input cloud
   if(_pubLaserCloudFullRes.getNumSubscribers() > 0){
     transformFullResToMap();
@@ -641,6 +648,10 @@ void LaserMapping::publishResult() {
     publishCloudMsg(_pubMap, laserMap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   } else
     ++_mapCounter;
+
+  // publish new submap cloud
+  if (_pubSubmap.getNumSubscribers() > 0)
+      publishCloudMsg(_pubSubmap, laserSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
 
   //Publish submap search cloud
   if(_pubSubMapSearchCloud.getNumSubscribers() > 0)

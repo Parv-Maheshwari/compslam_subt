@@ -52,6 +52,7 @@
 #include <fstream>
 #include <unordered_set>
 #include <gtsam/geometry/Pose3.h>
+#include <pcl/filters/passthrough.h>
 //CUSTOMIZATION
 
 namespace loam {
@@ -105,6 +106,7 @@ class BasicLaserMapping {
   void setDeltaTAbort(float val) { _deltaTAbort = val; }
   void setDeltaRAbort(float val) { _deltaRAbort = val; }
   void useExtRotationAlignment(bool b) { _useExtRotationAlignment = b; }
+  void setSubmapVisCropRange(float val) {_submapVisCropRange = val; }
 
   auto& downSizeFilterCorner() { return _downSizeFilterCorner; }
   auto& downSizeFilterSurf() { return _downSizeFilterSurf; }
@@ -119,9 +121,7 @@ class BasicLaserMapping {
 
   auto const& transformAftMapped() const { return _transformAftMapped; }
   auto const& transformBefMapped() const { return _transformBefMapped; }
-  auto const& laserCloudSurroundDS() const { return *_laserCloudSurroundDS; }
 
-  bool createDownsizedMap();
   void transformFullResToMap();
   bool hasFreshMap() const { return _downsizedMapCreated; }
 
@@ -171,6 +171,7 @@ class BasicLaserMapping {
   auto& getCurrentSurfSubmap() { return *_laserCloudSurfArray[_laserCloudNum / 2]; }
 
   pcl::PointCloud<pcl::PointXYZI>& laserMap();
+  pcl::PointCloud<pcl::PointXYZI>& laserSubmap();
   pcl::PointCloud<pcl::PointXYZI>& getSubmapSearchCloud();
 
   // Set internal map parameters
@@ -254,8 +255,6 @@ class BasicLaserMapping {
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudCornerStackDS;  ///< down sampled
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurfStackDS;    ///< down sampled
 
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurround;
-  pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurroundDS;  ///< down sampled
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudCornerFromMap;
   pcl::PointCloud<pcl::PointXYZI>::Ptr _laserCloudSurfFromMap;
 
@@ -276,6 +275,9 @@ class BasicLaserMapping {
   pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterCorner;  ///< voxel filter for down sizing corner clouds
   pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterSurf;    ///< voxel filter for down sizing surface clouds
   pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterMapVis;  ///< voxel filter for down sizing map clouds for visualization
+
+  pcl::PassThrough<pcl::PointXYZI> _submapVisCropbox;    // Passthrough/Cropbox filter for visualization of submap
+  float _submapVisCropRange = 0.0;                       // Range of cropping for submap visualization (set 0 to disable)
 
   bool _downsizedMapCreated = false;
 

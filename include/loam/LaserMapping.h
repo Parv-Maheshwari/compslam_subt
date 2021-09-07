@@ -134,7 +134,6 @@ class LaserMapping : public BasicLaserMapping {
 
   tf::StampedTransform _aftMappedTrans;  ///< mapping odometry transformation
 
-  ros::Publisher _pubLaserCloudSurround;    ///< map cloud message publisher
   ros::Publisher _pubLaserCloudFullRes;     ///< current full resolution cloud message publisher
   ros::Publisher _pubOdomAftMapped;         ///< mapping odometry publisher
   tf::TransformBroadcaster _tfBroadcaster;  ///< mapping odometry transform broadcaster
@@ -171,6 +170,7 @@ class LaserMapping : public BasicLaserMapping {
   ros::Publisher _pubMap;                                         // ROS publisher for Full map
   int _mapPublishRateDivider = 20;                                // Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider)
   int _mapCounter = 0;                                            // Counter for full map publishing
+  ros::Publisher _pubSubmap;                                      // ROS publisher for current local submap around robot, used for scan-to-submap alignment - Cropped & Downsampled
   ros::Publisher _pubSubMapSearchCloud;                           // ROS publisher for current cloud to be searched in the submap
   //CUSTOMIZATION
 };
