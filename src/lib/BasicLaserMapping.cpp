@@ -82,6 +82,7 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
   _downSizeFilterMapVis.setLeafSize(0.4, 0.4, 0.4);
+  _rndSampleFilterMapVis.setSample(100000);
   // cropbox filter 
   _submapVisCropbox.setFilterLimitsNegative(false);
   //Logging
@@ -126,8 +127,8 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
             << "\nTotal MAP Size (WxHxD): " << _laserCloudWidth << "x" << _laserCloudHeight << "x" << _laserCloudDepth << " cube units"
             << "\nRobot Start Position in Map (WxHxD): " << _laserCloudCenWidth << "x" << _laserCloudCenHeight << "x" << _laserCloudCenDepth << " cube units"
             << "\nMap Downsample Leaf Size, Corners: " << _downSizeFilterCorner.getLeafSize().transpose() << ", Surface: " << _downSizeFilterSurf.getLeafSize().transpose()
-            << ", Map: " << _downSizeFilterMapVis.getLeafSize().transpose()
-            << "\nSubmap Crop range: " << _submapVisCropRange << std::endl;
+            << "\nMap Visualiztion - Downsample: " << _downSizeFilterMapVis.getLeafSize().transpose() << ", RandomSamples: " << _rndSampleFilterMapVis.getSample()
+            << "\nSubmap Visualiztion Crop range: " << _submapVisCropRange << std::endl;
 }
 
 void BasicLaserMapping::transformAssociateToMap() {
@@ -1172,11 +1173,11 @@ pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserMap() {
 
   //Downsample map cloud
   _laserMap->clear();
-  _downSizeFilterMapVis.setInputCloud(mapCloud);
-  _downSizeFilterMapVis.filter(*_laserMap);
+  _rndSampleFilterMapVis.setInputCloud(mapCloud);
+  _rndSampleFilterMapVis.filter(*_laserMap);
  
   // //Debug
-  // std::cout << "\033[32mMAPPING\033[0m Map points, Org:" << mapCloud->size() << ", Downsampled: " << _laserMap->size()
+  // std::cout << "\033[32mMAPPING\033[0m Map points, Org:" << mapCloud->size() << ", RandomSampled: " << _laserMap->size()
   //           << ", time(ms): " << static_cast<double>(std::clock() - t_map) / CLOCKS_PER_SEC * 1000.0 << std::endl;
 
   return *_laserMap;
