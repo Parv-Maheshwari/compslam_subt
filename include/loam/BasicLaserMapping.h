@@ -53,6 +53,7 @@
 #include <unordered_set>
 #include <gtsam/geometry/Pose3.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/random_sample.h>
 //CUSTOMIZATION
 
 namespace loam {
@@ -272,12 +273,12 @@ class BasicLaserMapping {
   Twist _transformSum, _transformIncre, _transformTobeMapped, _transformBefMapped, _transformAftMapped;
   CircularBuffer<IMUState2> _imuHistory;  ///< history of IMU states
 
-  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterCorner;  ///< voxel filter for down sizing corner clouds
-  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterSurf;    ///< voxel filter for down sizing surface clouds
-  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterMapVis;  ///< voxel filter for down sizing map clouds for visualization
-
-  pcl::PassThrough<pcl::PointXYZI> _submapVisCropbox;    // Passthrough/Cropbox filter for visualization of submap
-  float _submapVisCropRange = 0.0;                       // Range of cropping for submap visualization (set 0 to disable)
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterCorner;      ///< voxel filter for down sizing corner clouds
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterSurf;        ///< voxel filter for down sizing surface clouds
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilterMapVis;      ///< voxel filter for down sizing map clouds for visualization
+  pcl::RandomSample<pcl::PointXYZI> _rndSampleFilterMapVis;  ///< random sample filter for map clouds for visualization
+  pcl::PassThrough<pcl::PointXYZI> _submapVisCropbox;        // Passthrough/Cropbox filter for visualization of submap
+  float _submapVisCropRange = 0.0;                           // Range of cropping for submap visualization (set 0 to disable)
 
   bool _downsizedMapCreated = false;
 
