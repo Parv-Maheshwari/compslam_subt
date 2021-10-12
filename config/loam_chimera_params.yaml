@@ -8,7 +8,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
-extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+extPriorAvailable: false                  #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
@@ -23,7 +23,7 @@ fallbackExtOdomTimeOffset: 0.0 #seconds  #Timeoffset between LiDAR pointcloud an
 lidar: O0-128-Div2                       #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32 O0-128-Div2
 useCloudIntensityandRingFields : false   #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
 imuHistorySize: 200                      #IMU Message Buffer Size , default: 200 
-minRange: 0.90                           #Minimum Range of useful points, default: 0.5
+minRange: 1.2                            #Minimum Range of useful points, default: 0.5
 maxRange: 30.0                           #Maximum Range of useful points, default: 50
 featureRegions: 6                        #Number of Azimuth Regions Pointcloud is divided, default:6
 curvatureRegion: 5                       #Number of neigboring points on a scan line on each side of a point used for calculating curvature of that point, default 5
@@ -52,7 +52,7 @@ mapMinIterations: 1                      #Minimum Number of LM optimization iter
 mapDeltaTAbort: 0.05                     #Translation threshold for optimization convergence, deafult 0.05 (m) 
 mapDeltaRAbort: 0.05                     #Rotation threshold for optimization convergence, deafult 0.05 (deg)
 cornerFilterSize: 0.2                    #Leaf Size for downsampling current CORNER pointcloud before merging in map, default 0.2 
-surfaceFilterSize: 0.2                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
+surfaceFilterSize: 0.4                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
 mapVisFilterSize: 0.4                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
 mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
 mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
@@ -68,8 +68,8 @@ useExtRotationAlignment: false           #Use alginment between external fixed &
 submapVisCropRange: 0                    #Range of cropping for submap visualization (set 0 to disable)
 
 #Factor Graph
-imuFrame: imu_link                       #Frame of IMU used in integrator - Used for lookup transform with lidarFrame 
-imuRate: 400                             #Rate of IMU input (Hz) used for initialization of gravity, initial Roll/Pitch and gyro bias
+imuFrame: lidar_imu                      #Frame of IMU used in integrator - Used for lookup transform with lidarFrame 
+imuRate: 100                             #Rate of IMU input (Hz) used for initialization of gravity, initial Roll/Pitch and gyro bias
 imuTimeForInit: 0.5                      #Time interval of IMU measurements used for initialization
 imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
 initGraphRollPicthFromIMU: true          #Initialize graph roll/pitch from IMU  

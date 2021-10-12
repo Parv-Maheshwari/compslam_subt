@@ -80,7 +80,7 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
   std::string lidarName;
 
   if (privateNode.getParam("lidar", lidarName)) {
-    if (lidarName == "VLP-16" || "VLP-16-ANYbotics") {
+    if (lidarName == "VLP-16" || lidarName == "VLP-16-ANYbotics") {
       _scanMapper = MultiScanMapper::Velodyne_VLP_16();
     } else if (lidarName == "HDL-32") {
       _scanMapper = MultiScanMapper::Velodyne_HDL_32();
@@ -100,14 +100,16 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       ROS_ERROR("Invalid lidar parameter: model %s is not supported)", lidarName.c_str());
       return false;
     }
-    ROS_INFO("Set  %s  scan mapper.", lidarName.c_str());
 
     if (!privateNode.hasParam("scanPeriod")) {
       config_out.scanPeriod = 0.1;
-      ROS_INFO("Set scanPeriod: %f", config_out.scanPeriod);
+      ROS_INFO("MultiScanRegistration - Set scanPeriod: %f", config_out.scanPeriod);
     }
     //CUSTOMIZATION
     _scanMapper.setLiDARName(lidarName);
+    ROS_INFO_STREAM("MultiScanRegistration - scanMapper - LiDAR: " << _scanMapper.getLiDARName()
+                                                                   << ", Rings: " << _scanMapper.getNumberOfScanRings()
+                                                                   << ", FoV: " << _scanMapper.getLowerBound() << "/" << _scanMapper.getUpperBound());
     //CUSTOMIZATION
   } else {
     float vAngleMin, vAngleMax;
