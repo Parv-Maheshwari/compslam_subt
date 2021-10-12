@@ -272,7 +272,7 @@ void BasicLaserOdometry::process() {
   }
 
   if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy)
-    ROS_WARN_THROTTLE(1.0, "*** LaserOdometry - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***",
+    ROS_WARN("*** LaserOdometry - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***",
                       -translation_prior[2], -translation_prior[0], -translation_prior[1], _odomRelativeTranslationMax, translation_prior.norm());
 
   //Use HEALTHY Prior
@@ -612,7 +612,7 @@ void BasicLaserOdometry::process() {
         //Enable VIO passthrough if solution was degenerate
         if (_isExternalPriorHealthy) {
           if (isDegenerate) {
-            ROS_WARN_THROTTLE(0.5, "*** LOAM - ODOMETRY Degenerate - Using External Estimate ***");
+            ROS_WARN("*** LOAM - ODOMETRY Degenerate - Using External Estimate ***");
             _wasDegenerate = true;
             _countDegenerate = 5;
             break;
@@ -636,7 +636,7 @@ void BasicLaserOdometry::process() {
         Eigen::Matrix<float, 6, 1> matX2(matX);
         matX = matP * matX2;
         if (iterCount == 0)
-          ROS_WARN_THROTTLE(0.5, "*** LOAM - ODOMETRY Degenerate ***");
+          ROS_WARN("*** LOAM - ODOMETRY Degenerate ***");
         _wasDegenerate = true;  //CUSTOMIZATION //Added for status monitoring in-case external odometry is not available
       } else
         _wasDegenerate = false;  //CUSTOMIZATION
@@ -819,7 +819,7 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
       //External Sensor-to-LiDAR transform
       _tfListener.lookupTransform(_lidarFrame, _extSensorFrame, ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   } else {
@@ -834,7 +834,7 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
       _tfListener.lookupTransform(_lidarFrame, _fallbackExtSensorFrame,
                                   ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   }

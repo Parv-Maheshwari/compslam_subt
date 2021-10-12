@@ -86,8 +86,8 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
   // cropbox filter 
   _submapVisCropbox.setFilterLimitsNegative(false);
   //Logging
-  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/KDTreeTimings.csv", std::ios::out);
-  // _mappingLogFile << "CornerPts, SurfacePts, TotalPts, cubeKDtree-build(ms), Search\n";
+  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/logs/darpa_timings/pts_timing.csv", std::ios::out);
+  // _mappingLogFile << "CornerValid, CornerTotal, FlatValid, FlatTotal, Build(ms), SearchOpt(ms), Total(ms)\n";
 }
 
 void BasicLaserMapping::resetMapParamsAndContainers() {
@@ -204,7 +204,7 @@ void BasicLaserMapping::transformAssociateToMap() {
 
   //DEBUG
   if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy)
-    ROS_WARN_THROTTLE(1.0, "*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2], -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
+    ROS_WARN("*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2], -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
   //DEBUG
 
   //Use Available HEALTHY Prior
@@ -289,7 +289,7 @@ void BasicLaserMapping::transformAssociateToMap() {
 
       //Apply rotation fix to LiDAR-to-Map rotation
       gtsam::Rot3 r_ML_aligned = r_ML_fix * T_ML.rotation();
-      
+
       //DEUBG
       // std::cout << "Gravity vector alignment - before: " << M_gravDir.transpose()
       //           << ", after: " << r_ML_aligned.rotate(T_LO.rotation().rotate(gtsam::Vector3::UnitZ())).normalized().transpose() << std::endl;
@@ -702,8 +702,10 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   std::vector<int> pointSearchInd(5, 0);
   std::vector<float> pointSearchSqDis(5, 0);
 
+  auto t_kdtree = std::clock(); 
   kdtreeCornerFromMap.setInputCloud(_laserCloudCornerFromMap);
   kdtreeSurfFromMap.setInputCloud(_laserCloudSurfFromMap);
+  auto kdtree_build_ms = static_cast<double>(std::clock() - t_kdtree) / CLOCKS_PER_SEC * 1000.0; 
 
   Eigen::Matrix<float, 5, 3> matA0;
   Eigen::Matrix<float, 5, 1> matB0;
@@ -724,6 +726,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
 
   size_t laserCloudCornerStackNum = _laserCloudCornerStackDS->size();
   size_t laserCloudSurfStackNum = _laserCloudSurfStackDS->size();
+  size_t corner_matches, flat_matches; 
 
   double deltaT = std::numeric_limits<double>::quiet_NaN();
   double deltaR = std::numeric_limits<double>::quiet_NaN();
@@ -812,6 +815,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         }
       }
     }
+    corner_matches = _laserCloudOri.size(); 
 
     //Map associate Surface points
     for (int i = 0; i < laserCloudSurfStackNum; i++) {
@@ -871,6 +875,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         }
       }
     }
+    flat_matches = _laserCloudOri.size() - corner_matches; 
 
     float srx = _transformTobeMapped.rot_x.sin();
     float crx = _transformTobeMapped.rot_x.cos();
@@ -944,7 +949,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
       //CUSTOMIZATION
       //Enable External Estimate passthrough if solution was degenerate
       if (isDegenerate && _isExternalPriorHealthy) {
-        ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
+        ROS_WARN("*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
         _transformTobeMapped.pos.x() = _externalEstimate.pos.x();
         _transformTobeMapped.pos.y() = _externalEstimate.pos.y();
         _transformTobeMapped.pos.z() = _externalEstimate.pos.z();
@@ -953,7 +958,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         _transformTobeMapped.rot_z = Angle(_externalEstimate.rot_z.rad());
         break;
       } else if (isDegenerate)
-        ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate ***");
+        ROS_WARN("*** LOAM  - MAPPING Degenerate ***");
       //CUSTOMIZATION
     }
 
@@ -999,7 +1004,11 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
               << ", Time(ms):" << t
               << (t < 175 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
   }
-  // _mappingLogFile << t << "\n";
+  // _mappingLogFile << corner_matches << "," << laserCloudCornerStackNum << "," << flat_matches << "," << laserCloudSurfStackNum << ","
+  //                 << kdtree_build_ms << "," << t << "," << kdtree_build_ms + t << "\n";
+  // std::cout << "Features(Valid/Total) - Corner: " << corner_matches << "/" << laserCloudCornerStackNum << ", Flat: " << flat_matches << "/" << laserCloudSurfStackNum
+  //           << ", Build(ms)" << kdtree_build_ms << ", SearchOpt(ms)" << t << ", Total(ms)" << kdtree_build_ms + t << "\n";
+
   //DEBUG - Optimization Status
 
   //Update Optimization Status Message
@@ -1119,7 +1128,7 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       //External Sensor-to-LiDAR transform
       _tfListener.lookupTransform(_lidarFrame, _extSensorFrame, ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   } else {
@@ -1134,7 +1143,7 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       _tfListener.lookupTransform(_lidarFrame, _fallbackExtSensorFrame,
                                   ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   }
