@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(loam)
 
+## Compile as C++14, supported in ROS Kinetic and newer
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "-O3 -pthread")
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
@@ -26,11 +31,21 @@ find_package(PCL REQUIRED)
 message("PCL Version:" ${PCL_VERSION})
 message("PCL Path:" ${PCL_DIR})
 
+find_package(GTSAM REQUIRED)
+message("GTSAM version: ${GTSAM_VERSION}")
+message("GTSAM path: ${GTSAM_DIR}")
+
+find_package(Boost REQUIRED COMPONENTS timer)
+message("Boost version: ${Boost_VERSION}")
+
 include_directories(
   include
 	${catkin_INCLUDE_DIRS}
 	#${EIGEN3_INCLUDE_DIR}
-	${PCL_INCLUDE_DIRS})
+	${PCL_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
+)
 
 add_message_files(
   DIRECTORY msg
@@ -45,7 +60,7 @@ generate_messages(
 
 catkin_package(
   CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions message_runtime nodelet message_filters
-  DEPENDS EIGEN3 PCL
+  DEPENDS EIGEN3 PCL Boost
   INCLUDE_DIRS include
   LIBRARIES loam
 )
@@ -63,16 +78,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_subdirectory(src/lib)
 
 add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
-target_link_libraries(multiScanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(multiScanRegistration loam)
 
 add_executable(laserOdometry src/laser_odometry_node.cpp)
-target_link_libraries(laserOdometry ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(laserOdometry loam)
 
 add_executable(laserMapping src/laser_mapping_node.cpp)
-target_link_libraries(laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(laserMapping loam)
 
 add_executable(transformMaintenance src/transform_maintenance_node.cpp)
-target_link_libraries(transformMaintenance ${catkin_LIBRARIES} ${PCL_LIBRARIES} loam )
+target_link_libraries(transformMaintenance loam )
 
 add_dependencies(loam ${catkin_EXPORTED_TARGETS})
 

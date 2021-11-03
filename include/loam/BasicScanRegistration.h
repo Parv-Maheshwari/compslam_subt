@@ -1,6 +1,8 @@
-#pragma once
+#ifndef BASIC_SCAN_REGISTRATION_H
+#define BASIC_SCAN_REGISTRATION_H
 
 #include <pcl/point_cloud.h>
+#include <pcl/filters/voxel_grid.h>
 
 #include <utility>
 #include <vector>
@@ -9,6 +11,7 @@
 #include "CircularBuffer.h"
 #include "Vector3.h"
 #include "time_utils.h"
+#include "math_utils.h"
 
 namespace loam {
 
@@ -61,6 +64,16 @@ class RegistrationParams {
 
   /** The curvature threshold below / above a point is considered a flat / corner point. */
   float surfaceCurvatureThreshold;
+
+  /** Perform invalid sharp feature check*/
+  bool checkInvalidFeatureRegions = false;
+  
+  /** The aziuth boundary vector of the Invalid Feature regions, each tuple is (lowerBound, upperBound) */
+  std::vector<double> noFeatureAzimuthBoundaries;
+  std::vector<double> noFeaturePolarBoundaries;
+
+  /** Publish debug arrows for invalid sharp feature removal */
+  bool publishDebugArrowsToRemovedFeatures = false;
 };
 
 /** IMU state data. */
@@ -137,13 +150,13 @@ class BasicScanRegistration {
 
   auto const &imuTransform() { return _imuTrans; }
   auto const &sweepStart() { return _sweepStart; }
-  auto const &laserCloudRGB() { return _laserCloudRGB; }  //CUSTOMIZATION
   auto const &laserCloud() { return _laserCloud; }
   auto const &cornerPointsSharp() { return _cornerPointsSharp; }
   auto const &cornerPointsLessSharp() { return _cornerPointsLessSharp; }
   auto const &surfacePointsFlat() { return _surfacePointsFlat; }
   auto const &surfacePointsLessFlat() { return _surfacePointsLessFlat; }
   auto const &config() { return _config; }
+  auto const &invalidSharpFeatures() {return _invalidSharpFeatures; }
 
  private:
   /** \brief Check is IMU data is available. */
@@ -173,6 +186,12 @@ class BasicScanRegistration {
    * @param beginIdx the index of the first scan to extract features from
    */
   void extractFeatures(const uint16_t &beginIdx = 0);
+
+  /** \brief Check if point angle is within invalid azimuth and polar angle ranges*/
+  bool checkFeatureInvalid(const pcl::PointXYZI& point);
+
+  /** \brief Check if given point angle is within range [lowerBound,upperBound] depedning on sign of boundary values*/
+  bool checkBounds(const float angle, const float lowerBound, const float upperBound);
 
   /** \brief Set up region buffers for the specified point range.
    *
@@ -213,7 +232,6 @@ class BasicScanRegistration {
  private:
   RegistrationParams _config;  ///< registration parameter
 
-  pcl::PointCloud<pcl::PointXYZRGB> _laserCloudRGB; ///< CUSTOMIZATION full resolution input cloud with alternately colored rings
   pcl::PointCloud<pcl::PointXYZI> _laserCloud;  ///< full resolution input cloud //smk:contains all points but now ring-wise sorted
   std::vector<IndexRange> _scanIndices;         ///< start and end indices of the individual scans withing the full resolution cloud
 
@@ -221,6 +239,9 @@ class BasicScanRegistration {
   pcl::PointCloud<pcl::PointXYZI> _cornerPointsLessSharp;  ///< less sharp corner points cloud
   pcl::PointCloud<pcl::PointXYZI> _surfacePointsFlat;      ///< flat surface points cloud
   pcl::PointCloud<pcl::PointXYZI> _surfacePointsLessFlat;  ///< less flat surface points cloud
+
+  pcl::VoxelGrid<pcl::PointXYZI> _downSizeFilter;             ///< voxel grid filter to downsample less flat surface points cloud
+  pcl::PointCloud<pcl::PointXYZI> _surfPointsLessFlatScanDS;  ///< downsampled less flat surface points cloud
 
   Time _sweepStart;                      ///< time stamp of beginning of current sweep
   Time _scanTime;                        ///< time stamp of most recent scan
@@ -236,6 +257,9 @@ class BasicScanRegistration {
   std::vector<PointLabel> _regionLabel;    ///< point label buffer
   std::vector<size_t> _regionSortIndices;  ///< sorted region indices based on point curvature
   std::vector<int> _scanNeighborPicked;    ///< flag if neighboring point was already picked
+
+  pcl::PointCloud<pcl::PointXYZI> _invalidSharpFeatures;  //Invalid sharp features existing in invalid azimuth and polar regions - For debugging
 };
 
 }  // namespace loam
+#endif

@@ -35,7 +35,7 @@
 #include <pcl/filters/filter.h>
 
 #include "loam/common.h"
-#include "math_utils.h"
+
 
 namespace loam {
 
@@ -70,6 +70,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   int iParam;
   bool bParam;
   std::string sParam;
+  std::vector<double> dvParam;
 
   if (privateNode.getParam("scanPeriod", fParam)) {
     if (fParam <= 0) {
@@ -287,6 +288,108 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
       ROS_WARN_STREAM("LaserOdometry - Input Pointcloud is Undistorted - NO Ego Motion Compensation will be performed");
   }
 
+  /** Graph Parameters **/
+  //IMU Preintegrtor
+  if (privateNode.getParam("imuFrame", sParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU frame for preintegrator: " << sParam);
+    setImuFrame(sParam);
+  } else
+    ROS_WARN("LaserOdometry - IMU frame not set for preintegrator");
+  if (privateNode.getParam("imuTimeOffset", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU time offset[s]: " << dParam);
+    setImuTimeOffset(dParam);
+  }
+  if (privateNode.getParam("imuRate", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU rate for preintegrator: " << dParam);
+    _imuBuffer.setImuRate(dParam);
+  }
+  if (privateNode.getParam("imuTimeForInit", dParam)) {
+    ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
+    _imuBuffer.setImuTimeForInit(dParam);
+  }
+  if (privateNode.getParam("accNoiseDensity", dParam))
+    _graphMgr.setAccNoiseDensity(dParam);
+  if (privateNode.getParam("accBiasRandomWalk", dParam))
+    _graphMgr.setAccBiasRandomWalk(dParam);
+  if (privateNode.getParam("gyrNoiseDensity", dParam))
+    _graphMgr.setGyroNoiseDensity(dParam);
+  if (privateNode.getParam("gyrBiasRandomWalk", dParam))
+    _graphMgr.setGyrBiasRandomWalk(dParam);
+  if (privateNode.getParam("imuIntegrationCovariance", dParam))
+    _graphMgr.setImuIntegrationCovariance(dParam);
+  if (privateNode.getParam("imuBiasAccOmegaInt", dParam))
+    _graphMgr.setImuBiasAccOmegaInt(dParam);
+  if (privateNode.getParam("accBiasPrior", dvParam))
+    _graphMgr.setAccBiasPrior(dvParam);
+  if (privateNode.getParam("gyrBiasPrior", dvParam))
+    _graphMgr.setGyrBiasPrior(dvParam);
+  //Factor Graph
+  if (privateNode.getParam("smootherLag", dParam))
+    _graphMgr.setSmootherLag(dParam);
+  if (privateNode.getParam("additonalIterations", iParam))
+    _graphMgr.setIterations(iParam);
+  if (privateNode.getParam("positionReLinTh", dParam))
+    _graphMgr.setPositionReLinTh(dParam);
+  if (privateNode.getParam("rotationReLinTh", dParam))
+    _graphMgr.setRotationReLinTh(dParam);
+  if (privateNode.getParam("velocityReLinTh", dParam))
+    _graphMgr.setVelocityReLinTh(dParam);
+  if (privateNode.getParam("accBiasReLinTh", dParam))
+    _graphMgr.setAccBiasReLinTh(dParam);
+  if (privateNode.getParam("gyrBiasReLinTh", dParam))
+    _graphMgr.setGyrBiasReLinTh(dParam);
+  if (privateNode.getParam("relinearizeSkip", iParam))
+    _graphMgr._params.setRelinearizeSkip(iParam);
+  if (privateNode.getParam("enableRelinearization", bParam))
+    _graphMgr._params.setEnableRelinearization(bParam);
+  if (privateNode.getParam("evaluateNonlinearError", bParam))
+    _graphMgr._params.setEvaluateNonlinearError(bParam);
+  if (privateNode.getParam("cacheLinearizedFactors", bParam))
+    _graphMgr._params.setCacheLinearizedFactors(bParam);
+  if (privateNode.getParam("findUnusedFactorSlots", bParam))
+    _graphMgr._params.findUnusedFactorSlots = bParam;
+  if (privateNode.getParam("enablePartialRelinearizationCheck", bParam))
+    _graphMgr._params.setEnablePartialRelinearizationCheck(bParam);
+  if (privateNode.getParam("enableDetailedResults", bParam))
+    _graphMgr._params.setEnableDetailedResults(bParam);
+  //Pose between factor noise
+  if (privateNode.getParam("poseBetweenNoise", dvParam))
+    _graphMgr.setPoseNoise(dvParam);
+  //Zero Motion Factor & Gravity Roll/Pitch Factor
+  if (privateNode.getParam("zeroMotionDetection", bParam)) {
+    setZeroMotionDetection(bParam);
+    if (bParam) {
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection ENABLED - Zero Delta Pose & Velocity Factors added");
+      //Zero motion detection threshold
+      if (privateNode.getParam("zeroMotionThreshold", dParam)) {
+        _graphMgr.setZeroMotionTh(dParam);
+        ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection Threshold(m): " << dParam);
+      }
+      //Minimum consective zero motion detection
+      if (privateNode.getParam("minZeroMoitionDetections", iParam)) {
+        _graphMgr.setMinZeroMotionDetections(iParam);
+        ROS_INFO_STREAM("LaserOdometry - Min consective Zero Motion Detections: " << iParam);
+      }
+      //Check if Gravity-algined Roll-Pitch factor should be added
+      if (privateNode.getParam("gravityRollPitchFactors", bParam)) {
+        setUseGravityRollPitchFactors(bParam);
+        if (bParam)
+          ROS_INFO_STREAM("LaserOdometry - Gravity-aligned Roll-Pitch Factors added when in Zero Motion");
+      }
+    } else
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED");
+  }
+  // Initialize graph roll/pitch from IMU  
+  if (privateNode.getParam("initGraphRollPicthFromIMU", bParam)) {
+    setUseIMURollPitchForGraphInit(bParam);
+    ROS_INFO_STREAM("LaserOdometry - Graph Roll/Pitch initialized from IMU: " << (bParam ? "True" : "False"));
+    if (!bParam) {
+      setUseGravityRollPitchFactors(bParam);
+      ROS_INFO_STREAM("LaserOdometry - Zero Motion Detection DISABLED as Graph Roll/Pitch NOT initialized from IMU");
+    }
+  }
+  /** Graph Parameters **/
+
   //Verbose Ouput
   iParam = 0;
   if (privateNode.getParam("loamVerbosity", iParam)) {
@@ -313,6 +416,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   // subscribe to IMU topic
   _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::imuTransHandler, this);
+  _subImu = node.subscribe<sensor_msgs::Imu>("/imu", 400, &LaserOdometry::imuCallback, this, ros::TransportHints().tcpNoDelay());
 
   // ARL Coordinate Frame Facilitators
   _pubLaserOdometry_CORRECTED = node.advertise<nav_msgs::Odometry>("/laser_odom_to_init_CORRECTED", 5);
@@ -321,6 +425,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
   _pubOptimizationStatus = node.advertise<OptStatus>("/laser_odom_optimization_status", 5);
   _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
+  _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("/laser_odom_imu_bias", 20);
   //CUSTOMIZATION
   return true;
 }  // namespace loam
@@ -376,6 +481,13 @@ void LaserOdometry::imuTransHandler(const sensor_msgs::PointCloud2ConstPtr& imuT
   pcl::PointCloud<pcl::PointXYZ> imuTrans;
   pcl::fromROSMsg(*imuTransMsg, imuTrans);
   updateIMU(imuTrans);
+}
+
+void LaserOdometry::imuCallback(const sensor_msgs::Imu::ConstPtr& imu_ptr) {
+  //Add to buffer
+  _imuBuffer.addToIMUBuffer(imu_ptr->header.stamp.toSec(),
+                            imu_ptr->linear_acceleration.x, imu_ptr->linear_acceleration.y, imu_ptr->linear_acceleration.z,
+                            imu_ptr->angular_velocity.x, imu_ptr->angular_velocity.y, imu_ptr->angular_velocity.z);
 }
 
 void LaserOdometry::syncCloudsHandler(const sensor_msgs::PointCloud2ConstPtr& pclSharp,
@@ -452,6 +564,19 @@ void LaserOdometry::publishResult() {
   _tfBroadcaster.sendTransform(_laserOdometryTrans_CORRECTED);
   // END ARL Coordinate Frame Facilitators
 
+  //IMU Bias
+  if (_pubLaserImuBias.getNumSubscribers() > 0) {
+    sensor_msgs::Imu imuBiasMsg;
+    imuBiasMsg.header.frame_id = "/laser_odometry_imu";
+    imuBiasMsg.header.stamp = _timeSurfPointsLessFlat;
+    imuBiasMsg.linear_acceleration.x = graphIMUBias().linear_acceleration.x;
+    imuBiasMsg.linear_acceleration.y = graphIMUBias().linear_acceleration.y;
+    imuBiasMsg.linear_acceleration.z = graphIMUBias().linear_acceleration.z;
+    imuBiasMsg.angular_velocity.x = graphIMUBias().angular_velocity.x;
+    imuBiasMsg.angular_velocity.y = graphIMUBias().angular_velocity.y;
+    imuBiasMsg.angular_velocity.z = graphIMUBias().angular_velocity.z;
+    _pubLaserImuBias.publish(imuBiasMsg);
+  }
   //CUSTOMIZATION
   //Publish LaserOdometry Optimization Status
   if (_pubOptimizationStatus.getNumSubscribers() > 0) {
@@ -464,9 +589,9 @@ void LaserOdometry::publishResult() {
   laserOdomStatusMsgPtr->seq = (getLaserOdometryStatus() ? 1 : 0);
   _pubLaserOdometryStatus.publish(laserOdomStatusMsgPtr);
   //Publish Gravity Aligned Init frame
-  if (gravityRollPitchInitialized()) {
+  if (gravityAttitudeInitialized()) {
     _cameraInitGravityAlignedTf.stamp_ = _timeSurfPointsLessFlat;
-    _cameraInitGravityAlignedTf.setBasis(getLiDARGravityInitRotation().getBasis());
+    _cameraInitGravityAlignedTf.setBasis(getLiDARGravityInitAttitude().getBasis());
     _tfBroadcaster.sendTransform(_cameraInitGravityAlignedTf);
   }
   //CUSTOMIZATION

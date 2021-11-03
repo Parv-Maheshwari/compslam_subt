@@ -38,7 +38,6 @@
 #include <Eigen/QR>
 
 #include "loam/nanoflann_pcl.h"
-#include "math_utils.h"
 
 namespace loam {
 
@@ -75,14 +74,20 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _laserCloudSurfStack(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudCornerStackDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurfStackDS(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudSurround(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserCloudSurroundDS(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudCornerFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudSurfFromMap(new pcl::PointCloud<pcl::PointXYZI>()),
-      _laserMap(new pcl::PointCloud<pcl::PointXYZI>()){
+      _laserMap(new pcl::PointCloud<pcl::PointXYZI>()),
+      _submapSearchCloud(new pcl::PointCloud<pcl::PointXYZI>()) {
   // setup down size filters
   _downSizeFilterCorner.setLeafSize(0.2, 0.2, 0.2);
   _downSizeFilterSurf.setLeafSize(0.4, 0.4, 0.4);
+  _downSizeFilterMapVis.setLeafSize(0.4, 0.4, 0.4);
+  _rndSampleFilterMapVis.setSample(100000);
+  // cropbox filter 
+  _submapVisCropbox.setFilterLimitsNegative(false);
+  //Logging
+  // _mappingLogFile.open("/home/shehryar/compslam_ws/src/compslam/logs/darpa_timings/pts_timing.csv", std::ios::out);
+  // _mappingLogFile << "CornerValid, CornerTotal, FlatValid, FlatTotal, Build(ms), SearchOpt(ms), Total(ms)\n";
 }
 
 void BasicLaserMapping::resetMapParamsAndContainers() {
@@ -108,7 +113,7 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
     _laserCloudSurfDSArray[i].reset(new pcl::PointCloud<pcl::PointXYZI>());
   }
 
-  //CUSTOMIZATION -
+  //CUSTOMIZATION
   //data structure for storing previosuly saved submaps
   _savedCornerSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
   _savedSurfSubmap.reset(new pcl::PointCloud<pcl::PointXYZI>());
@@ -121,7 +126,9 @@ void BasicLaserMapping::resetMapParamsAndContainers() {
             << "\nCube Neighbors used for creating Submap: +/-" << _neighborSubmapCubes
             << "\nTotal MAP Size (WxHxD): " << _laserCloudWidth << "x" << _laserCloudHeight << "x" << _laserCloudDepth << " cube units"
             << "\nRobot Start Position in Map (WxHxD): " << _laserCloudCenWidth << "x" << _laserCloudCenHeight << "x" << _laserCloudCenDepth << " cube units"
-            << "\nMap Downsample Leaf Size, Corners: " << _downSizeFilterCorner.getLeafSize().transpose() << ", Surface: " << _downSizeFilterSurf.getLeafSize().transpose() << std::endl;
+            << "\nMap Downsample Leaf Size, Corners: " << _downSizeFilterCorner.getLeafSize().transpose() << ", Surface: " << _downSizeFilterSurf.getLeafSize().transpose()
+            << "\nMap Visualiztion - Downsample: " << _downSizeFilterMapVis.getLeafSize().transpose() << ", RandomSamples: " << _rndSampleFilterMapVis.getSample()
+            << "\nSubmap Visualiztion Crop range: " << _submapVisCropRange << std::endl;
 }
 
 void BasicLaserMapping::transformAssociateToMap() {
@@ -197,7 +204,7 @@ void BasicLaserMapping::transformAssociateToMap() {
 
   //DEBUG
   if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy)
-    ROS_WARN_THROTTLE(1.0, "*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2], -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
+    ROS_WARN("*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2], -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
   //DEBUG
 
   //Use Available HEALTHY Prior
@@ -250,6 +257,52 @@ void BasicLaserMapping::transformAssociateToMap() {
       _transformTobeMapped.rot_z = Angle(_externalEstimate.rot_z.rad());
     }
 
+    //Use external frame for gravity alignment - Use as Prior
+    if (_useExtRotationAlignment) {
+      //Get Odom pose in LiDAR
+      tf::StampedTransform tf_LO;
+      static ros::Duration time_offset(_extOdomTimeOffset);
+      ros::Time currPCL_ts = _currentPCLTime + time_offset;
+      _tfListener.lookupTransform(_lidarFrame, _extFixedFrame, currPCL_ts, tf_LO);
+      Eigen::Vector3d t_LO(tf_LO.getOrigin().x(), tf_LO.getOrigin().y(), tf_LO.getOrigin().z());
+      Eigen::Quaterniond q_LO(tf_LO.getRotation().w(), tf_LO.getRotation().x(), tf_LO.getRotation().y(), tf_LO.getRotation().z());
+      q_LO.normalize();
+      gtsam::Pose3 T_LO = gtsam::Pose3(gtsam::Rot3(q_LO.toRotationMatrix()), t_LO);
+
+      //Get Robot in Map
+      Eigen::Vector3d t_ML(_transformTobeMapped.pos.z(), _transformTobeMapped.pos.x(), _transformTobeMapped.pos.y());
+      Eigen::Quaterniond q_ML;
+      q_ML = Eigen::AngleAxisd(_transformTobeMapped.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
+             Eigen::AngleAxisd(_transformTobeMapped.rot_x.rad(), Eigen::Vector3d::UnitY()) *
+             Eigen::AngleAxisd(_transformTobeMapped.rot_z.rad(), Eigen::Vector3d::UnitX());
+      q_ML.normalize();
+      gtsam::Pose3 T_ML = gtsam::Pose3(gtsam::Rot3(q_ML.toRotationMatrix()), t_ML);
+
+      //Get transformation of Odometry frame in Map frame (capture relative drift)
+      gtsam::Pose3 T_MO = T_ML * T_LO;
+
+      //Estimate gravity vector in Map frame (Z-up)
+      gtsam::Vector3 M_gravDir = T_MO.rotation().rotate(gtsam::Vector3::UnitZ()).normalized();
+
+      //Estimate relative rotation between gravity vectors in Map and Odom frame(assumed to be perfectly aligned with gravity)
+      gtsam::Rot3 r_ML_fix = gtsam::Rot3(gtsam::Quaternion().setFromTwoVectors(M_gravDir, gtsam::Vector3::UnitZ()).normalized());
+
+      //Apply rotation fix to LiDAR-to-Map rotation
+      gtsam::Rot3 r_ML_aligned = r_ML_fix * T_ML.rotation();
+
+      //DEUBG
+      // std::cout << "Gravity vector alignment - before: " << M_gravDir.transpose()
+      //           << ", after: " << r_ML_aligned.rotate(T_LO.rotation().rotate(gtsam::Vector3::UnitZ())).normalized().transpose() << std::endl;
+      // std::cout << "Gravity alignment RPY(deg) - before: " << _transformTobeMapped.rot_z.deg() << "," << _transformTobeMapped.rot_x.deg() << "," << _transformTobeMapped.rot_y.deg()
+      //           << ", after: " << r_ML_aligned.rpy().transpose() * 180.0 / M_PI << std::endl;
+      //DEUBG
+
+      //Overwrite
+      _transformTobeMapped.rot_x = Angle(r_ML_aligned.pitch());
+      _transformTobeMapped.rot_y = Angle(r_ML_aligned.yaw());
+      _transformTobeMapped.rot_z = Angle(r_ML_aligned.roll());
+    }
+
     //DEBUG
     if (_verboseLevel > 1)
       std::cout << "\033[32mMAPPING\033[0m EXT PRIOR (x,y,z): [" << _externalEstimate.pos.z() << " " << _externalEstimate.pos.x() << " " << _externalEstimate.pos.y()
@@ -289,28 +342,6 @@ void BasicLaserMapping::transformFullResToMap() {
     pointAssociateToMap(pt, pt);
 }
 
-bool BasicLaserMapping::createDownsizedMap() {
-  // create new map cloud according to the input output ratio
-  _mapFrameCount++;
-  if (_mapFrameCount < _mapFrameNum)
-    return false;
-
-  _mapFrameCount = 0;
-
-  // accumulate map cloud
-  _laserCloudSurround->clear();
-  for (auto ind : _laserCloudSurroundInd) {
-    *_laserCloudSurround += *_laserCloudCornerArray[ind];
-    *_laserCloudSurround += *_laserCloudSurfArray[ind];
-  }
-
-  // down size map cloud
-  _laserCloudSurroundDS->clear();
-  _downSizeFilterCorner.setInputCloud(_laserCloudSurround);
-  _downSizeFilterCorner.filter(*_laserCloudSurroundDS);
-  return true;
-}
-
 bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   // Update frame count and time
   _frameCount++;
@@ -318,7 +349,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
 
   pcl::PointXYZI pointSel;
 
-  // relate incoming data to map
+  // relate incoming data to map - update transform estimates
   transformAssociateToMap();
 
   //CUSTOMIZATION - Use saved submaps and initialization guess for map re-localziation
@@ -376,7 +407,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   if (_transformTobeMapped.pos.z() + CUBE_HALF < 0)
     centerCubeK--;
 
-  while (centerCubeI < 3) {
+  while (centerCubeI < _neighborSubmapCubes) {
     for (int j = 0; j < _laserCloudHeight; j++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int i = _laserCloudWidth - 1; i >= 1; i--) {
@@ -394,7 +425,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenWidth++;
   }
 
-  while (centerCubeI >= _laserCloudWidth - 3) {
+  while (centerCubeI >= _laserCloudWidth - _neighborSubmapCubes) {
     for (int j = 0; j < _laserCloudHeight; j++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int i = 0; i < _laserCloudWidth - 1; i++) {
@@ -412,7 +443,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenWidth--;
   }
 
-  while (centerCubeJ < 3) {
+  while (centerCubeJ < _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int j = _laserCloudHeight - 1; j >= 1; j--) {
@@ -430,7 +461,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenHeight++;
   }
 
-  while (centerCubeJ >= _laserCloudHeight - 3) {
+  while (centerCubeJ >= _laserCloudHeight - _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int k = 0; k < _laserCloudDepth; k++) {
         for (int j = 0; j < _laserCloudHeight - 1; j++) {
@@ -448,7 +479,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenHeight--;
   }
 
-  while (centerCubeK < 3) {
+  while (centerCubeK < _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int j = 0; j < _laserCloudHeight; j++) {
         for (int k = _laserCloudDepth - 1; k >= 1; k--) {
@@ -466,7 +497,7 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _laserCloudCenDepth++;
   }
 
-  while (centerCubeK >= _laserCloudDepth - 3) {
+  while (centerCubeK >= _laserCloudDepth - _neighborSubmapCubes) {
     for (int i = 0; i < _laserCloudWidth; i++) {
       for (int j = 0; j < _laserCloudHeight; j++) {
         for (int k = 0; k < _laserCloudDepth - 1; k++) {
@@ -627,8 +658,6 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _occupiedCubeInd.insert(ind);
   }
 
-  transformFullResToMap();
-
   return true;
 }
 
@@ -673,8 +702,10 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   std::vector<int> pointSearchInd(5, 0);
   std::vector<float> pointSearchSqDis(5, 0);
 
+  auto t_kdtree = std::clock(); 
   kdtreeCornerFromMap.setInputCloud(_laserCloudCornerFromMap);
   kdtreeSurfFromMap.setInputCloud(_laserCloudSurfFromMap);
+  auto kdtree_build_ms = static_cast<double>(std::clock() - t_kdtree) / CLOCKS_PER_SEC * 1000.0; 
 
   Eigen::Matrix<float, 5, 3> matA0;
   Eigen::Matrix<float, 5, 1> matB0;
@@ -695,6 +726,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
 
   size_t laserCloudCornerStackNum = _laserCloudCornerStackDS->size();
   size_t laserCloudSurfStackNum = _laserCloudSurfStackDS->size();
+  size_t corner_matches, flat_matches; 
 
   double deltaT = std::numeric_limits<double>::quiet_NaN();
   double deltaR = std::numeric_limits<double>::quiet_NaN();
@@ -702,11 +734,12 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
   bool error_converged = false;
   size_t iterCount = 0;
   std::clock_t time_start = std::clock();
+  //Optimization loop
   for (; iterCount < _maxIterations; ++iterCount) {
-    // std::cout << iterCount << ",";
     _laserCloudOri.clear();
     _coeffSel.clear();
 
+    //Map associate Corner points
     for (int i = 0; i < laserCloudCornerStackNum; i++) {
       pointOri = _laserCloudCornerStackDS->points[i];
       pointAssociateToMap(pointOri, pointSel);
@@ -782,7 +815,9 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         }
       }
     }
+    corner_matches = _laserCloudOri.size(); 
 
+    //Map associate Surface points
     for (int i = 0; i < laserCloudSurfStackNum; i++) {
       pointOri = _laserCloudSurfStackDS->points[i];
       pointAssociateToMap(pointOri, pointSel);
@@ -840,6 +875,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         }
       }
     }
+    flat_matches = _laserCloudOri.size() - corner_matches; 
 
     float srx = _transformTobeMapped.rot_x.sin();
     float crx = _transformTobeMapped.rot_x.cos();
@@ -913,7 +949,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
       //CUSTOMIZATION
       //Enable External Estimate passthrough if solution was degenerate
       if (isDegenerate && _isExternalPriorHealthy) {
-        ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
+        ROS_WARN("*** LOAM  - MAPPING Degenerate - Using External Estimate ***");
         _transformTobeMapped.pos.x() = _externalEstimate.pos.x();
         _transformTobeMapped.pos.y() = _externalEstimate.pos.y();
         _transformTobeMapped.pos.z() = _externalEstimate.pos.z();
@@ -922,7 +958,7 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
         _transformTobeMapped.rot_z = Angle(_externalEstimate.rot_z.rad());
         break;
       } else if (isDegenerate)
-        ROS_WARN_THROTTLE(0.5, "*** LOAM  - MAPPING Degenerate ***");
+        ROS_WARN("*** LOAM  - MAPPING Degenerate ***");
       //CUSTOMIZATION
     }
 
@@ -945,36 +981,41 @@ void BasicLaserMapping::optimizeTransformTobeMapped() {
                        std::pow(matX(4, 0) * 100, 2) +
                        std::pow(matX(5, 0) * 100, 2));
     if (deltaR < _deltaRAbort && deltaT < _deltaTAbort && iterCount > _minIterations) {
-      // //CUSTOMIZATION
-      // //Calculation of the vairance of the solution
+      //CUSTOMIZATION
+      //Calculation of the vairance of the solution
       // Eigen::VectorXf residual = (matA * matX) - matB;
       // float mse = static_cast<float>(residual.transpose() * residual) / (laserCloudSelNum - 6); //smk: matlab nlinfit
-      // //float variance = residual.norm() / (laserCloudSelNum - 6);
+      // float variance = residual.norm() / (laserCloudSelNum - 6);
       // Eigen::Matrix<float, 6, 6> covMat = mse * matAtA.inverse();
       // std::cout << "Mapping, MSE: " << mse << ", covMat diagonal: " << covMat.diagonal().transpose() << std::endl;
-      // //CUSTOMIZATION
+      //CUSTOMIZATION
       error_converged = true;
       break;
     }
   }
 
   //DEBUG - Optimization Status
+  auto t = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC * 1000.0;
   if (_verboseLevel > 0) {
-    auto t = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC * 1000.0;
     std::cout << "\033[32mMAPPING:\033[0m - Converged:" << (error_converged ? " \033[32mTrue\033[0m" : "\033[31mFalse\033[0m")
               << ", Degenerate:" << (isDegenerate ? " \033[31mTrue\033[0m" : "\033[32mFalse\033[0m")
               << ", Iter:" << iterCount + 1
               << ", Residual(T/R):" << deltaT << "/" << deltaR
               << ", Time(ms):" << t
-              << (t < 100 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+              << (t < 175 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
   }
+  // _mappingLogFile << corner_matches << "," << laserCloudCornerStackNum << "," << flat_matches << "," << laserCloudSurfStackNum << ","
+  //                 << kdtree_build_ms << "," << t << "," << kdtree_build_ms + t << "\n";
+  // std::cout << "Features(Valid/Total) - Corner: " << corner_matches << "/" << laserCloudCornerStackNum << ", Flat: " << flat_matches << "/" << laserCloudSurfStackNum
+  //           << ", Build(ms)" << kdtree_build_ms << ", SearchOpt(ms)" << t << ", Total(ms)" << kdtree_build_ms + t << "\n";
+
   //DEBUG - Optimization Status
 
   //Update Optimization Status Message
   _optStatusMsg.converged = error_converged;
   _optStatusMsg.translation_residual = deltaT;
   _optStatusMsg.rotation_residual = deltaR;
-  _optStatusMsg.degenerated = isDegenerate;
+  _optStatusMsg.degenerate = isDegenerate;
   _optStatusMsg.iteration_count = iterCount + 1;
   _optStatusMsg.iteration_max = _maxIterations;
   _optStatusMsg.optimization_time = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC;
@@ -1055,11 +1096,11 @@ void BasicLaserMapping::transformUpdate()  //smk: this just updates roll and pit
 void BasicLaserMapping::updatePCLTime(const ros::Time& currentTimeStamp) {
   _lastPCLTime = _currentPCLTime;
   _currentPCLTime = currentTimeStamp;
-  // //DEBUG
+  //DEBUG
   // std::cout << "\033[32mMAPPING\033[0m _lastPCLTime: " << _lastPCLTime.sec << "," << _lastPCLTime.nsec
   //           << ", _currentPCLTime: " << _currentPCLTime.sec << "," << _currentPCLTime.nsec
   //           << ", diff: " << (_currentPCLTime - _lastPCLTime).toSec() << std::endl;
-  // //DEBUG
+  //DEBUG
 }
 
 bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen::Vector3d& rotPriorXYZ, bool useFallback /*= false*/) {
@@ -1067,33 +1108,27 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
   rotPriorXYZ.setZero();
   tf::StampedTransform T_S2S1;  //Relative Transform of S1 w.r.t S2 using fixed frame
   tf::StampedTransform T_LS;    //Transform from external Sensor to LiDAR Frame - Extrinsic Calibration
-  static auto waitTime = ros::Duration(0.195);
   static ros::Duration time_offset(_extOdomTimeOffset);
   static ros::Duration fallback_time_offset(_fallbackExtOdomTimeOffset);
 
   //Skip first two pointclouds from external prior lookup as _transformAftMapped has not updated yet
-  if(_frameCount < 3){
-    std::cout << "\033[32mMAPPING\033[0m External Prior - Skip for PCL: "<< _frameCount<< std::endl;
+  if (_frameCount < 3) {
+    std::cout << "\033[32mMAPPING\033[0m External Prior - Skip for PCL: " << _frameCount << std::endl;
     return false;
   }
-  
+
   if (!useFallback) {
     try {
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + time_offset;
-      // std::cout << "ExtPriorCompensated _lastPCLTime: " << lastPCL_ts.sec << "," << lastPCL_ts.nsec
-      //           << ", _currentPCLTime: " << currPCL_ts.sec << "," << currPCL_ts.nsec << std::endl;
-      _tfListener.waitForTransform(_extOdomFrame, currPCL_ts,
-                                   _extOdomFrame, lastPCL_ts,
-                                   _extFixedFrame, waitTime);
       _tfListener.lookupTransform(_extOdomFrame, currPCL_ts,
                                   _extOdomFrame, lastPCL_ts,
                                   _extFixedFrame, T_S2S1);
       //External Sensor-to-LiDAR transform
       _tfListener.lookupTransform(_lidarFrame, _extSensorFrame, ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   } else {
@@ -1101,11 +1136,6 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + fallback_time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + fallback_time_offset;
-      // std::cout << "FallbackPriorCompensated _lastPCLTime: " << lastPCL_ts.sec << "," << lastPCL_ts.nsec
-      //           << ", _currentPCLTime: " << currPCL_ts.sec << "," << currPCL_ts.nsec << std::endl;
-      _tfListener.waitForTransform(_fallbackExtOdomFrame, currPCL_ts,
-                                   _fallbackExtOdomFrame, lastPCL_ts,
-                                   _fallbackExtFixedFrame, waitTime);
       _tfListener.lookupTransform(_fallbackExtOdomFrame, currPCL_ts,
                                   _fallbackExtOdomFrame, lastPCL_ts,
                                   _fallbackExtFixedFrame, T_S2S1);
@@ -1113,7 +1143,7 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
       _tfListener.lookupTransform(_lidarFrame, _fallbackExtSensorFrame,
                                   ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   }
@@ -1144,13 +1174,80 @@ bool BasicLaserMapping::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen:
 }
 
 pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserMap() {
+  // auto t_map = std::clock();
   // Accumulate Surface Map
-  _laserMap->clear();
+  pcl::PointCloud<pcl::PointXYZI>::Ptr mapCloud(new pcl::PointCloud<pcl::PointXYZI>());
   for (const auto& idx : _occupiedCubeInd)
-    *_laserMap += *_laserCloudSurfArray[idx];
+    *mapCloud += *_laserCloudSurfArray[idx];
+
+  //Downsample map cloud
+  _laserMap->clear();
+  _rndSampleFilterMapVis.setInputCloud(mapCloud);
+  _rndSampleFilterMapVis.filter(*_laserMap);
+ 
+  // //Debug
+  // std::cout << "\033[32mMAPPING\033[0m Map points, Org:" << mapCloud->size() << ", RandomSampled: " << _laserMap->size()
+  //           << ", time(ms): " << static_cast<double>(std::clock() - t_map) / CLOCKS_PER_SEC * 1000.0 << std::endl;
 
   return *_laserMap;
 }
+
+pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::laserSubmap()
+{
+  // auto t_submap = std::clock();
+  //Accumulate corner and flat submaps
+  pcl::PointCloud<pcl::PointXYZI>::Ptr submapCloud(new pcl::PointCloud<pcl::PointXYZI>());
+  *submapCloud += *_laserCloudCornerFromMap;
+  *submapCloud += *_laserCloudSurfFromMap;
+
+    // Crop box passthrough filter
+  if (_submapVisCropRange != 0.0) {
+    // X-axis
+    _submapVisCropbox.setFilterFieldName("x");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.x() - _submapVisCropRange, _transformAftMapped.pos.x() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+    // Y-axis
+    _submapVisCropbox.setFilterFieldName("y");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.y() - _submapVisCropRange, _transformAftMapped.pos.y() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+    // Z-axis
+    _submapVisCropbox.setFilterFieldName("z");
+    _submapVisCropbox.setFilterLimits(_transformAftMapped.pos.z() - _submapVisCropRange, _transformAftMapped.pos.z() + _submapVisCropRange);
+    _submapVisCropbox.setInputCloud(submapCloud);
+    _submapVisCropbox.filter(*submapCloud);
+  }
+
+  //Downsample
+  _downSizeFilterMapVis.setInputCloud(submapCloud);
+  _downSizeFilterMapVis.filter(*submapCloud);
+
+  // //Debug
+  // std::cout << "\033[32mMAPPING\033[0m Submap points: " << submapCloud->size()
+  //           << ", time(ms): " << static_cast<double>(std::clock() - t_submap) / CLOCKS_PER_SEC * 1000.0 << std::endl;
+
+  return *submapCloud;
+}
+
+pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::getSubmapSearchCloud() {
+  //Accumulated corner and surface search clouds
+  pcl::PointCloud<pcl::PointXYZI>::Ptr currentCloud(new pcl::PointCloud<pcl::PointXYZI>());
+  *currentCloud += *_laserCloudCornerStackDS;
+  *currentCloud += *_laserCloudSurfStackDS;
+
+  //Transform into map frame
+  _submapSearchCloud->clear();
+  _submapSearchCloud->reserve(currentCloud->size());
+  pcl::PointXYZI tfPt;
+  for (const auto& pt : currentCloud->points) {
+    pointAssociateToMap(pt, tfPt);
+    _submapSearchCloud->push_back(tfPt);
+  }
+
+  return *_submapSearchCloud;
+}
+
 //CUSTOMIZATION
 
 }  // end namespace loam

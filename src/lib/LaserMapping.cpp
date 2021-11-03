@@ -122,6 +122,28 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     }
   }
 
+  if (privateNode.getParam("mapVisFilterSize", fParam)) {
+    if (fParam < 0.001) {
+      ROS_ERROR("Invalid mapVisFilterSize parameter: %f (expected >= 0.001)", fParam);
+      return false;
+    } else {
+      downSizeFilterMapVis().setLeafSize(fParam, fParam, fParam);
+      ROS_INFO("Set map visualization down size filter leaf size: %g", fParam);
+    }
+  }
+
+  if (privateNode.getParam("submapVisCropRange", fParam)) {
+    if (fParam < 0.0) {
+      ROS_ERROR("Invalid submapVisCropRange parameter: %f (expected >= 0.0)", fParam);
+      return false;
+    } else if (fParam == 0.0)
+      ROS_INFO("Full submap visualized - Cropbox disabled");
+    else {
+      setSubmapVisCropRange(fParam);
+      ROS_INFO("Set submap visualization cropbox range: %g", fParam);
+    }
+  }
+
   //CUSTOMIZATION
   //Set LOAM internal Map Cube Size
   if (privateNode.getParam("mapCubeSize", dParam)) {
@@ -317,6 +339,15 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     setFallbackExternalPriorStatus(false);
   }
 
+  //Set if external frame should be used for gravity rotation alignment
+  if (privateNode.getParam("useExtRotationAlignment", bParam)) {
+    if (bParam) {
+      ROS_WARN_STREAM("LaserMapping - Use External Fixed Frame to Fix Map Frame Gravity Alignment");
+      useExtRotationAlignment(bParam);
+    } else
+      ROS_INFO_STREAM("LaserMapping - External Fixed Frame for Gravity Alignment - DISABLED");
+  }
+
   //Set input PCL rotation w.r.t LiDAR frame
   if (privateNode.getParam("rotateInputCloud", bParam)) {
     setInputPCLRotationStatus(bParam);
@@ -356,9 +387,9 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //Map Publish Rate Divider
   if (privateNode.getParam("mapPublishRateDivider", iParam)) {
     _mapPublishRateDivider = iParam;
-    int ioRatio=0;
+    int ioRatio = 0;
     privateNode.getParam("ioRatio", ioRatio);
-    ROS_INFO_STREAM("LaserMapping - Full Map Published at: " << (1.0/(scanPeriod() * float(ioRatio) * float(_mapPublishRateDivider))) << " Hz");
+    ROS_INFO_STREAM("LaserMapping - Full Map Published at: " << (1.0 / (scanPeriod() * float(ioRatio) * float(_mapPublishRateDivider))) << " Hz");
   }
 
   //Verbose Ouput
@@ -371,7 +402,6 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
 
   // advertise laser mapping topics
-  _pubLaserCloudSurround = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surround", 1);
   _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_registered", 2);
   _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("/aft_mapped_to_init", 5);
 
@@ -398,6 +428,7 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
   _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
 
+  // Publish optimization status
   _pubOptimizationStatus = node.advertise<OptStatus>("/laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
@@ -405,6 +436,8 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subLaserOdometryStatus = node.subscribe<std_msgs::Header>("/laser_odom_status", 5, &LaserMapping::laserOdometryStatusHandler, this);
   _srvSaveSubmapsToFile = node.advertiseService("/save_submaps_to_file", &LaserMapping::saveSubMapsToFile, this);
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map", 1);
+  _pubSubmap = node.advertise<sensor_msgs::PointCloud2>("/laser_submap", 1);
+  _pubSubMapSearchCloud = node.advertise<sensor_msgs::PointCloud2>("/submap_search_cloud", 1);
   //DEBUG
   _pubCurrentCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("/current_corner_submap", 1);
   _pubCurrentSurfSubmap = node.advertise<sensor_msgs::PointCloud2>("/current_surf_submap", 1);
@@ -475,9 +508,9 @@ bool LaserMapping::saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_
 }
 
 void LaserMapping::syncInputsHandler(const sensor_msgs::PointCloud2ConstPtr& pclCorner,
-                       const sensor_msgs::PointCloud2ConstPtr& pclFlat,
-                       const sensor_msgs::PointCloud2ConstPtr& pclFull,
-                       const nav_msgs::OdometryConstPtr& laserOdom) {
+                                     const sensor_msgs::PointCloud2ConstPtr& pclFlat,
+                                     const sensor_msgs::PointCloud2ConstPtr& pclFull,
+                                     const nav_msgs::OdometryConstPtr& laserOdom) {
   //Process incoming pointclouds and odometry
   laserCloudCornerLastHandler(pclCorner);
   laserCloudSurfLastHandler(pclFlat);
@@ -500,13 +533,11 @@ void LaserMapping::process() {
 }
 
 void LaserMapping::publishResult() {
-  // publish new map cloud according to the input output ratio
-  if (_pubLaserCloudSurround.getNumSubscribers() > 0)
-    if (createDownsizedMap())
-      publishCloudMsg(_pubLaserCloudSurround, laserCloudSurroundDS(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
-
   // publish transformed full resolution input cloud
-  publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
+  if(_pubLaserCloudFullRes.getNumSubscribers() > 0){
+    transformFullResToMap();
+    publishCloudMsg(_pubLaserCloudFullRes, laserCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
+  }
 
   //CUTOMIZATION - DEBUG
   //Curent Submaps
@@ -611,13 +642,20 @@ void LaserMapping::publishResult() {
     _pubOptimizationStatus.publish(_optStatusMsg);
   }
 
-  //
+  //Publish full downsampled map for visualitzation purposes
   if (_pubMap.getNumSubscribers() > 0 && _mapCounter > _mapPublishRateDivider) {
     _mapCounter = 0;
     publishCloudMsg(_pubMap, laserMap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   } else
     ++_mapCounter;
 
+  // publish new submap cloud
+  if (_pubSubmap.getNumSubscribers() > 0)
+      publishCloudMsg(_pubSubmap, laserSubmap(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
+
+  //Publish submap search cloud
+  if(_pubSubMapSearchCloud.getNumSubscribers() > 0)
+    publishCloudMsg(_pubSubMapSearchCloud, getSubmapSearchCloud(), _timeLaserOdometry, _aftMappedTrans.frame_id_);
   //CUSTOMIZATION
 }
 

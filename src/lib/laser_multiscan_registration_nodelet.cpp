@@ -13,8 +13,8 @@ class LaserMultiScanRegistrationNodelet : public nodelet::Nodelet {
   //Function
   virtual void onInit() {
     //Get Multi-Thread Node Handles
-    nh_ = getMTNodeHandle();
-    pnh_ = getMTPrivateNodeHandle();
+    nh_ = getNodeHandle();
+    pnh_ = getPrivateNodeHandle();
 
     //Create Instance & Initialize
     multiScan_ = std::make_unique<loam::MultiScanRegistration>();

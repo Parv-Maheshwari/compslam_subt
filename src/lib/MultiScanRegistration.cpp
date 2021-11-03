@@ -34,7 +34,7 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 
-#include "math_utils.h"
+
 
 namespace loam {
 MultiScanMapper::MultiScanMapper(const float& lowerBound,
@@ -80,7 +80,7 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
   std::string lidarName;
 
   if (privateNode.getParam("lidar", lidarName)) {
-    if (lidarName == "VLP-16") {
+    if (lidarName == "VLP-16" || lidarName == "VLP-16-ANYbotics") {
       _scanMapper = MultiScanMapper::Velodyne_VLP_16();
     } else if (lidarName == "HDL-32") {
       _scanMapper = MultiScanMapper::Velodyne_HDL_32();
@@ -100,14 +100,16 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       ROS_ERROR("Invalid lidar parameter: model %s is not supported)", lidarName.c_str());
       return false;
     }
-    ROS_INFO("Set  %s  scan mapper.", lidarName.c_str());
 
     if (!privateNode.hasParam("scanPeriod")) {
       config_out.scanPeriod = 0.1;
-      ROS_INFO("Set scanPeriod: %f", config_out.scanPeriod);
+      ROS_INFO("MultiScanRegistration - Set scanPeriod: %f", config_out.scanPeriod);
     }
     //CUSTOMIZATION
     _scanMapper.setLiDARName(lidarName);
+    ROS_INFO_STREAM("MultiScanRegistration - scanMapper - LiDAR: " << _scanMapper.getLiDARName()
+                                                                   << ", Rings: " << _scanMapper.getNumberOfScanRings()
+                                                                   << ", FoV: " << _scanMapper.getLowerBound() << "/" << _scanMapper.getUpperBound());
     //CUSTOMIZATION
   } else {
     float vAngleMin, vAngleMax;
@@ -175,35 +177,35 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
     return;
   }
 
-  //CUSTOMIZATION
-  updatedROSPCLTimestamp(laserCloudMsg->header.stamp); //smk: preserve original ros timestamp
+  //Preserve ROS timestamp
+  updatedROSPCLTimestamp(laserCloudMsg->header.stamp);
 
-  /*//Create PCL with ring field in case it is dome LiDAR and ring field used otherwise the field will be empty
-  pcl::PointCloud<PointXYZIR> laserCloudInXYZIR;
-
-  // USE RING and INTENSITY Fields //FIXME
-  if (_useCloudIntensityandRingFields) {
-    //1. Create PCL Pointcloud2 from ROS Pointcloud2
-    pcl::PCLPointCloud2 pcl_pc2;
-    pcl_conversions::toPCL(*laserCloudMsg, pcl_pc2);
-    //2. Create fields map
-    pcl::MsgFieldMap field_map;
-    pcl::createMapping<PointXYZIR>(pcl_pc2.fields, field_map);
-    //3. Map PCL Pointcloud2 binary into PointXYZIR
-    pcl::fromPCLPointCloud2(pcl_pc2, laserCloudInXYZIR, field_map);
-  } else {
-    // Only use XYZ fields
-    pcl::fromROSMsg(*laserCloudMsg, laserCloudInXYZIR);
-  }*/
-
-  //CUSTOMIZATION
-
-  pcl::PointCloud<pcl::PointXYZ> laserCloudInXYZ;
-  pcl::fromROSMsg(*laserCloudMsg, laserCloudInXYZ);
-  process(laserCloudInXYZ, fromROSTime(laserCloudMsg->header.stamp));
+  //Check if OUster
+  if (_scanMapper.getLiDARName() == "O0-128-Div2" ||
+      _scanMapper.getLiDARName() == "O0-128" ||
+      _scanMapper.getLiDARName() == "O1-64") {
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointOuster>
+    pcl::PointCloud<PointOuster> pclPointOuster;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointOuster);
+    // process
+    process(pclPointOuster, fromROSTime(laserCloudMsg->header.stamp));
+  } else if (_scanMapper.getLiDARName() == "VLP-16-ANYbotics") {
+    // Convert ROS Pointcloud2 into PCL Pointcloud<pclPointVelodyneANYbotics>
+    pcl::PointCloud<PointVelodyneANYbotics> pclPointVelodyneANYbotics;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyneANYbotics);
+    // process
+    process(pclPointVelodyneANYbotics, fromROSTime(laserCloudMsg->header.stamp));
+  } else {  //TODO - Currently treating all other inputs in Velodyne format
+    // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
+    pcl::PointCloud<PointVelodyne> pclPointVelodyne;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyne);
+    // process
+    process(pclPointVelodyne, fromROSTime(laserCloudMsg->header.stamp));
+  }
 }
 
-void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZ>& laserCloudInput, const Time& scanTime) { //FIXME
+template <typename pointType>
+void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloudInput, const Time& scanTime) {
   //smk:
   //1. get cloud message and calculate start and end orientation of the scan
   //2. eliminate infinite and zero points
@@ -213,8 +215,7 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZ>& laserC
   //6. LIDAR frame seems to be Z-Forward, X-Left and Y-Up (equivalent to ZYX of ros frame)
 
   //CUSTOMIZATION
-  // pcl::PointCloud<PointXYZIR> laserCloudIn;
-  pcl::PointCloud<pcl::PointXYZ> laserCloudIn; //FIXME
+  pcl::PointCloud<pointType> laserCloudIn;
   // Rotate input pointcloud
   if (_rotateInputCloud)
     pcl::transformPointCloud(laserCloudInput, laserCloudIn, _affine);
@@ -251,9 +252,8 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZ>& laserC
     point.z = laserCloudIn[i].x;
 
     // skip NaN and INF valued points
-    if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
+    if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z))
       continue;
-    }
 
     //Range
     float range = std::sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
@@ -262,17 +262,22 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZ>& laserC
     if (range < _minRange || range > _maxRange)
       continue;
 
-    // calculate vertical point angle and scan ID
+    //Use ring number or calculate elevation angle to determine scanID
     int scanID;
-    // if (_scanMapper.getLiDARName() != "Bperl-32") {
-      float angle = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z)); //TODO: Check Formula
+    if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128")
+      scanID = static_cast<int>(laserCloudIn[i].ring);
+    else {
+      float angle = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z));  //TODO: Check Formula
       scanID = _scanMapper.getRingForAngle(angle);
-    // } else
-      // scanID = laserCloudIn[i].ring;  //smk: Use ring number as scanID in case of dome LiDAR
-
-    if (scanID >= _scanMapper.getNumberOfScanRings() || scanID < 0) {
-      continue;
     }
+
+    //Skip rings option incase of OS0-128 LiDAR
+    if (_scanMapper.getLiDARName() == "O0-128-Div2" && scanID % 2 != 0)
+      continue;
+
+    //Skip point if outside elevation angle range of LiDAR
+    if (scanID >= _scanMapper.getNumberOfScanRings() || scanID < 0)
+      continue;
 
     // calculate horizontal point angle
     float ori = -std::atan2(point.x, point.z);
@@ -310,4 +315,7 @@ void MultiScanRegistration::process(const pcl::PointCloud<pcl::PointXYZ>& laserC
   publishResult();
 }
 
+template void MultiScanRegistration::process(const pcl::PointCloud<PointVelodyne>&, const Time&);
+template void MultiScanRegistration::process(const pcl::PointCloud<PointOuster>&, const Time&);
+template void MultiScanRegistration::process(const pcl::PointCloud<PointVelodyneANYbotics>&, const Time&);
 }  // end namespace loam

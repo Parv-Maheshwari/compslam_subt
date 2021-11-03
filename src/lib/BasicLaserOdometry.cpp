@@ -5,8 +5,6 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/QR>
 
-#include "math_utils.h"
-
 namespace loam {
 
 using std::asin;
@@ -37,6 +35,10 @@ BasicLaserOdometry::BasicLaserOdometry(float scanPeriod, size_t maxIterations)
       _lastSurfaceCloud(new pcl::PointCloud<pcl::PointXYZI>()),
       _laserCloudOri(new pcl::PointCloud<pcl::PointXYZI>()),
       _coeffSel(new pcl::PointCloud<pcl::PointXYZI>()) {
+  //Initialize factor graph parameter object
+  _graphMgr._params.optimizationParams = gtsam::ISAM2GaussNewtonParams();
+  // //Logging
+  // _odometryLogFile.open("/home/shehryar/compslam_ws/src/compslam/odomEigen.csv", std::ios::out);
 }
 
 void BasicLaserOdometry::transformToStart(const pcl::PointXYZI& pi, pcl::PointXYZI& po) {
@@ -170,22 +172,63 @@ void BasicLaserOdometry::process() {
     _transformSum.rot_x += _imuPitchStart;
     _transformSum.rot_z += _imuRollStart;
 
-    //CUSTOMIZATION - Use IMU intialized Roll-Pitch (Gravity aligned)
-    double initRoll, initPitch;
-    if (_extPriorAvailable) {
-      _gravityInitSuccess = getInitGravityRollPitch(initRoll, initPitch);
-      if (_gravityInitSuccess) std::cout << "\033[35mLASER\033[0m Gravity Alignment Init using PRIMARY IMU-to-LiDAR calibration(deg), Roll: " << rad2deg(initRoll) << ", Pitch: " << rad2deg(initPitch) << std::endl;
-    } else if (!_gravityInitSuccess && _fallbackExtPriorAvailable) {
-      _gravityInitSuccess = getInitGravityRollPitch(initRoll, initPitch, true);
-      if (_gravityInitSuccess) std::cout << "\033[35mLASER\033[0m Gravity Alignment Init using FALLBACK IMU-to-LiDAR calibration(deg), Roll: " << rad2deg(initRoll) << ", Pitch: " << rad2deg(initPitch) << std::endl;
+    //CUSTOMIZATION
+    //FACTOR-GRAPH
+    //Estimate Initial attitude from IMU w.r.t Gravity in IMU Frame
+    double g;
+    gtsam::Rot3 imu_attitude;
+    if (!_imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(),
+                                            _graphMgr._state.imuBias().accelerometer(),
+                                            imu_attitude,
+                                            g,
+                                            &_graphMgr.setInitGyrBias(),
+                                            true)) {
+      ROS_WARN("LaserOdometry Failed to Initialize Attitude from IMU - RETRYING ...");
+      return;
     }
 
-    //Init
-    if (_gravityInitSuccess) {
-      _transformSum.rot_x = Angle(initPitch);
-      _transformSum.rot_z = Angle(initRoll);
-    } else
-      ROS_WARN("*** LaserOdometry - No Gravity Aligned Roll/Pitch Initialization ***");
+    //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
+    tf::StampedTransform T_LB, T_BL;
+    try {
+      _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_LB);
+      _tfListener.lookupTransform(_imuFrame, _lidarFrame, ros::Time(0), T_BL);
+    } catch (tf::TransformException ex) {
+      ROS_WARN("%s", ex.what());
+    }
+    //T_LB
+    Eigen::Vector3d t_LB(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
+    Eigen::Quaterniond q_LB(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
+    q_LB.normalize();
+    _T_LB.block<3, 1>(0, 3) = t_LB;
+    _T_LB.block<3, 3>(0, 0) = q_LB.toRotationMatrix();
+    //T_BL
+    invertHomogenousMatrix(_T_LB, _T_BL);
+    std::cout << "\033[35mLASER\033[0m IMU-to-LiDAR Extrinsic Calibration:\n"
+              << _T_LB << std::endl;
+    std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
+              << _T_BL << std::endl;
+
+    //Initialize IMU Preintegrator and Factor Graph
+    _graphMgr.initImuIntegrator(g);
+
+    //Initialize Factor Graph with prior factor
+    gtsam::Pose3 init_pose = gtsam::Pose3::identity();
+    if (_initGraphRollPicthFromIMU)
+      init_pose = gtsam::Pose3(gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
+                               gtsam::Point3());
+    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_pose);
+
+    //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
+    gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
+
+    //Initialize pose in LOAM frame from LiDAR pose
+    _transformSum.rot_z = Angle(initLiDARPose.rotation().roll());
+    _transformSum.rot_x = Angle(initLiDARPose.rotation().pitch());
+    std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << initLiDARPose.translation().transpose() << ", RPY(deg): " << initLiDARPose.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
+
+    //Set TF for debug purposes
+    _gravityAttitude.getBasis().setRPY(initLiDARPose.rotation().roll(), initLiDARPose.rotation().pitch(), initLiDARPose.rotation().yaw());
+    _gravityAttitudeInit = true;
     //CUSTOMIZATION
 
     _systemInited = true;
@@ -229,7 +272,7 @@ void BasicLaserOdometry::process() {
   }
 
   if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy)
-    ROS_WARN_THROTTLE(1.0, "*** LaserOdometry - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***",
+    ROS_WARN("*** LaserOdometry - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***",
                       -translation_prior[2], -translation_prior[0], -translation_prior[1], _odomRelativeTranslationMax, translation_prior.norm());
 
   //Use HEALTHY Prior
@@ -247,7 +290,7 @@ void BasicLaserOdometry::process() {
 
     //DEBUG - Negation for human understanding - reverses direction of pcl alignment
     if (_verboseLevel > 1)
-      std::cout << "\033[35mLASER\033[0m Ext Prior DELTA (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
+      std::cout << "\033[35mLASER\033[0m External Prior DELTA (x,y,z): [" << -translation_prior[2] << " " << -translation_prior[0] << " " << -translation_prior[1]
                 << "], (r,p,y): [" << rad2deg(rotation_prior[2]) << " " << rad2deg(rotation_prior[0]) << " " << rad2deg(rotation_prior[1])
                 << "], Type: " << (primaryPrior ? "P" : "F") << std::endl;
     //DEBUG
@@ -562,10 +605,14 @@ void BasicLaserOdometry::process() {
         matP = matV.inverse() * matV2;
 
         //CUSTOMIZATION
+        // //Logging
+        // _odometryLogFile << (_currentPCLTime.toSec() + _currentPCLTime.toNSec() * 1e-9) << ","
+        //                  << matE(0, 0) << "," << matE(0, 1) << "," << matE(0, 2) << ","
+        //                  << matE(0, 3) << "," << matE(0, 4) << "," << matE(0, 5) << "\n";
         //Enable VIO passthrough if solution was degenerate
         if (_isExternalPriorHealthy) {
           if (isDegenerate) {
-            ROS_WARN_THROTTLE(0.5, "*** LOAM - ODOMETRY Degenerate - Using External Estimate ***");
+            ROS_WARN("*** LOAM - ODOMETRY Degenerate - Using External Estimate ***");
             _wasDegenerate = true;
             _countDegenerate = 5;
             break;
@@ -589,7 +636,7 @@ void BasicLaserOdometry::process() {
         Eigen::Matrix<float, 6, 1> matX2(matX);
         matX = matP * matX2;
         if (iterCount == 0)
-          ROS_WARN_THROTTLE(0.5, "*** LOAM - ODOMETRY Degenerate ***");
+          ROS_WARN("*** LOAM - ODOMETRY Degenerate ***");
         _wasDegenerate = true;  //CUSTOMIZATION //Added for status monitoring in-case external odometry is not available
       } else
         _wasDegenerate = false;  //CUSTOMIZATION
@@ -643,7 +690,7 @@ void BasicLaserOdometry::process() {
                 << ", Iter:" << iterCount + 1
                 << ", Residual(T/R):" << deltaT << "/" << deltaR
                 << ", Time(ms):" << t
-                << (t < 50 ? " \033[32mGOOD\033[0m" : "\033[31mSLOW\033[0m") << "\n";
+                << (t < 75 ? " \033[32mGOOD\033[0m" : " \033[31mSLOW\033[0m") << "\n";
     }
     //DEBUG - Optimization Status
 
@@ -651,7 +698,7 @@ void BasicLaserOdometry::process() {
     _optStatusMsg.converged = error_converged;
     _optStatusMsg.translation_residual = deltaT;
     _optStatusMsg.rotation_residual = deltaR;
-    _optStatusMsg.degenerated = isDegenerate;
+    _optStatusMsg.degenerate = isDegenerate;
     _optStatusMsg.iteration_count = iterCount + 1;
     _optStatusMsg.iteration_max = _maxIterations;
     _optStatusMsg.optimization_time = static_cast<double>(std::clock() - time_start) / CLOCKS_PER_SEC;
@@ -671,6 +718,18 @@ void BasicLaserOdometry::process() {
     //CUSTOMIZATION
   }
 
+  /* -----Factor Graph----- */
+  //Update Factor graph with IMU and LiDAR pose factors
+  updateFactorGraph();
+
+  //Get new pose
+  gtsam::Pose3 lidarPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL); // L_B * Binit_Bnow * B_L = LinitLnow
+  //Update IMU bias message for publishing
+  tf::vectorEigenToMsg(_graphMgr._state.imuBias().accelerometer(), _imuBiasMsg.linear_acceleration);  //Accelerometer
+  tf::vectorEigenToMsg(_graphMgr._state.imuBias().gyroscope(), _imuBiasMsg.angular_velocity);         //Gyroscope
+  /* -----Factor Graph----- */
+
+  //Update odometry
   Angle rx, ry, rz;
   accumulateRotation(_transformSum.rot_x,
                      _transformSum.rot_y,
@@ -697,12 +756,19 @@ void BasicLaserOdometry::process() {
   _transformSum.rot_z = rz;
   _transformSum.pos = trans;
 
-  //DEBUG 
+  //Factor-graph odometry - LOAM frame
+  _transformSum.pos.z() = lidarPose.translation().x();
+  _transformSum.pos.x() = lidarPose.translation().y();
+  _transformSum.pos.y() = lidarPose.translation().z();
+  _transformSum.rot_z = Angle(lidarPose.rotation().roll()); 
+  _transformSum.rot_x = Angle(lidarPose.rotation().pitch());
+  _transformSum.rot_y = Angle(lidarPose.rotation().yaw());  
+  //Factor-graph odometry
+
+  //DEBUG - Negation for human understanding - reverses direction of pcl alignment
   if (_verboseLevel > 1) {
-    //Optimization Result - DELTA - Negation for human understanding - reverses direction of pcl alignment
-    std::cout << "\033[35mLASER\033[0m Opt Result DELTA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
+    std::cout << "\033[35mLASER\033[0m Opt-Result DETLA (x,y,z): [" << -_transform.pos.z() << " " << -_transform.pos.x() << " " << -_transform.pos.y()
               << "], (r,p,y): [" << _transform.rot_z.deg() << " " << _transform.rot_x.deg() << " " << _transform.rot_y.deg() << "]\n";
-    //Laser Odometry in ROS frame
     std::cout << "\033[35mLASER\033[0m Odometry (x,y,z): [" << _transformSum.pos.z() << " " << _transformSum.pos.x() << " " << _transformSum.pos.y()
               << "], (r,p,y): [" << _transformSum.rot_z.deg() << " " << _transformSum.rot_x.deg() << " " << _transformSum.rot_y.deg() << "]\n";
   }
@@ -721,7 +787,7 @@ void BasicLaserOdometry::process() {
     _lastCornerKDTree.setInputCloud(_lastCornerCloud);
     _lastSurfaceKDTree.setInputCloud(_lastSurfaceCloud);
   }
-}  // namespace loam
+}
 
 //CUSTOMIZATION
 void BasicLaserOdometry::updatePCLTime(const ros::Time& currentTimeStamp) {
@@ -739,7 +805,6 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
   rotPriorXYZ.setZero();
   tf::StampedTransform T_S2S1;  //Relative Transform of S1 w.r.t S2 using fixed frame
   tf::StampedTransform T_LS;    //Transform from external Sensor to LiDAR Frame - Extrinsic Calibration
-  static auto waitTime = ros::Duration(0.095);
   static ros::Duration time_offset(_extOdomTimeOffset);
   static ros::Duration fallback_time_offset(_fallbackExtOdomTimeOffset);
 
@@ -748,16 +813,13 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + time_offset;
-      _tfListener.waitForTransform(_extOdomFrame, currPCL_ts,
-                                   _extOdomFrame, lastPCL_ts,
-                                   _extFixedFrame, waitTime);
       _tfListener.lookupTransform(_extOdomFrame, currPCL_ts,
                                   _extOdomFrame, lastPCL_ts,
                                   _extFixedFrame, T_S2S1);
       //External Sensor-to-LiDAR transform
       _tfListener.lookupTransform(_lidarFrame, _extSensorFrame, ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   } else {
@@ -765,9 +827,6 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
       //Relative Transform
       ros::Time currPCL_ts = _currentPCLTime + fallback_time_offset;
       ros::Time lastPCL_ts = _lastPCLTime + fallback_time_offset;
-      _tfListener.waitForTransform(_fallbackExtOdomFrame, currPCL_ts,
-                                   _fallbackExtOdomFrame, lastPCL_ts,
-                                   _fallbackExtFixedFrame, waitTime);
       _tfListener.lookupTransform(_fallbackExtOdomFrame, currPCL_ts,
                                   _fallbackExtOdomFrame, lastPCL_ts,
                                   _fallbackExtFixedFrame, T_S2S1);
@@ -775,7 +834,7 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
       _tfListener.lookupTransform(_lidarFrame, _fallbackExtSensorFrame,
                                   ros::Time(0), T_LS);
     } catch (tf::TransformException ex) {
-      ROS_WARN_THROTTLE(5.0, "%s", ex.what());
+      ROS_WARN("%s", ex.what());
       return false;
     }
   }
@@ -805,46 +864,62 @@ bool BasicLaserOdometry::calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen
   return true;
 }
 
-bool BasicLaserOdometry::getInitGravityRollPitch(double& roll, double& pitch, bool useFallback /*= false*/) {
-  roll = pitch = 0.0;
-  tf::StampedTransform T_GS;  //Transform from Sensor(IMU)-frame to respective Gravity-Aligned-Frame
-  tf::StampedTransform T_LS;  //Transform from Sensor(IMU)-frame to LiDAR-frame
-  bool lookUpSuccess = false;
+bool BasicLaserOdometry::updateFactorGraph() {
+  //Update keys and timestamps
+  auto old_key = _graphMgr._state.key();
+  auto new_key = _graphMgr.newStateKey();
+  auto old_ts = _lastPCLTime.toSec() + _imuTimeOffset;
+  auto new_ts = _currentPCLTime.toSec() + _imuTimeOffset;
+  // std::cout << std::fixed << "FACTOR-GRAPH keys: (" << old_key << "/" << new_key << "), ts: (" << old_ts << "/" << new_ts << "), diff:" << new_ts - old_ts << std::endl;
 
-  //Get Initial Roll-Pitch from IMU
-  try {
-    _tfListener.lookupTransform("gravity", "gravity_init_roll_pitch", ros::Time(0), T_GS);
-  } catch (tf::TransformException ex) {
-    ROS_WARN("--- LaserOdometry Gravity Alignment IMU lookup failed ---\n%s", ex.what());
-    return false;
+  //Get IMU measurements between pointcloud timestamps and add IMU factor
+  IMUMap imu_meas;
+  bool success = _imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas);
+  if (success)
+    _graphMgr.addImuFactor(old_key, new_key, imu_meas);
+  else
+    ROS_WARN("LaserOdometry - IMU factor not added to graph");
+
+  //CREATE LiDAR POSE BETWEEN FACTOR
+  //Pose delta in LiDAR Frame - LOAM calcualtes transformation to be applied on New pointcloud to align with to Old
+  //For odometry we require Old->New transformation. Hence, delta rotation and translation is negated to reverse direction.
+  Eigen::Matrix4d delta_lidar = Eigen::Matrix4d::Identity();
+  Eigen::Quaterniond dq = Eigen::AngleAxisd(-_transform.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
+                          Eigen::AngleAxisd(-_transform.rot_x.rad(), Eigen::Vector3d::UnitY()) *
+                          Eigen::AngleAxisd(-_transform.rot_z.rad(), Eigen::Vector3d::UnitX());
+  dq.normalize();
+  delta_lidar.block<3, 3>(0, 0) = dq.toRotationMatrix();                                                           //R
+  delta_lidar.block<3, 1>(0, 3) = Eigen::Vector3d(-_transform.pos.z(), -_transform.pos.x(), -_transform.pos.y());  //t
+
+  //Convert to IMU frame
+  gtsam::Pose3 delta_imu(_T_BL * delta_lidar * _T_LB);
+  
+  //Check if Zero Motion and add Zero motion Factor
+  bool zeroMotion = false;
+  if (_zeroMotionDetection)
+    zeroMotion = _graphMgr.zeroMotionFactor(old_key, new_key, delta_imu);
+
+  //Add Pose between Factor if non-zero motion
+  if (!zeroMotion)
+    _graphMgr.addPoseBetweenFactor(old_key, new_key, delta_imu);
+
+  //Add IMU attitute prior if Zero Motion
+  if(_gravityRollPitchFactors && zeroMotion){
+    double g;
+    gtsam::Rot3 imu_attitude;
+    _imuBuffer.estimateAttitudeFromImu(old_ts,
+                                       _graphMgr._state.imuBias().accelerometer(),
+                                       imu_attitude,
+                                       g);
+    gtsam::Rot3 current_attitude = _graphMgr._state.navState().attitude();
+    auto yawAdjIMUattitude = gtsam::Rot3::Ypr(current_attitude.yaw(), imu_attitude.pitch(), imu_attitude.roll());
+    _graphMgr.addGravityRollPitchFactor(old_key, yawAdjIMUattitude);
   }
 
-  //External Sensor-to-LiDAR transform - Primary
-  if (!useFallback) {
-    try {
-      _tfListener.lookupTransform(_lidarFrame, _extSensorFrame, ros::Time(0), T_LS);
-      lookUpSuccess = true;
-    } catch (tf::TransformException ex) {
-      ROS_WARN("--- LaserOdometry Gravity Alignment lookup using PRIMARY sensor calibration failed ---\n%s", ex.what());
-    }
-  } else {  // Fallback
-    try {
-      _tfListener.lookupTransform(_lidarFrame, _fallbackExtSensorFrame, ros::Time(0), T_LS);
-      lookUpSuccess = true;
-    } catch (tf::TransformException ex) {
-      ROS_WARN("--- LaserOdometry Gravity Alignment lookup using FALLBACK sensor calibration failed ---\n%s", ex.what());
-    }
-  }
+  //Update graph with factors and calculate new state
+  _graphMgr.updateGraphAndState(new_ts, new_key);
 
-  //Calculate Roll Pitch Estimates
-  if (lookUpSuccess) {
-    _gravityInitRotation = T_GS * T_LS.inverse();
-    double yaw;  //IGNORED
-    _gravityInitRotation.getBasis().getRPY(roll, pitch, yaw);
-    _gravityInitRotation.getBasis().setRPY(roll, pitch, 0.0);  //Explicitly set Yaw to zero as it cannot be calculated from IMU-Acceleration only - IMU doesn't publish this but frame transformation can introduce incorrect Yaw for frame publishing
-  }
-
-  return lookUpSuccess;
+  return success;
 }
 //CUSTOMIZATION
 

@@ -1,18 +1,24 @@
-#pragma once
+#ifndef BASIC_LASER_ODOMETRY_H
+#define BASIC_LASER_ODOMETRY_H
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
 #include "Twist.h"
+#include "math_utils.h"
 #include "nanoflann_pcl.h"
 
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
+#include <sensor_msgs/Imu.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
 #include <fstream>
 #include "CircularBuffer.h"
+#include "GraphManager.hpp"
+#include "ImuManager.hpp"
 #include "loam/OptStatus.h"
 //CUSTOMIZATION
 
@@ -52,6 +58,8 @@ class BasicLaserOdometry {
   auto minIterations() const { return _minIterations; }
   auto deltaTAbort() const { return _deltaTAbort; }
   auto deltaRAbort() const { return _deltaRAbort; }
+
+  auto const& graphIMUBias() const { return _imuBiasMsg; }
 
   /** \brief Transform the given point cloud to the end of the sweep.
    *
@@ -130,14 +138,6 @@ class BasicLaserOdometry {
    */
   bool calcExternalPrior(Eigen::Vector3d& transPriorXYZ, Eigen::Vector3d& rotPriorXYZ, bool useFallback = false);
 
-  /** \brief Get Gravity-aligned Initial LiDAR Roll and Pitch estimates (RADIAN)
-   * @param roll: roll angle estimate 
-   * @param pitch: pitch angle estimate 
-   * @param useFallback: use fallback Sensor-to-LiDAR lookup for calculation
-   * @return bool: return true if estimate calculation is successful
-   */
-  bool getInitGravityRollPitch(double& roll, double& pitch, bool useFallback = false);
-
   // Set frames and parameters for integration of external motion priors
   void setExternalPriorStatus(bool b) { _extPriorAvailable = b; }
   void setExternalOdometryFrame(const std::string& s) { _extOdomFrame = s; }
@@ -152,13 +152,24 @@ class BasicLaserOdometry {
   void setLidarFrame(const std::string& s) { _lidarFrame = s; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  bool gravityRollPitchInitialized() { return _gravityInitSuccess; }
-  auto const& getLiDARGravityInitRotation() { return _gravityInitRotation; }
-  void setUndistortInputCloud(bool b){_undistortInputCloud = b;}
+  bool gravityAttitudeInitialized() { return _gravityAttitudeInit; }
+  auto const& getLiDARGravityInitAttitude() { return _gravityAttitude; }
+  void setUndistortInputCloud(bool b) { _undistortInputCloud = b; }
+  void setImuFrame(const std::string& s) { _imuFrame = s; }
+  void setImuTimeOffset(const double d) { _imuTimeOffset = d; }
+  void setZeroMotionDetection(const bool b) { _zeroMotionDetection = b; }
+  void setUseGravityRollPitchFactors(const bool b) { _gravityRollPitchFactors = b; }
+  void setUseIMURollPitchForGraphInit(const bool b) { _initGraphRollPicthFromIMU = b; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   loam::OptStatus _optStatusMsg;
   //CUTOMIZATION
+
+ protected:
+  /** \brief IMU buffer*/
+  ImuManager _imuBuffer;
+  /** \brief Factor graph*/
+  GraphManager _graphMgr;
 
  private:
   /** \brief Transform the given point to the start of the sweep.
@@ -177,7 +188,9 @@ class BasicLaserOdometry {
                           Angle lx, Angle ly, Angle lz,
                           Angle& ox, Angle& oy, Angle& oz);
 
- private:
+  bool updateFactorGraph();
+
+  //Member variables
   float _scanPeriod;      ///< time per scan
   long _frameCount;       ///< number of processed frames
   size_t _maxIterations;  ///< maximum number of iterations
@@ -244,10 +257,21 @@ class BasicLaserOdometry {
   std::string _lidarFrame = "";              // LiDAR frame name - used to lookup LiDAR-to-ExternalSensor Frame
   bool _isInputPCLRotated = false;           // Flag indicating if input PCL is rotated due to mounting position of LiDAR
   tf::Transform _Rot_inCloudLiDAR;           // Rotation of input PCL w.r.t ROS frmae
-  bool _gravityInitSuccess = false;          // Flag if Roll/Pitch from gravity were initialized
-  tf::Transform _gravityInitRotation;        // Roll/Pitch transform of initial gravity alignment
   bool _undistortInputCloud = true;          // If set to true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
+
+  //Graph Parameters
+  std::string _imuFrame = "";                           //IMU frame name - used to lookup LiDAR-to-IMU Frame
+  double _imuTimeOffset = 0.0;                          //Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
+  Eigen::Matrix4d _T_LB = Eigen::Matrix4d::Identity();  //IMU to LiDAR expressed in IMU frame, Read as Transforms LiDAR into IMU
+  Eigen::Matrix4d _T_BL = Eigen::Matrix4d::Identity();  //LiDAR to IMU expressed in LiDAR frame, Read as Transforms IMU into LiDAR
+  bool _initGraphRollPicthFromIMU = true;               //Initialize graph roll/pitch from IMU  
+  bool _gravityAttitudeInit = false;                    //Flag if attitude from gravity were initialized
+  tf::Transform _gravityAttitude;                       //Attitude from initial gravity alignment
+  sensor_msgs::Imu _imuBiasMsg;                         //IMU bias publishing ROS message
+  bool _zeroMotionDetection = false;                    //Detect and Add Zero Motion Factors(Zero delta Pose and Velocity)
+  bool _gravityRollPitchFactors = false;                //Add Gravity-aligned Roll-Pitch from IMU when in Zero motion (only works if Zero-Motion Factors are added)
   //CUSTOMIZATION
 };
 
 }  // end namespace loam
+#endif
