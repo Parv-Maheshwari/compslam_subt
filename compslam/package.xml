@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>compslam</name>
+  <version>1.0.0</version>
+  <description>Top level compslam package  lio,vtio and se packages</description>
+
+  <!-- Maintainer list -->
+  <maintainer email="shehryark@leggedrobotics.com">Shehryar Khattak</maintainer>
+  <maintainer email="nubertj@leggedrobotics.com">Julian Nubert</maintainer> 
+  <maintainer email="timonh@leggedrobotics.com">Timon Homberger</maintainer>
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>TODO</license>
+
+  <!-- Depend tags -->
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <!-- <exec_depend>compslam_lio</exec_depend> -->
+  <!-- <exec_depend>compslam_vtio</exec_depend> -->
+  <!-- <exec_depend>compslam_se</exec_depend> -->
+
+</package>
