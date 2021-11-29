@@ -86,7 +86,7 @@ void idleFunc(){
 #endif
 
 int main(int argc, char** argv){
-  ros::init(argc, argv, "rovio");
+  ros::init(argc, argv, "compslam_vtio");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
