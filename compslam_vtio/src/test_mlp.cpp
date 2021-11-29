@@ -1,10 +1,10 @@
-#include "rovio/Camera.hpp"
+#include "compslam_vtio/Camera.hpp"
 #include "gtest/gtest.h"
 #include <assert.h>
 
-#include "../include/rovio/ImagePyramid.hpp"
-#include "../include/rovio/FeatureManager.hpp"
-#include "../include/rovio/MultilevelPatchAlignment.hpp"
+#include "compslam_vtio/ImagePyramid.hpp"
+#include "compslam_vtio/FeatureManager.hpp"
+#include "compslam_vtio/MultilevelPatchAlignment.hpp"
 
 using namespace rovio;
 

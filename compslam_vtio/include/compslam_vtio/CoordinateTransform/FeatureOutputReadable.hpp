@@ -31,7 +31,7 @@
 
 #include "lightweight_filtering/common.hpp"
 #include "lightweight_filtering/CoordinateTransform.hpp"
-#include "rovio/CoordinateTransform/FeatureOutput.hpp"
+#include "compslam_vtio/CoordinateTransform/FeatureOutput.hpp"
 
 namespace rovio {
 

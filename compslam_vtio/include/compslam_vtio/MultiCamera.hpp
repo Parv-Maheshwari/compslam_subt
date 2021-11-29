@@ -30,8 +30,8 @@
 #define ROVIO_MULTICAMERA_HPP_
 
 #include "lightweight_filtering/common.hpp"
-#include "rovio/Camera.hpp"
-#include "rovio/FeatureCoordinates.hpp"
+#include "compslam_vtio/Camera.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
 
 namespace rovio{
 

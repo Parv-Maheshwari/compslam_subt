@@ -29,9 +29,9 @@
 #ifndef ROVIO_MULTILEVELPATCH_HPP_
 #define ROVIO_MULTILEVELPATCH_HPP_
 
-#include "rovio/Patch.hpp"
-#include "rovio/FeatureCoordinates.hpp"
-#include "rovio/ImagePyramid.hpp"
+#include "compslam_vtio/Patch.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
+#include "compslam_vtio/ImagePyramid.hpp"
 
 namespace rovio{
 

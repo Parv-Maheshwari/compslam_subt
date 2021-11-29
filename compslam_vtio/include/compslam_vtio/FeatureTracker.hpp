@@ -34,9 +34,9 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/Imu.h>
-#include "rovio/MultiCamera.hpp"
-#include "rovio/FeatureManager.hpp"
-#include "rovio/MultilevelPatchAlignment.hpp"
+#include "compslam_vtio/MultiCamera.hpp"
+#include "compslam_vtio/FeatureManager.hpp"
+#include "compslam_vtio/MultilevelPatchAlignment.hpp"
 
 namespace rovio{
 

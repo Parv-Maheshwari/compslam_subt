@@ -31,12 +31,12 @@
 
 #include "lightweight_filtering/common.hpp"
 #include "lightweight_filtering/FilterBase.hpp"
-#include "rovio/FilterStates.hpp"
-#include "rovio/ImgUpdate.hpp"
-#include "rovio/PoseUpdate.hpp"
-#include "rovio/VelocityUpdate.hpp"
-#include "rovio/ImuPrediction.hpp"
-#include "rovio/MultiCamera.hpp"
+#include "compslam_vtio/FilterStates.hpp"
+#include "compslam_vtio/ImgUpdate.hpp"
+#include "compslam_vtio/PoseUpdate.hpp"
+#include "compslam_vtio/VelocityUpdate.hpp"
+#include "compslam_vtio/ImuPrediction.hpp"
+#include "compslam_vtio/MultiCamera.hpp"
 
 namespace rovio {
 /** \brief Class, defining the Rovio Filter.

@@ -26,76 +26,93 @@
 *
 */
 
-#ifndef ROVIO_ZEROVELOCITYUPDATE_HPP_
-#define ROVIO_ZEROVELOCITYUPDATE_HPP_
+#ifndef ROVIO_VELOCITYUPDATE_HPP_
+#define ROVIO_VELOCITYUPDATE_HPP_
 
 #include "lightweight_filtering/common.hpp"
 #include "lightweight_filtering/Update.hpp"
 #include "lightweight_filtering/State.hpp"
-#include "rovio/FilterStates.hpp"
+#include "compslam_vtio/FilterStates.hpp"
 
 namespace rovio {
 
 /** \brief Class, defining the innovation.
  */
-template<typename STATE>
-class ZeroVelocityInnovation: public LWF::State<LWF::VectorElement<3>>{
+class VelocityInnovation: public LWF::State<LWF::VectorElement<3>>{
  public:
   typedef LWF::State<LWF::VectorElement<3>> Base;
   using Base::E_;
   static constexpr unsigned int _vel = 0;
-  ZeroVelocityInnovation(){
+  VelocityInnovation(){
     static_assert(_vel+1==E_,"Error with indices");
     this->template getName<_vel>() = "vel";
   };
-  virtual ~ZeroVelocityInnovation(){};
+  virtual ~VelocityInnovation(){};
+  inline V3D& vel(){
+    return this->template get<_vel>();
+  }
+  inline const V3D& vel() const{
+    return this->template get<_vel>();
+  }
 };
 
 /** \brief Class, dummy auxillary class for Zero velocity update
  */
-class ZeroVelocityUpdateMeasAuxiliary: public LWF::AuxiliaryBase<ZeroVelocityUpdateMeasAuxiliary>{
+class VelocityUpdateMeasAuxiliary: public LWF::AuxiliaryBase<VelocityUpdateMeasAuxiliary>{
  public:
-  ZeroVelocityUpdateMeasAuxiliary(){
+  VelocityUpdateMeasAuxiliary(){
   };
-  virtual ~ZeroVelocityUpdateMeasAuxiliary(){};
+  virtual ~VelocityUpdateMeasAuxiliary(){};
 };
 
 /**  \brief Empty measurement
  */
-template<typename STATE>
-class ZeroVelocityUpdateMeas: public LWF::State<ZeroVelocityUpdateMeasAuxiliary>{
+class VelocityUpdateMeas: public LWF::State<LWF::VectorElement<3>,VelocityUpdateMeasAuxiliary>{
  public:
-  typedef LWF::State<ZeroVelocityUpdateMeasAuxiliary> Base;
+  typedef LWF::State<LWF::VectorElement<3>,VelocityUpdateMeasAuxiliary> Base;
   using Base::E_;
-  static constexpr unsigned int _aux = 0;
-  ZeroVelocityUpdateMeas(){
+  static constexpr unsigned int _vel = 0;
+  static constexpr unsigned int _aux = _vel+1;
+  VelocityUpdateMeas(){
     static_assert(_aux+1==E_,"Error with indices");
+    this->template getName<_vel>() = "vel";
     this->template getName<_aux>() = "aux";
   };
-  virtual ~ZeroVelocityUpdateMeas(){};
+  virtual ~VelocityUpdateMeas(){};
+  inline V3D& vel(){
+    return this->template get<_vel>();
+  }
+  inline const V3D& vel() const{
+    return this->template get<_vel>();
+  }
 };
 
 /**  \brief Class holding the update noise.
  */
-template<typename STATE>
-class ZeroVelocityUpdateNoise: public LWF::State<LWF::VectorElement<3>>{
+class VelocityUpdateNoise: public LWF::State<LWF::VectorElement<3>>{
  public:
   typedef LWF::State<LWF::VectorElement<3>> Base;
   using Base::E_;
   static constexpr unsigned int _vel = 0;
-  ZeroVelocityUpdateNoise(){
+  VelocityUpdateNoise(){
     static_assert(_vel+1==E_,"Error with indices");
     this->template getName<_vel>() = "vel";
   };
-  virtual ~ZeroVelocityUpdateNoise(){};
+  virtual ~VelocityUpdateNoise(){};
+  inline V3D& vel(){
+    return this->template get<_vel>();
+  }
+  inline const V3D& vel() const{
+    return this->template get<_vel>();
+  }
 };
 
 /** \brief Outlier Detection.
+ * ODEntry<Start entry, dimension of detection>
  */
-template<typename STATE>
-class ZeroVelocityOutlierDetection: public LWF::OutlierDetection<LWF::ODEntry<ZeroVelocityInnovation<STATE>::template getId<ZeroVelocityInnovation<STATE>::_vel>(),3>>{
+class VelocityOutlierDetection: public LWF::OutlierDetection<LWF::ODEntry<VelocityInnovation::template getId<VelocityInnovation::_vel>(),3>>{
  public:
-  virtual ~ZeroVelocityOutlierDetection(){};
+  virtual ~VelocityOutlierDetection(){};
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,13 +120,14 @@ class ZeroVelocityOutlierDetection: public LWF::OutlierDetection<LWF::ODEntry<Ze
 /** \brief Class, holding the zero velocity update
  */
 template<typename FILTERSTATE>
-class ZeroVelocityUpdate: public LWF::Update<ZeroVelocityInnovation<typename FILTERSTATE::mtState>,FILTERSTATE,ZeroVelocityUpdateMeas<typename FILTERSTATE::mtState>,
-ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetection<typename FILTERSTATE::mtState>,false>{
+class VelocityUpdate: public LWF::Update<VelocityInnovation,FILTERSTATE,VelocityUpdateMeas,
+                                         VelocityUpdateNoise,VelocityOutlierDetection,false>{
  public:
-  typedef LWF::Update<ZeroVelocityInnovation<typename FILTERSTATE::mtState>,FILTERSTATE,ZeroVelocityUpdateMeas<typename FILTERSTATE::mtState>,
-      ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetection<typename FILTERSTATE::mtState>,false> Base;
+  typedef LWF::Update<VelocityInnovation,FILTERSTATE,VelocityUpdateMeas,
+                      VelocityUpdateNoise,VelocityOutlierDetection,false> Base;
   using Base::doubleRegister_;
   using Base::intRegister_;
+  using Base::meas_;
   typedef typename Base::mtState mtState;
   typedef typename Base::mtFilterState mtFilterState;
   typedef typename Base::mtInnovation mtInnovation;
@@ -117,21 +135,25 @@ ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetect
   typedef typename Base::mtNoise mtNoise;
   typedef typename Base::mtOutlierDetection mtOutlierDetection;
 
+  QPD qAM_; // Rotation between IMU (M) and coordinate frame where the velocity is expressed in (A)
+
   /** \brief Constructor.
    *
    *   Loads and sets the needed parameters.
    */
-  ZeroVelocityUpdate(){
+  VelocityUpdate(){
+    qAM_.setIdentity();
     intRegister_.removeScalarByStr("maxNumIteration");
     doubleRegister_.removeScalarByStr("alpha");
     doubleRegister_.removeScalarByStr("beta");
     doubleRegister_.removeScalarByStr("kappa");
     doubleRegister_.removeScalarByStr("updateVecNormTermination");
+    doubleRegister_.registerQuaternion("qAM",qAM_);
   };
 
   /** \brief Destructor
    */
-  virtual ~ZeroVelocityUpdate(){};
+  virtual ~VelocityUpdate(){};
 
   /** \brief Compute the inovvation term
    *
@@ -142,7 +164,7 @@ ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetect
    *  @param dt           - Not used.
    */
   void evalInnovation(mtInnovation& y, const mtState& state, const mtNoise& noise) const{
-    y.template get<mtInnovation::_vel>() = state.MvM()+noise.template get<mtInnovation::_vel>();
+    y.vel() = qAM_.rotate(state.MvM()) + meas_.vel() + noise.vel(); // Velocity of state has a minus sign
   }
 
   /** \brief Computes the Jacobian for the update step of the filter.
@@ -154,7 +176,7 @@ ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetect
    */
   void jacState(MXD& F, const mtState& state) const{
     F.setZero();
-    F.template block<3,3>(mtInnovation::template getId<mtInnovation::_vel>(),mtState::template getId<mtState::_vel>()) = Eigen::Matrix3d::Identity();
+    F.template block<3,3>(mtInnovation::template getId<mtInnovation::_vel>(),mtState::template getId<mtState::_vel>()) = MPD(qAM_).matrix();
   }
 
   /** \brief Computes the Jacobian for the update step of the filter w.r.t. to the noise variables
@@ -173,4 +195,4 @@ ZeroVelocityUpdateNoise<typename FILTERSTATE::mtState>,ZeroVelocityOutlierDetect
 }
 
 
-#endif /* ROVIO_ZEROVELOCITYUPDATE_HPP_ */
+#endif /* ROVIO_VELOCITYUPDATE_HPP_ */

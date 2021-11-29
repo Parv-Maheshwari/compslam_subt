@@ -52,12 +52,12 @@
 #include <mutex>
 #include <queue>
 
-#include "rovio/CoordinateTransform/FeatureOutput.hpp"
-#include "rovio/CoordinateTransform/FeatureOutputReadable.hpp"
-#include "rovio/CoordinateTransform/LandmarkOutput.hpp"
-#include "rovio/CoordinateTransform/RovioOutput.hpp"
-#include "rovio/CoordinateTransform/YprOutput.hpp"
-#include "rovio/RovioFilter.hpp"
+#include "compslam_vtio/CoordinateTransform/FeatureOutput.hpp"
+#include "compslam_vtio/CoordinateTransform/FeatureOutputReadable.hpp"
+#include "compslam_vtio/CoordinateTransform/LandmarkOutput.hpp"
+#include "compslam_vtio/CoordinateTransform/RovioOutput.hpp"
+#include "compslam_vtio/CoordinateTransform/YprOutput.hpp"
+#include "compslam_vtio/RovioFilter.hpp"
 
 namespace rovio {
 

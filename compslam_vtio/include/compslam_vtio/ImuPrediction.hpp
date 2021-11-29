@@ -32,7 +32,7 @@
 #include "lightweight_filtering/Prediction.hpp"
 #include "lightweight_filtering/State.hpp"
 #include "lightweight_filtering/common.hpp"
-#include "rovio/FilterStates.hpp"
+#include "compslam_vtio/FilterStates.hpp"
 
 namespace rovio {
 

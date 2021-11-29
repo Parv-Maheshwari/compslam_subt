@@ -33,7 +33,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "rovio/FeatureCoordinates.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
 
 namespace rovio {
 
