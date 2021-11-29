@@ -78,3 +78,9 @@ rovio_custom.info
 
 html/
 latex/
+# Text and CSV files
+*.txt
+*.csv
+
+# vscode
+.vscode/
