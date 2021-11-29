@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<launch>
+  <node pkg="compslam_vtio" type="compslam_vtio_rosbag_loader" name="compslam_vtio" output="screen">
+  <param name="filter_config" value="$(find compslam_vtio)/cfg/compslam_vtio.info"/>
+  <param name="camera0_config" value="$(find compslam_vtio)/cfg/euroc_cam0.yaml"/>
+  <param name="camera1_config" value="$(find compslam_vtio)/cfg/euroc_cam1.yaml"/>
+  <param name="rosbag_filename" value="/home/timon/Downloads/2_MH_01_easy.bag"/>
+  <param name="imu_topic_name" value="/imu0"/>
+  <param name="cam0_topic_name" value="/cam0/image_raw"/>
+  <param name="cam1_topic_name" value="/cam1/image_raw"/>
+  </node>
+</launch>
