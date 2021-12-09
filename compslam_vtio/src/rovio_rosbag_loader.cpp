@@ -74,12 +74,12 @@ static constexpr int nPose_ = 0; // Additional pose states.
 typedef rovio::RovioFilter<rovio::FilterState<nMax_,nLevels_,patchSize_,nCam_,nPose_>> mtFilter;
 
 int main(int argc, char** argv){
-  ros::init(argc, argv, "rovio");
+  ros::init(argc, argv, "compslam_vtio");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  std::string rootdir = ros::package::getPath("rovio"); // Leaks memory
-  std::string filter_config = rootdir + "/cfg/rovio.info";
+  std::string rootdir = ros::package::getPath("compslam_vtio"); // Leaks memory
+  std::string filter_config = rootdir + "/cfg/compslam_vtio.info";
 
   nh_private.param("filter_config", filter_config, filter_config);
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv){
   facet->format("%Y-%m-%d-%H-%M-%S");
   stream.imbue(std::locale(std::locale::classic(), facet));
   stream << ros::Time::now().toBoost() << "_" << nMax_ << "_" << nLevels_ << "_" << patchSize_ << "_" << nCam_  << "_" << nPose_;
-  std::string filename_out = file_path + "/rovio/" + stream.str();
+  std::string filename_out = file_path + "/" + stream.str();
   nh_private.param("filename_out", filename_out, filename_out);
   std::string rosbag_filename_out = filename_out + ".bag";
   std::string info_filename_out = filename_out + ".info";

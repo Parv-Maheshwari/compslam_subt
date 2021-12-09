@@ -86,12 +86,12 @@ void idleFunc(){
 #endif
 
 int main(int argc, char** argv){
-  ros::init(argc, argv, "rovio");
+  ros::init(argc, argv, "compslam_vtio");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  std::string rootdir = ros::package::getPath("rovio"); // Leaks memory
-  std::string filter_config = rootdir + "/cfg/rovio.info";
+  std::string rootdir = ros::package::getPath("compslam_vtio"); // Leaks memory
+  std::string filter_config = rootdir + "/cfg/compslam_vtio.info";
 
   nh_private.param("filter_config", filter_config, filter_config);
 

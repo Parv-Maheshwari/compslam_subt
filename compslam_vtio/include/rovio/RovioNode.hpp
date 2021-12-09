@@ -38,7 +38,7 @@
 #include <nav_msgs/Path.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
-#include <rovio/SrvResetToPose.h>
+#include <compslam_vtio/SrvResetToPose.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -751,8 +751,8 @@ class RovioNode {
 
   /** \brief ROS service handler for resetting the filter to a given pose.
    */
-  bool resetToPoseServiceCallback(rovio::SrvResetToPose::Request& request,
-                                  rovio::SrvResetToPose::Response& /*response*/) {
+  bool resetToPoseServiceCallback(compslam_vtio::SrvResetToPose::Request& request,
+                                  compslam_vtio::SrvResetToPose::Response& /*response*/) {
     V3D WrWM(request.T_WM.position.x, request.T_WM.position.y,
              request.T_WM.position.z);
     QPD qWM(request.T_WM.orientation.w, request.T_WM.orientation.x,

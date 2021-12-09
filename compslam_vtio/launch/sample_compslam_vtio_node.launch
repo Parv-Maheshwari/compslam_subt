@@ -1,12 +1,12 @@
-<!-- Sample ROVIO Node Launch File with Options -->
 <?xml version="1.0" encoding="UTF-8"?> 
+<!-- Sample CompSLAM VTIO Node Launch File with Options -->
 <launch>
-  <node pkg="rovio" type="rovio_node" name="rovio" output="screen" clear_params="true">
+  <node pkg="compslam_vtio" type="compslam_vtio_node" name="compslam_vtio" output="screen" clear_params="true">
     <!-- Config File -->
-    <param name="filter_config" value="$(find rovio)/cfg/rovio.info"/>
+    <param name="filter_config" value="$(find compslam_vtio)/cfg/compslam_vtio.info"/>
   
     <!-- Camera Calibration YAML File -->
-    <param name="camera0_config" value="$(find rovio)/cfg/euroc_cam0.yaml"/>
+    <param name="camera0_config" value="$(find compslam_vtio)/cfg/euroc_cam0.yaml"/>
     
     <!-- Input Topics -->
     <remap from="imu0" to="/imu"/>
