@@ -1,8 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?> 
 <launch>
-  <node pkg="compslam_vtio" type="compslam_vtio_node" name="compslam_vtio" output="screen" clear_params="true">
-  <param name="filter_config" value="$(find compslam_vtio)/cfg/compslam_vtio.info"/>
-  <param name="camera0_config" value="$(find compslam_vtio)/cfg/euroc_cam0.yaml"/>
-  <param name="camera1_config" value="$(find compslam_vtio)/cfg/euroc_cam1.yaml"/>
+
+  <!-- Optional if replaying rosbag -->
+  <!-- <param name="use_sim_time" value="true"/> -->
+
+  <!-- Output Frame Names -->
+  <arg name="world_frame"                          default="vio_map"/>
+  <arg name="imu_frame"                            default="vio_imu"/>
+  <arg name="camera_frame"                         default="vio_camera"/>
+
+  <!-- Config Info File -->
+  <arg name="filter_config"                        default="$(find compslam_vtio)/config/compslam_vtio.info"/>
+
+  <!-- Camera Intrinsics YAML File -->
+  <arg name="camera0_config"                       default="$(find compslam_vtio)/config/cam0.yaml"/>
+
+  <!-- Input Topics -->
+  <arg name="cam0_input_topic"                     default="/alphasense_driver_ros/cam0"/>
+  <arg name="imu_input_topic"                      default="/alphasense_driver_ros/imu"/>
+
+  <!-- Image Resize -->
+  <arg name="resize_factor"                        default="1.0"/>
+  <arg name="resize_input_image"                   default="false"/>
+
+  <!-- Camera-IMU time-offset -->
+  <arg name="cam0_offset"                          default="0.0018"/>  <!-- From KALIBR: timeshift[s](t_imu = t_cam + shift) -->
+
+  <!-- Use LiDAR Depth for Feature Depth Initialization -->
+  <arg name="lidar_input_topic"                    default="/lidar/point_cloud_IGNORE_FOR_NOW"/> <!-- This only has effect if subscribing to provided lidar topic -->
+  <arg name="lidar_input_frame_name"               default="/velodyne_IGNORE_FOR_NOW"/>
+  <arg name="camera_input_frame_name"              default="/cam0_IGNORE_FOR_NOW"/>
+
+  <!-- CLAHE - Histogram Equalization for Dark Environments -->
+  <arg name="histogram_equalize_8bit_images"       default="false"/>
+  <arg name="clahe_clip_limit"                     default="2"/>
+  <arg name="clahe_grid_size"                      default="6"/>
+
+
+  <node ns="compslam_vtio" pkg="compslam_vtio" type="compslam_vtio_node" name="compslam_vtio" output="screen" clear_params="true">
+    <param name="world_frame"                      value="$(arg world_frame)"/>
+    <param name="imu_frame"                        value="$(arg imu_frame)"/>
+    <param name="camera_frame"                     value="$(arg camera_frame)"/>
+    <param name="filter_config"                    value="$(arg filter_config)"/>
+    <param name="camera0_config"                   value="$(arg camera0_config)"/>
+    <remap from="cam0/image_raw"                   to="$(arg cam0_input_topic)"/>
+    <remap from="imu0"                             to="$(arg imu_input_topic)"/>
+    <param name="resize_input_image"               value="$(arg resize_input_image)"/>
+    <param name="resize_factor"                    value="$(arg resize_factor)"/>
+    <param name="cam0_offset"                      value="$(arg cam0_offset)"/>
+    <remap from="lidar/pcl"                        to="$(arg lidar_input_topic)"/>
+    <param name="lidar_frame_name"                 value="$(arg lidar_input_frame_name)"/>
+    <param name="camera_frame_name"                value="$(arg camera_input_frame_name)"/>
+    <param name="histogram_equalize_8bit_images"   value="$(arg histogram_equalize_8bit_images)"/>
+    <param name="clahe_clip_limit"                 value="$(arg clahe_clip_limit)"/>
+    <param name="clahe_grid_size"                  value="$(arg clahe_grid_size)"/>
   </node>
+
+
+  <!-- Optional uncompression of input topic -->
+  <!-- <node name="republish" type="republish" pkg="image_transport" output="screen"
+      args="compressed in:=/alphasense_driver_ros/cam0 raw out:=/alphasense_driver_ros/cam0" /> -->
+
 </launch>

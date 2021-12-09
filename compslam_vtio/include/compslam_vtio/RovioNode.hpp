@@ -234,28 +234,28 @@ class RovioNode {
     subImg1_ = nh_.subscribe("cam1/image_raw", 1000, &RovioNode::imgCallback1, this);
     subImg2_ = nh_.subscribe("cam2/image_raw", 1000, &RovioNode::imgCallback2, this);
     subGroundtruth_ = nh_.subscribe("pose", 1000, &RovioNode::groundtruthCallback, this);
-    subGroundtruthOdometry_ = nh_.subscribe("odometry", 1000, &RovioNode::groundtruthOdometryCallback, this);
+    subGroundtruthOdometry_ = nh_.subscribe("gt_odometry", 1000, &RovioNode::groundtruthOdometryCallback, this);
     subVelocity_ = nh_.subscribe("abss/twist", 1000, &RovioNode::velocityCallback, this);
     subPCL_ = nh_.subscribe("lidar/pcl", 1000, &RovioNode::pclCallback, this);
 
     // Initialize ROS service servers.
-    srvResetFilter_ = nh_.advertiseService("rovio/reset", &RovioNode::resetServiceCallback, this);
-    srvResetToPoseFilter_ = nh_.advertiseService("rovio/reset_to_pose", &RovioNode::resetToPoseServiceCallback, this);
+    srvResetFilter_ = nh_.advertiseService("reset", &RovioNode::resetServiceCallback, this);
+    srvResetToPoseFilter_ = nh_.advertiseService("reset_to_pose", &RovioNode::resetToPoseServiceCallback, this);
 
     // Advertise topics
-    pubTransform_ = nh_.advertise<geometry_msgs::TransformStamped>("rovio/transform", 1);
-    pubOdometry_ = nh_.advertise<nav_msgs::Odometry>("rovio/odometry", 1);
-    pubPoseWithCovStamped_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("rovio/pose_with_covariance_stamped", 1);
-    pubPcl_ = nh_.advertise<sensor_msgs::PointCloud2>("rovio/pcl", 1);
-    pubPatch_ = nh_.advertise<sensor_msgs::PointCloud2>("rovio/patch", 1);
-    pubMarkers_ = nh_.advertise<visualization_msgs::Marker>("rovio/markers", 1);
-    pubPath_ = nh_.advertise<nav_msgs::Path>("rovio/path", 1);
+    pubTransform_ = nh_.advertise<geometry_msgs::TransformStamped>("transform", 1);
+    pubOdometry_ = nh_.advertise<nav_msgs::Odometry>("odometry", 1);
+    pubPoseWithCovStamped_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("pose_with_covariance_stamped", 1);
+    pubPcl_ = nh_.advertise<sensor_msgs::PointCloud2>("pcl", 1);
+    pubPatch_ = nh_.advertise<sensor_msgs::PointCloud2>("patch", 1);
+    pubMarkers_ = nh_.advertise<visualization_msgs::Marker>("markers", 1);
+    pubPath_ = nh_.advertise<nav_msgs::Path>("path", 1);
 
-    pub_T_J_W_transform = nh_.advertise<geometry_msgs::TransformStamped>("rovio/T_G_W", 1);
+    pub_T_J_W_transform = nh_.advertise<geometry_msgs::TransformStamped>("T_G_W", 1);
     for (int camID = 0; camID < mtState::nCam_; camID++) {
-      pubExtrinsics_[camID] = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("rovio/extrinsics" + std::to_string(camID), 1);
+      pubExtrinsics_[camID] = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("extrinsics" + std::to_string(camID), 1);
     }
-    pubImuBias_ = nh_.advertise<sensor_msgs::Imu>("rovio/imu_biases", 1);
+    pubImuBias_ = nh_.advertise<sensor_msgs::Imu>("imu_biases", 1);
 
     // Handle coordinate frame naming
     map_frame_ = "/map";
