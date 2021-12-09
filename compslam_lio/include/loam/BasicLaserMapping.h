@@ -34,7 +34,7 @@
 
 #include "CircularBuffer.h"
 #include "Twist.h"
-#include "loam/OptStatus.h"
+#include "compslam_lio/OptStatus.h"
 #include "math_utils.h"
 #include "time_utils.h"
 
@@ -202,7 +202,7 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  loam::OptStatus _optStatusMsg;
+  compslam_lio::OptStatus _optStatusMsg;
 
   //DEBUG
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }

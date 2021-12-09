@@ -423,7 +423,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
-  _pubOptimizationStatus = node.advertise<OptStatus>("/laser_odom_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_lio::OptStatus>("/laser_odom_optimization_status", 5);
   _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
   _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("/laser_odom_imu_bias", 20);
   //CUSTOMIZATION
