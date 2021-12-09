@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 #include "nodelet/nodelet.h"
 
-#include "loam/TransformMaintenance.h"
+#include "compslam_lio/TransformMaintenance.h"
 
 class LaserTransformMaintenanceNodelet : public nodelet::Nodelet {
  public:

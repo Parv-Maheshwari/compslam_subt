@@ -1,4 +1,4 @@
-#include "loam/GraphManager.hpp"
+#include "compslam_lio/GraphManager.hpp"
 
 namespace loam {
 

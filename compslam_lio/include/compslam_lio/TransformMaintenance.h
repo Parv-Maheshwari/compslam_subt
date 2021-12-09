@@ -41,7 +41,7 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/synchronizer.h>
 
-#include "loam/BasicTransformMaintenance.h"
+#include "compslam_lio/BasicTransformMaintenance.h"
 #include "compslam_lio/OptStatus.h"
 
 namespace loam {

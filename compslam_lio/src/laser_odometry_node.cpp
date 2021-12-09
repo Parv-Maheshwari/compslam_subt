@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "loam/LaserOdometry.h"
+#include "compslam_lio/LaserOdometry.h"
 
 /** Main node entry point. */
 int main(int argc, char** argv) {
