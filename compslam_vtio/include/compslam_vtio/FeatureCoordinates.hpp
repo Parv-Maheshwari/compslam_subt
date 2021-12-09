@@ -33,8 +33,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include "lightweight_filtering/State.hpp"
 #include "lightweight_filtering/common.hpp"
-#include "rovio/Camera.hpp"
-#include "rovio/FeatureDistance.hpp"
+#include "compslam_vtio/Camera.hpp"
+#include "compslam_vtio/FeatureDistance.hpp"
 
 namespace rovio {
 

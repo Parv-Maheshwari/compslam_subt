@@ -30,7 +30,7 @@
 #define ROVIO_PATCH_HPP_
 
 #include "lightweight_filtering/common.hpp"
-#include "rovio/FeatureCoordinates.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
 
 namespace rovio {
 

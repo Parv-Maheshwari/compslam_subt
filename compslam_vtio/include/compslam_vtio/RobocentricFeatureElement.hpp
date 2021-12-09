@@ -30,8 +30,8 @@
 #define ROBOCENTRICFEATUREELEMENT_HPP_
 
 #include "lightweight_filtering/common.hpp"
-#include "rovio/FeatureCoordinates.hpp"
-#include "rovio/FeatureDistance.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
+#include "compslam_vtio/FeatureDistance.hpp"
 
 namespace rovio{
 

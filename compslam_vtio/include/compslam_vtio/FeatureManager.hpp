@@ -29,11 +29,11 @@
 #ifndef FEATUREMANAGER_HPP_
 #define FEATUREMANAGER_HPP_
 
-#include "rovio/FeatureCoordinates.hpp"
-#include "rovio/FeatureDistance.hpp"
-#include "rovio/FeatureStatistics.hpp"
-#include "rovio/MultilevelPatch.hpp"
-#include "rovio/MultiCamera.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
+#include "compslam_vtio/FeatureDistance.hpp"
+#include "compslam_vtio/FeatureStatistics.hpp"
+#include "compslam_vtio/MultilevelPatch.hpp"
+#include "compslam_vtio/MultiCamera.hpp"
 #include "algorithm"
 #include <tuple>
 #include <list>

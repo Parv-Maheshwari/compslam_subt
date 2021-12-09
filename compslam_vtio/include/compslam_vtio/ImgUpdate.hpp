@@ -32,12 +32,12 @@
 #include "lightweight_filtering/State.hpp"
 #include "lightweight_filtering/Update.hpp"
 #include "lightweight_filtering/common.hpp"
-#include "rovio/Camera.hpp"
-#include "rovio/CoordinateTransform/FeatureOutput.hpp"
-#include "rovio/CoordinateTransform/PixelOutput.hpp"
-#include "rovio/FilterStates.hpp"
-#include "rovio/MultilevelPatchAlignment.hpp"
-#include "rovio/ZeroVelocityUpdate.hpp"
+#include "compslam_vtio/Camera.hpp"
+#include "compslam_vtio/CoordinateTransform/FeatureOutput.hpp"
+#include "compslam_vtio/CoordinateTransform/PixelOutput.hpp"
+#include "compslam_vtio/FilterStates.hpp"
+#include "compslam_vtio/MultilevelPatchAlignment.hpp"
+#include "compslam_vtio/ZeroVelocityUpdate.hpp"
 
 //CUSTOMIZATION
 #include <pcl/common/io.h>

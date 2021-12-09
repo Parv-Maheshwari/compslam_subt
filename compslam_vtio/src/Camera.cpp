@@ -1,4 +1,4 @@
-#include "rovio/Camera.hpp"
+#include "compslam_vtio/Camera.hpp"
 #include "yaml-cpp/yaml.h"
 
 namespace rovio{

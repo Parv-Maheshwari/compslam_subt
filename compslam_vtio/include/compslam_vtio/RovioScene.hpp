@@ -30,7 +30,7 @@
 #define ROVIO_ROVIOSCENE_HPP_
 
 #include "lightweight_filtering/common.hpp"
-#include "rovio/Scene.hpp"
+#include "compslam_vtio/Scene.hpp"
 #include <memory>
 
 namespace rovio {

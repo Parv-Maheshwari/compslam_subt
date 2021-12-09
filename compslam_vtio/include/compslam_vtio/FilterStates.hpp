@@ -34,9 +34,9 @@
 #include <map>
 #include <unordered_set>
 #include "CoordinateTransform/FeatureOutput.hpp"
-#include "rovio/RobocentricFeatureElement.hpp"
-#include "rovio/FeatureManager.hpp"
-#include "rovio/MultiCamera.hpp"
+#include "compslam_vtio/RobocentricFeatureElement.hpp"
+#include "compslam_vtio/FeatureManager.hpp"
+#include "compslam_vtio/MultiCamera.hpp"
 
 namespace rovio {
 

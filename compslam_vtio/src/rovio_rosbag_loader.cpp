@@ -34,8 +34,8 @@
 #include <locale>
 #include <string>
 #include <Eigen/StdVector>
-#include "rovio/RovioFilter.hpp"
-#include "rovio/RovioNode.hpp"
+#include "compslam_vtio/RovioFilter.hpp"
+#include "compslam_vtio/RovioNode.hpp"
 #include <boost/foreach.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>

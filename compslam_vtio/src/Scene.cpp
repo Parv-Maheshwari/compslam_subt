@@ -1,4 +1,4 @@
-#include <rovio/Scene.hpp>
+#include <compslam_vtio/Scene.hpp>
 
 namespace rovio{
 

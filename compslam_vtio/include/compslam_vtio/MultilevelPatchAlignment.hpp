@@ -30,9 +30,9 @@
 #define ROVIO_MULTILEVELPATCHALIGNMENT_HPP_
 
 #include "lightweight_filtering/common.hpp"
-#include "rovio/ImagePyramid.hpp"
-#include "rovio/MultilevelPatch.hpp"
-#include "rovio/FeatureCoordinates.hpp"
+#include "compslam_vtio/ImagePyramid.hpp"
+#include "compslam_vtio/MultilevelPatch.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
 
 namespace rovio{
 

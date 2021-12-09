@@ -38,10 +38,10 @@
 #include <geometry_msgs/Pose.h>
 #pragma GCC diagnostic pop
 
-#include "rovio/RovioFilter.hpp"
-#include "rovio/RovioNode.hpp"
+#include "compslam_vtio/RovioFilter.hpp"
+#include "compslam_vtio/RovioNode.hpp"
 #ifdef MAKE_SCENE
-#include "rovio/RovioScene.hpp"
+#include "compslam_vtio/RovioScene.hpp"
 #endif
 
 #ifdef ROVIO_NMAXFEATURE

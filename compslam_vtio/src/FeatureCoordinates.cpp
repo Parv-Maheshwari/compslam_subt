@@ -1,4 +1,4 @@
-#include "rovio/FeatureCoordinates.hpp"
+#include "compslam_vtio/FeatureCoordinates.hpp"
 
 namespace rovio{
 

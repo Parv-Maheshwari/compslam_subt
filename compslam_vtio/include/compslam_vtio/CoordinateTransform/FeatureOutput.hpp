@@ -31,8 +31,8 @@
 
 #include "lightweight_filtering/common.hpp"
 #include "lightweight_filtering/CoordinateTransform.hpp"
-#include "rovio/RobocentricFeatureElement.hpp"
-#include "rovio/MultiCamera.hpp"
+#include "compslam_vtio/RobocentricFeatureElement.hpp"
+#include "compslam_vtio/MultiCamera.hpp"
 
 namespace rovio {
 
