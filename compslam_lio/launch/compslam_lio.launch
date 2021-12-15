@@ -9,7 +9,7 @@
   <!-- Input topics remap -->
   <arg name="pointcloud_topic_name" default="/lidar/point_cloud"/>
   <arg name="imu_topic_name" default="/sensors/imu"/>
-  
+
   <!-- Config params -->
   <arg name="compslam_lio_with_OS0128"    default="false"/>
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params.yaml" unless="$(arg compslam_lio_with_OS0128)"/>
