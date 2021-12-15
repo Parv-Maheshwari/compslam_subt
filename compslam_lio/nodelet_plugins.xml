@@ -21,8 +21,4 @@
     <description>This is the Laser TRANSFORM Maintenance Nodelet.</description>
   </class>
 
-      <!-- Laser Graph Integrator Plugin -->
-  <class name="laser_graph_integrator_nodelet" type="LaserMaplabIntegratorNodelet" base_class_type="nodelet::Nodelet">
-    <description>This is the Laser GRAPH INTEGRATOR Nodelet.</description>
-  </class>
 </library> 

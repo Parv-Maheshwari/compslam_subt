@@ -429,7 +429,7 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
 
   // Publish optimization status
-  _pubOptimizationStatus = node.advertise<OptStatus>("/laser_mapping_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_lio::OptStatus>("/laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
