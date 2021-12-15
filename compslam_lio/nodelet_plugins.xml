@@ -1,4 +1,4 @@
-<library path="lib/libloam">
+<library path="lib/libcompslam_lio">
 
   <!-- Laser Multiscan Registration Plugin -->
   <class name="laser_multiscan_registration_nodelet" type="LaserMultiScanRegistrationNodelet" base_class_type="nodelet::Nodelet">
