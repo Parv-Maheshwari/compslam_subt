@@ -13,8 +13,8 @@
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam_unstable/nonlinear/IncrementalFixedLagSmoother.h>
 
-#include "loam/GraphState.hpp"
-#include "loam/ImuManager.hpp"
+#include "compslam_lio/GraphState.hpp"
+#include "compslam_lio/ImuManager.hpp"
 
 using gtsam::symbol_shorthand::B;  // Bias  (ax,ay,az,gx,gy,gz)
 using gtsam::symbol_shorthand::V;  // Vel   (xdot,ydot,zdot)

@@ -1,4 +1,4 @@
-#include "loam/BasicScanRegistration.h"
+#include "compslam_lio/BasicScanRegistration.h"
 
 
 namespace loam {

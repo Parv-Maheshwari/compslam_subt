@@ -3,8 +3,8 @@
 
 #include <cmath>
 
-#include "loam/Angle.h"
-#include "loam/Vector3.h"
+#include "compslam_lio/Angle.h"
+#include "compslam_lio/Vector3.h"
 
 namespace loam {
 

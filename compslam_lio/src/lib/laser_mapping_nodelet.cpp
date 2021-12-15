@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 #include "nodelet/nodelet.h"
 
-#include "loam/LaserMapping.h"
+#include "compslam_lio/LaserMapping.h"
 
 class LaserMappingNodelet : public nodelet::Nodelet {
  public:

@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 #include "nodelet/nodelet.h"
 
-#include "loam/LaserOdometry.h"
+#include "compslam_lio/LaserOdometry.h"
 
 class LaserOdometryNodelet : public nodelet::Nodelet {
  public:

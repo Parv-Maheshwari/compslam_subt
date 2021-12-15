@@ -30,11 +30,11 @@
 //   J. Zhang and S. Singh. LOAM: Lidar Odometry and Mapping in Real-time.
 //     Robotics: Science and Systems Conference (RSS). Berkeley, CA, July 2014.
 
-#include "loam/LaserMapping.h"
+#include "compslam_lio/LaserMapping.h"
 
 #include <tf/transform_listener.h>
 
-#include "loam/common.h"
+#include "compslam_lio/common.h"
 
 namespace loam {
 

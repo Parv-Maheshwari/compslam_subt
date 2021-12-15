@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 #include "nodelet/nodelet.h"
 
-#include "loam/MultiScanRegistration.h"
+#include "compslam_lio/MultiScanRegistration.h"
 
 class LaserMultiScanRegistrationNodelet : public nodelet::Nodelet {
  public:

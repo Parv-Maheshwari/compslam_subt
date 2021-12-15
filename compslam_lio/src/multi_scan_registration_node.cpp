@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "loam/MultiScanRegistration.h"
+#include "compslam_lio/MultiScanRegistration.h"
 
 /** Main node entry point. */
 int main(int argc, char **argv) {

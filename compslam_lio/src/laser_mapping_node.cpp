@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "loam/LaserMapping.h"
+#include "compslam_lio/LaserMapping.h"
 
 /** Main node entry point. */
 int main(int argc, char** argv) {
