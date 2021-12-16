@@ -6,7 +6,7 @@
   <arg name="run_compslam_se"              default="false"/>
 
   <!-- Lidar options for compslam_lio - chose either one -->
-  <arg name="compslam_lio_with_OS0128"     default="true"/> # Options: false -> VLP16, true -> OS0128
+  <arg name="compslam_lio_with_OS0128"     default="false"/> # Options: false -> VLP16, true -> OS0128
 
   <!-- CompSLAM LIO -->
   <include file="$(find compslam_lio)/launch/compslam_lio.launch" if="$(arg run_compslam_lio)">
