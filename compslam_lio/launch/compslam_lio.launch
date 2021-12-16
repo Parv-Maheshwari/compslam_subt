@@ -1,7 +1,7 @@
 <launch>
 
   <!-- If running with data from Bagfile -->
-  <param name="use_sim_time" value="true"/> #be sure to run --clock
+  <!-- <param name="use_sim_time" value="true"/> --> #be sure to run --clock
 
   <!-- Publish static tf's -->
   <include file="$(find compslam_lio)/launch/tf.launch"/>
@@ -11,11 +11,13 @@
   <arg name="imu_topic_name" default="/sensors/imu"/>
 
   <!-- Config params -->
-  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_params.yaml"/>
+  <arg name="compslam_lio_with_OS0128"    default="false"/>
+  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params.yaml" unless="$(arg compslam_lio_with_OS0128)"/>
+  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_params.yaml" if="$(arg compslam_lio_with_OS0128)"/>
 
   <!-- CompSLAM LIO Nodelet Manager -->
   <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true"/>
-  
+
   <!-- Laser Multiscan Registration Nodelet -->
   <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>

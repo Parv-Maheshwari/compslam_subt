@@ -17,8 +17,8 @@
   <!-- Depend tags -->
   <buildtool_depend>catkin</buildtool_depend>
   
-  <!-- <exec_depend>compslam_lio</exec_depend> -->
-  <!-- <exec_depend>compslam_vtio</exec_depend> -->
-  <!-- <exec_depend>compslam_se</exec_depend> -->
+  <exec_depend>compslam_lio</exec_depend>
+  <exec_depend>compslam_vtio</exec_depend>
+  <exec_depend>compslam_se</exec_depend>
 
 </package>
