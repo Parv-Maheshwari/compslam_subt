@@ -14,7 +14,7 @@
   </include>
 
   <!-- CompSLAM VTIO -->
-  <include file="$(find compslam_vtio)/launch/compslam_vtio.launch"/>
+  <include file="$(find compslam_vtio)/launch/compslam_vtio.launch" if="$(arg run_compslam_vtio)"/>
 
   <!-- CompSLAM SE -->
 
