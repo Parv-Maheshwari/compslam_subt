@@ -8,7 +8,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
-extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+extPriorAvailable: false                 #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
@@ -54,6 +54,7 @@ mapDeltaRAbort: 0.05                     #Rotation threshold for optimization co
 cornerFilterSize: 0.2                    #Leaf Size for downsampling current CORNER pointcloud before merging in map, default 0.2 
 surfaceFilterSize: 0.2                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
 mapVisFilterSize: 0.4                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
+rndSampleMapVisNoOfSamples: 100000       #Number of Samples for random sampling of the visualized map cloud, default 100000
 mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
 mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
 mapStartLocationInCubes: [50,10,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth

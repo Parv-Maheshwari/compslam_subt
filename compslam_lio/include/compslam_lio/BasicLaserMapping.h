@@ -112,6 +112,7 @@ class BasicLaserMapping {
   auto& downSizeFilterCorner() { return _downSizeFilterCorner; }
   auto& downSizeFilterSurf() { return _downSizeFilterSurf; }
   auto& downSizeFilterMapVis() { return _downSizeFilterMapVis; }
+  auto& rndSampleFilterMapVis() {return _rndSampleFilterMapVis; }
 
   auto frameCount() const { return _frameCount; }
   auto scanPeriod() const { return _scanPeriod; }

@@ -144,6 +144,17 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     }
   }
 
+  if (privateNode.getParam("rndSampleMapVisNoOfSamples", iParam)) {
+    if (iParam < 0) {
+      ROS_ERROR("Invalid rndSampleMapVisNoOfSamples parameter: %d (expected >= 0)", iParam);
+      return false;
+    }
+    else {
+      rndSampleFilterMapVis().setSample(iParam);
+      ROS_INFO("Set number of Samples used for random sampling the visualized Pointcloud: %d", iParam);
+    }
+  }
+
   //CUSTOMIZATION
   //Set LOAM internal Map Cube Size
   if (privateNode.getParam("mapCubeSize", dParam)) {
