@@ -51,7 +51,7 @@ namespace loam {
  */
 class TransformMaintenance : public BasicTransformMaintenance {
  public:
-  TransformMaintenance();
+  TransformMaintenance(){};
 
   /** \brief Setup component.
    *

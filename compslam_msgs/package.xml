@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>compslam_msgs</name>
+  <version>0.0.0</version>
+
+  <description>Messages package for compslam</description>
+
+  <maintainer email="skhattak@ethz.ch">Shehryar Khattak</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <build_depend>message_generation</build_depend>
+  <build_export_depend>message_runtime</build_export_depend>
+  <exec_depend>message_runtime</exec_depend>
+</package>

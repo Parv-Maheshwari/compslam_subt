@@ -36,15 +36,6 @@
 
 namespace loam {
 
-TransformMaintenance::TransformMaintenance() {
-  // initialize odometry and odometry tf messages
-  _laserOdometry2.header.frame_id = "camera_init";
-  _laserOdometry2.child_frame_id = "camera";
-
-  _laserOdometryTrans2.frame_id_ = _laserOdometry2.header.frame_id;
-  _laserOdometryTrans2.child_frame_id_ = _laserOdometry2.child_frame_id;
-}
-
 bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // advertise integrated laser odometry topic
   _pubLaserOdometry2 = node.advertise<nav_msgs::Odometry>("integrated_to_init", 5);
@@ -61,6 +52,12 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   _mapSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncMapOdomHandler, this, _1, _2));
   //Combined odometry status publisher
   _pubOdomStatus = node.advertise<compslam_msgs::OptStatus>("laser_integrated_status", 5);
+
+  // initialize odometry and odometry tf messages
+  _laserOdometry2.header.frame_id = "camera_init";
+  _laserOdometry2.child_frame_id = "camera";
+  _laserOdometryTrans2.frame_id_ = _laserOdometry2.header.frame_id;
+  _laserOdometryTrans2.child_frame_id_ = _laserOdometry2.child_frame_id;
 
   // ARL Coordinate Frame Facilitators
   _laserOdometry2_CORRECTED.header.frame_id = "camera_init_CORRECTED";

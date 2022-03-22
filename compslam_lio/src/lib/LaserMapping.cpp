@@ -38,12 +38,6 @@
 
 namespace loam {
 
-LaserMapping::LaserMapping(const float& scanPeriod, const size_t& maxIterations) {
-  // initialize mapping tf messages
-  _aftMappedTrans.frame_id_ = "camera_init";
-  _aftMappedTrans.child_frame_id_ = "aft_mapped";
-}
-
 bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // fetch laser mapping params
   double dParam;       //double parameter
@@ -457,6 +451,10 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   // subscribe to IMU topic
   _subImu = node.subscribe<sensor_msgs::Imu>("imu/data", 50, &LaserMapping::imuHandler, this);
+
+  // initialize mapping tf messages
+  _aftMappedTrans.frame_id_ = "camera_init";
+  _aftMappedTrans.child_frame_id_ = "aft_mapped";
 
   // ARL Coordinate Frame Facilitators
   _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = "camera_init_CORRECTED";

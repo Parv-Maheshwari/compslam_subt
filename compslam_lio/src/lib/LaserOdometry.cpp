@@ -49,19 +49,7 @@ using std::sqrt;
 
 LaserOdometry::LaserOdometry(float scanPeriod, uint16_t ioRatio, size_t maxIterations)
     : BasicLaserOdometry(scanPeriod, maxIterations),
-      _ioRatio(ioRatio) {
-  // initialize tf messages
-  _laserOdometryTrans.frame_id_ = "camera_init";
-  _laserOdometryTrans.child_frame_id_ = "laser_odom";
-  _cameraFrameId = "camera";
-  _laserOdometryTrans_CORRECTED.frame_id_ = "camera_init_CORRECTED";
-  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
-
-  // initialize gravity aligned tf message
-  _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
-  _cameraInitGravityAlignedTf.child_frame_id_ = "camera_init_GRAVITY_ALIGNED";
-  _cameraInitGravityAlignedTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-}
+      _ioRatio(ioRatio) {}
 
 bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // fetch laser odometry params
@@ -400,6 +388,18 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   } else
     setVerboseLevel(0);
   //CUSTOMIZATION
+
+  // initialize tf messages
+  _laserOdometryTrans.frame_id_ = "camera_init";
+  _laserOdometryTrans.child_frame_id_ = "laser_odom";
+  _cameraFrameId = "camera";
+  _laserOdometryTrans_CORRECTED.frame_id_ = "camera_init_CORRECTED";
+  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
+
+  // initialize gravity aligned tf message
+  _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
+  _cameraInitGravityAlignedTf.child_frame_id_ = "camera_init_GRAVITY_ALIGNED";
+  _cameraInitGravityAlignedTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
 
   // advertise laser odometry topics
   _pubLaserCloudCornerLast = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_corner_last", 2);
