@@ -34,13 +34,15 @@
 
 #include "CircularBuffer.h"
 #include "Twist.h"
-#include "compslam_lio/OptStatus.h"
+#include <compslam_msgs/OptStatus.h>
+#include <compslam_msgs/Submaps.h>
 #include "math_utils.h"
 #include "time_utils.h"
 
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 //CUSTOMIZATION
 #include <eigen_conversions/eigen_msg.h>
@@ -172,6 +174,12 @@ class BasicLaserMapping {
   auto& getCurrentCornerSubmap() { return *_laserCloudCornerArray[_laserCloudNum / 2]; }
   auto& getCurrentSurfSubmap() { return *_laserCloudSurfArray[_laserCloudNum / 2]; }
 
+  // Submaps sharing and co-localization
+  void useExternalSubmapsForInit(bool b) { _useExternalSubmapsForInit = b; }
+  void useExternalSubmapOriginPoseForInit(bool b) { _useExternalSubmapOriginPoseForInit = b; }
+  bool getSubmapsAndPose(compslam_msgs::Submaps& submapsMsg);
+  bool setSubmapsAndPose(compslam_msgs::Submaps& submapsMsg);
+
   pcl::PointCloud<pcl::PointXYZI>& laserMap();
   pcl::PointCloud<pcl::PointXYZI>& laserSubmap();
   pcl::PointCloud<pcl::PointXYZI>& getSubmapSearchCloud();
@@ -203,7 +211,7 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  compslam_lio::OptStatus _optStatusMsg;
+  compslam_msgs::OptStatus _optStatusMsg;
 
   //DEBUG
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
@@ -296,6 +304,11 @@ class BasicLaserMapping {
   bool _useSavedSubmapsForInit = false;  //use external saved submaps for initialization
   bool _IncreOptIter = false;
   std::vector<float> _W_submapLocGuess{0, 0, 0, 0, 0, 0};  //x,y,z,yaw,pitch,roll //initial guess for re-localization in submap expressed in ROS coordinates
+
+  bool _useExternalSubmapsForInit = false;           // Flag to wait for external submaps before initialization
+  bool _externalSubmapsAvailable = false;            // Flag to check if external submaps are available through service call
+  bool _useExternalSubmapOriginPoseForInit = false;  // Flag to use origin of external submaps as initial guess for co-localization
+  Twist _externalSubmapsPose;                        // Initialization guess for co-localization in current submap
 
   //External Motion Prior Parameters
   tf::TransformListener _tfListener;              // Transform Listener for calculating external estimate

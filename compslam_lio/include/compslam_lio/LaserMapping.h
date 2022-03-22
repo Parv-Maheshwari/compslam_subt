@@ -42,8 +42,11 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/SetBool.h>
+#include <std_srvs/Trigger.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
+#include <compslam_msgs/Submaps.h>
+#include <compslam_msgs/ShareSubmaps.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -110,6 +113,12 @@ class LaserMapping : public BasicLaserMapping {
   /** \brief Service call to save LOAM Corner and Suface submaps of initial/center sector. */
   bool saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_srvs::Empty::Response& /*response*/);
 
+  /** \brief Service call to share all Corner and Suface submaps*/
+  bool shareSubmaps(compslam_msgs::ShareSubmaps::Request& /*request*/, compslam_msgs::ShareSubmaps::Response& resp);
+
+  /** \brief Service call to request LOAM to share all Corner and Suface submaps with current pose*/
+  bool requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp);
+
   /** \brief Sync Callback Handler for all input clouds and odometry
    * @param pclCorner Sharp Corner Points
    * @param pclFlat Flat Points
@@ -172,6 +181,9 @@ class LaserMapping : public BasicLaserMapping {
   int _mapCounter = 0;                                            // Counter for full map publishing
   ros::Publisher _pubSubmap;                                      // ROS publisher for current local submap around robot, used for scan-to-submap alignment - Cropped & Downsampled
   ros::Publisher _pubSubMapSearchCloud;                           // ROS publisher for current cloud to be searched in the submap
+  ros::ServiceServer _srvShareSubmaps;                            // Shares corner and surface feature submaps
+  ros::ServiceServer _srvRequestSubmaps;                          // Trigger internal recevier client to request corner and surface feature submaps
+  std::string _submapsRequestSrvCall = "";                        // Name of service call to request submaps
   //CUSTOMIZATION
 };
 

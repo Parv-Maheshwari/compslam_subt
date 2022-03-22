@@ -92,6 +92,8 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       _scanMapper = MultiScanMapper::Ouster_O1_16();
     } else if (lidarName == "Bperl-32") {
       _scanMapper = MultiScanMapper::RS_Bperl_32();
+    } else if (lidarName == "O0-64") {
+      _scanMapper = MultiScanMapper::Ouster_O0_64();
     } else if (lidarName == "O0-128") {
       _scanMapper = MultiScanMapper::Ouster_O0_128();
     } else if (lidarName == "O0-128-Div2") {
@@ -181,9 +183,8 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
   updatedROSPCLTimestamp(laserCloudMsg->header.stamp);
 
   //Check if OUster
-  if (_scanMapper.getLiDARName() == "O0-128-Div2" ||
-      _scanMapper.getLiDARName() == "O0-128" ||
-      _scanMapper.getLiDARName() == "O1-64") {
+  if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128" ||
+      _scanMapper.getLiDARName() == "O0-64" || _scanMapper.getLiDARName() == "O1-64") {
     // Convert ROS Pointcloud2 into PCL Pointcloud<PointOuster>
     pcl::PointCloud<PointOuster> pclPointOuster;
     pcl::fromROSMsg(*laserCloudMsg, pclPointOuster);
@@ -264,7 +265,8 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
     //Use ring number or calculate elevation angle to determine scanID
     int scanID;
-    if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128")
+    if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128" ||
+        _scanMapper.getLiDARName() == "O0-64" || _scanMapper.getLiDARName() == "O1-64")
       scanID = static_cast<int>(laserCloudIn[i].ring);
     else {
       float angle = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z));  //TODO: Check Formula

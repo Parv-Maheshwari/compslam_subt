@@ -260,6 +260,37 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
       ROS_ERROR("LOAM - Use of Saved Submaps is enabled but no filepath is defined");
   }
 
+  //External submaps for co-localization at initialization
+  bParam = false;
+  if (privateNode.getParam("waitAndUseExternalSubmapsForInit", bParam)) {
+    if (bParam) {
+      ROS_WARN("LaserMapping - Using External Submaps and Pose for Initlization and Co-localization - Waiting for trigger through service call ...");
+
+      //Check if name of service call to acquire external maps from is provided
+      privateNode.getParam("submapsRequestServiceCall", _submapsRequestSrvCall);
+      //Check if valid string
+      if (!_submapsRequestSrvCall.empty())
+        ROS_INFO_STREAM("LaserMapping - External Submaps Service call: " << _submapsRequestSrvCall);
+      else {
+        ROS_ERROR("LaserMapping - External Submaps Usage set to true but NO service call provided - DIABLING EXTERNAL SUBMAP USE");
+        bParam = false;
+      }
+
+      //Set external submaps usage
+      useExternalSubmapsForInit(bParam);
+
+      //Check if origin or current external pose should be used as co-locallization initial guess
+      bParam = false;
+      privateNode.getParam("useExternalSubmapOriginForInit", bParam);
+      useExternalSubmapOriginPoseForInit(bParam);
+      if (bParam)
+        ROS_WARN("LaserMapping - Using Submap ORIGIN pose to initialize co-localizatin in external submaps");
+      else
+        ROS_INFO("LaserMapping - Using shared pose to initialize co-localizatin in external submaps");
+    } else
+      ROS_INFO("LaserMapping - Use External Submaps and Pose for Initlization and Co-localization: False");
+  }
+
   //External Prior
   if (privateNode.getParam("extPriorAvailable", bParam)) {
     setExternalPriorStatus(bParam);
@@ -440,12 +471,14 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
 
   // Publish optimization status
-  _pubOptimizationStatus = node.advertise<compslam_lio::OptStatus>("/laser_mapping_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("/laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
   _subLaserOdometryStatus = node.subscribe<std_msgs::Header>("/laser_odom_status", 5, &LaserMapping::laserOdometryStatusHandler, this);
   _srvSaveSubmapsToFile = node.advertiseService("/save_submaps_to_file", &LaserMapping::saveSubMapsToFile, this);
+  _srvShareSubmaps = privateNode.advertiseService("/share_submaps", &LaserMapping::shareSubmaps, this);
+  _srvRequestSubmaps = privateNode.advertiseService("/request_submaps", &LaserMapping::requestSubmaps, this);
   _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map", 1);
   _pubSubmap = node.advertise<sensor_msgs::PointCloud2>("/laser_submap", 1);
   _pubSubMapSearchCloud = node.advertise<sensor_msgs::PointCloud2>("/submap_search_cloud", 1);
@@ -516,6 +549,34 @@ bool LaserMapping::saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_
   pcl::io::savePCDFileASCII((map_save_path + "savedSurfSubmap.pcd"), getCurrentSurfSubmap());
   ROS_WARN_STREAM("SAVING LOAM FEATURE SUBMAPS OF INITIAL SECTOR TO FILE at path: " << map_save_path);
   return true;
+}
+
+bool LaserMapping::shareSubmaps(compslam_msgs::ShareSubmaps::Request& /*request*/, compslam_msgs::ShareSubmaps::Response& resp) {
+  if (BasicLaserMapping::getSubmapsAndPose(resp.Submaps)) {
+    auto& m = resp.Submaps;
+    ROS_INFO_STREAM("Shared Sharp/Flat submaps: " << m.sharp_submaps.size()
+                                                  << ", points in last submaps: " << m.sharp_submaps[m.sharp_submaps.size() - 1].width << "/"
+                                                  << m.flat_submaps[m.flat_submaps.size() - 1].width
+                                                  << ", last cube indices: " << m.sharp_submaps[m.sharp_submaps.size() - 1].header.seq << "/"
+                                                  << m.flat_submaps[m.flat_submaps.size() - 1].header.seq);
+    return true;
+  } else
+    return false;
+}
+
+bool LaserMapping::requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp) {
+  //Call submap share service
+  compslam_msgs::ShareSubmaps srv;
+  if (ros::service::call<compslam_msgs::ShareSubmaps>(_submapsRequestSrvCall, srv)) {
+    //Set submaps in respective cubes
+    if (BasicLaserMapping::setSubmapsAndPose(srv.response.Submaps)) {
+      auto& m = srv.response.Submaps;
+      resp.message = "LaserMapping - Received Sharp/Flat submaps: " + std::to_string(m.sharp_submaps.size()) + ", points in last submaps: " + std::to_string(m.sharp_submaps[m.sharp_submaps.size() - 1].width) + "/" + std::to_string(m.flat_submaps[m.flat_submaps.size() - 1].width) + ", last cube index: " + std::to_string(m.sharp_submaps[m.sharp_submaps.size() - 1].header.seq);
+    } else
+      resp.message = "LaserMapping - Client could not PROCESS shared submaps - FAILED";
+  } else
+    resp.message = "LaserMapping - Client request to SHARE submaps - FAILED";
+  return resp.success = true;
 }
 
 void LaserMapping::syncInputsHandler(const sensor_msgs::PointCloud2ConstPtr& pclCorner,

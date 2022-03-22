@@ -307,6 +307,8 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
     _imuBuffer.setImuTimeForInit(dParam);
   }
+  if (privateNode.getParam("imuZaxisPointsUp", bParam))
+    _graphMgr.setImuZaxisPointsUp(bParam);
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
@@ -423,7 +425,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
-  _pubOptimizationStatus = node.advertise<compslam_lio::OptStatus>("/laser_odom_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("/laser_odom_optimization_status", 5);
   _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
   _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("/laser_odom_imu_bias", 20);
   //CUSTOMIZATION

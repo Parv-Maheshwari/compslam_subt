@@ -352,7 +352,8 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
   // relate incoming data to map - update transform estimates
   transformAssociateToMap();
 
-  //CUSTOMIZATION - Use saved submaps and initialization guess for map re-localziation
+  //CUSTOMIZATION 
+  // Use saved submaps on disk and initialization guess for map re-localziation
   if (_useSavedSubmapsForInit) {
     //LOAD Maps
     pcl::io::loadPCDFile((_saved_submaps_filepath + "savedCornerSubmap.pcd"), *_savedCornerSubmap);
@@ -375,6 +376,26 @@ bool BasicLaserMapping::process(Time const& laserOdometryTime) {
     _IncreOptIter = true;             //Increase allowed Iterations for convergence
     _useSavedSubmapsForInit = false;  //Load only once
   }
+
+  //Use external submaps for initialization
+  if (_useExternalSubmapsForInit) {
+    //Check if external submaps and initilization pose are available for co-localization
+    if (_externalSubmapsAvailable) {
+      //Increase allowed iterations for convergence of co-localization
+      _IncreOptIter = true;
+
+      //Check if robot pose in external submaps or origin should be used as initial guess for co-localization
+      if (_useExternalSubmapOriginPoseForInit)
+        _transformTobeMapped = Twist();
+      else
+        _transformTobeMapped = _externalSubmapsPose;
+
+      //Reset flag
+      _useExternalSubmapsForInit = false;
+    } else
+      return false;
+  }
+
   //CUSTOMIZATION
 
   for (auto const& pt : _laserCloudCornerLast->points) {
@@ -1248,6 +1269,102 @@ pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::getSubmapSearchCloud() {
   return *_submapSearchCloud;
 }
 
+bool BasicLaserMapping::getSubmapsAndPose(compslam_msgs::Submaps& submapsMsg) {
+  //Check if submaps are empty
+  if (_occupiedCubeInd.size() < 1) {
+    ROS_ERROR("*** LaserMapping  - Submap Sharing FAILED - All submaps are empty");
+    return false;
+  }
+
+  //Clear and reserve submap vectors
+  submapsMsg.sharp_submaps.clear();
+  submapsMsg.flat_submaps.clear();
+  submapsMsg.sharp_submaps.reserve(_occupiedCubeInd.size());
+  submapsMsg.flat_submaps.reserve(_occupiedCubeInd.size());
+
+  //Convert and save submaps
+  std::clock_t submap_ts = std::clock();
+  for (const auto& idx : _occupiedCubeInd) {
+    //Check if cube is occupied
+    if ((_laserCloudCornerArray[idx]->size() + _laserCloudSurfArray[idx]->size()) < 20)
+      continue;
+
+    //Convert clouds
+    sensor_msgs::PointCloud2 sharpCloudMsg;
+    sensor_msgs::PointCloud2 flatCloudMsg;
+    pcl::toROSMsg(*_laserCloudCornerArray[idx], sharpCloudMsg);
+    pcl::toROSMsg(*_laserCloudSurfArray[idx], flatCloudMsg);
+
+    //Cube indices
+    sharpCloudMsg.header.seq = flatCloudMsg.header.seq = idx;
+
+    //Copy clouds to share msg
+    submapsMsg.sharp_submaps.emplace_back(sharpCloudMsg);
+    submapsMsg.flat_submaps.emplace_back(flatCloudMsg);
+  }
+  std::cout << "Submap Share(ms): " << static_cast<double>(std::clock() - submap_ts) / CLOCKS_PER_SEC * 1000.0 << std::endl;
+
+  //Save current position and rotation (euler angles)
+  auto& p = submapsMsg.position_rotation;
+  p.linear.x = _transformTobeMapped.pos.z();
+  p.linear.y = _transformTobeMapped.pos.x();
+  p.linear.z = _transformTobeMapped.pos.y();
+  p.angular.x = _transformTobeMapped.rot_z.rad();
+  p.angular.y = _transformTobeMapped.rot_x.rad();
+  p.angular.z = _transformTobeMapped.rot_y.rad();
+  ROS_INFO_STREAM("Current Submap pose (x,y,z): " << _transformTobeMapped.pos.z() << "," << _transformTobeMapped.pos.x() << "," << _transformTobeMapped.pos.y()
+                                                  << ", (r,p,y): " << _transformTobeMapped.rot_z.deg() << "," << _transformTobeMapped.rot_x.deg() << "," << _transformTobeMapped.rot_y.deg());
+
+  return true;
+}
+
+bool BasicLaserMapping::setSubmapsAndPose(compslam_msgs::Submaps& submapsMsg){
+  //Check if external submap are empty
+  if (submapsMsg.sharp_submaps.size() == 0 && submapsMsg.flat_submaps.size()){
+    ROS_ERROR("*** LaserMapping  - Setting External Submaps FAILED - All submaps are empty");
+    return false;
+  }
+
+  //Reset flag to trigger col-localization with new submaps
+  _useExternalSubmapsForInit = true;
+
+  std::clock_t submap_ts = std::clock();
+  //Clear occupied indices
+  _occupiedCubeInd.clear();
+  //Reset submaps
+  for (size_t i = 0; i < _laserCloudNum; ++i) {
+    _laserCloudCornerArray[i]->clear();
+    _laserCloudSurfArray[i]->clear();
+  }
+
+  //Set submaps
+  for (size_t idx = 0; idx < submapsMsg.sharp_submaps.size(); ++idx) {
+    //Get Cube Index
+    auto& cubeIdx = submapsMsg.sharp_submaps[idx].header.seq;
+    //Save new points
+    pcl::fromROSMsg(submapsMsg.sharp_submaps[idx], *_laserCloudCornerArray[cubeIdx]);
+    pcl::fromROSMsg(submapsMsg.flat_submaps[idx], *_laserCloudSurfArray[cubeIdx]);
+    //Mark as occupied
+    _occupiedCubeInd.insert(cubeIdx);
+  }
+  std::cout << "Submap Set(ms): " << static_cast<double>(std::clock() - submap_ts) / CLOCKS_PER_SEC * 1000.0 << std::endl;
+
+  //Save current robot position and rotation (euler angles) in external submaps
+  auto& p = submapsMsg.position_rotation;
+  _externalSubmapsPose.pos.x() = p.linear.y ;
+  _externalSubmapsPose.pos.y() = p.linear.z;
+  _externalSubmapsPose.pos.z()  = p.linear.x;
+  _externalSubmapsPose.rot_x = Angle(p.angular.y);
+  _externalSubmapsPose.rot_y = Angle(p.angular.z);
+  _externalSubmapsPose.rot_z = Angle(p.angular.x);
+  ROS_INFO_STREAM("SUBMAP Co-localization Guess (x,y,z): " << _externalSubmapsPose.pos.z() << "," << _externalSubmapsPose.pos.x() << "," << _externalSubmapsPose.pos.y()
+                                                           << ", (r,p,y): " << _externalSubmapsPose.rot_z.deg() << "," << _externalSubmapsPose.rot_x.deg() << "," << _externalSubmapsPose.rot_y.deg());
+
+  //Set status to trigger co-localization
+  _externalSubmapsAvailable = true;
+
+  return true;
+}
 //CUSTOMIZATION
 
 }  // end namespace loam

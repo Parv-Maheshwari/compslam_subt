@@ -201,17 +201,20 @@ class ImuManager {
         gyr_mean /= imu_meas.size();
         if (gyr_bias)
           *gyr_bias = gyr_mean;
-        //Set gravity direction (Z-Up same as ROS convention)
+        //Calculate gravity magnitude
         gravity_magnitude = acc_mean.norm();
+        //Set gravity vector direction according to IMU Z-axis orientation (GRAVITY IS ASSUMED TO BE ALONG Z-axis of IMU)
         Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);
+        if (acc_mean.z() < 0)
+          g_unit_vec.z() = -1.0;
         //Normalize gravity vectors to remove the affect of gravity magnitude from place-to-place
         acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
         init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(acc_mean, g_unit_vec));
         if (output) {
-          // std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
-          // std::cout << "\033[33mIMU-Manager\033[0m Mean IMU Acceleration Vector(x,y,z): " << acc_mean.transpose()
-          //           << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m IMU Acceleration(x,y,z): " << acc_mean.transpose()
+                    << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m IMU Rate(Hz): " << _imuRate <<", Time Interval(s): "<<_imuTimeForInit<<", num meas used: "<<(_imuRate * _imuTimeForInit) << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m Roll/Pitch/Yaw(deg): " << init_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m Gyro bias(x,y,z): " << gyr_mean.transpose() << std::endl;

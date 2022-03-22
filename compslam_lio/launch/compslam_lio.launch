@@ -1,13 +1,13 @@
 <launch>
 
   <!-- If running with data from Bagfile -->
-  <!-- <param name="use_sim_time" value="true"/> --> #be sure to run --clock
+  <param name="use_sim_time" value="true"/> #be sure to run --clock
 
   <!-- Publish static tf's -->
   <include file="$(find compslam_lio)/launch/tf.launch"/>
 
   <!-- Input topics remap -->
-  <arg name="pointcloud_topic_name" default="/lidar/point_cloud"/>
+  <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered"/>
   <arg name="imu_topic_name" default="/sensors/imu"/>
 
   <!-- Config params -->

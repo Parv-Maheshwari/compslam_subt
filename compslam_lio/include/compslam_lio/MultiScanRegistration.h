@@ -176,6 +176,9 @@ class MultiScanMapper {
   /** Multi scan mapper for RS-Bperl according to data sheet. */
   static inline MultiScanMapper RS_Bperl_32() { return MultiScanMapper(2.3125f, 89.5f, 32); };
   
+  /** Multi scan mapper for Ouster O0-64 according to data sheet. */
+  static inline MultiScanMapper Ouster_O0_64() { return MultiScanMapper(-45.3f, 45.3f, 64); };
+
   /** Multi scan mapper for Ouster O0-128 according to data sheet. */
   static inline MultiScanMapper Ouster_O0_128() { return MultiScanMapper(-46.2f, 46.2f, 128); };
   

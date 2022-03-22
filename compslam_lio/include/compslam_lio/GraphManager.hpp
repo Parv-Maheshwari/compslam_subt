@@ -58,6 +58,7 @@ class GraphManager {
   }
 
   //Accessors - Setters
+  void setImuZaxisPointsUp(bool val) { _imuZaxisPointsUp = val; }
   void setAccNoiseDensity(double val) { _accNoiseDensity = val; }
   void setAccBiasRandomWalk(double val) { _accBiasRandomWalk = val; }
   void setGyroNoiseDensity(double val) { _gyrNoiseDensity = val; }
@@ -92,7 +93,8 @@ class GraphManager {
 
  private:
   //Member variables
-  // IMU Preintegration
+  //IMU Preintegration
+  bool _imuZaxisPointsUp = true;                 // Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
   double _accNoiseDensity;                       // continuous-time "Covariance" of accelerometer
   double _accBiasRandomWalk;                     // continuous-time "Covariance" describing accelerometer bias random walk
   double _gyrNoiseDensity;                       // continuous-time "Covariance" of gyroscope measurements

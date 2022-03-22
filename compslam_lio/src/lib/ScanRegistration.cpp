@@ -240,7 +240,7 @@ void ScanRegistration::publishInvalidFeatureMarkers(const pcl::PointCloud<pcl::P
   visualization_msgs::MarkerArray arrows;
 
   visualization_msgs::Marker marker;
-  marker.header.frame_id = "camera";
+  marker.header.frame_id = _cameraFrameId;
   marker.ns = "invalidFeatureArrows";
   marker.type = visualization_msgs::Marker::ARROW;
   marker.action = visualization_msgs::Marker::ADD;

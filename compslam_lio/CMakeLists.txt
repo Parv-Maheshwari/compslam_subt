@@ -17,10 +17,10 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   eigen_conversions
   tf_conversions
-  message_generation
   std_srvs
   nodelet
   message_filters
+  compslam_msgs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -47,19 +47,8 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
 )
 
-add_message_files(
-  DIRECTORY msg
-  FILES
-  OptStatus.msg
-)
-
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
-
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions message_runtime nodelet message_filters
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions nodelet message_filters sensor_msgs compslam_msgs
   DEPENDS EIGEN3 PCL Boost
   INCLUDE_DIRS include
   LIBRARIES compslam_lio
