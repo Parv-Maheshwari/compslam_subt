@@ -47,20 +47,20 @@ TransformMaintenance::TransformMaintenance() {
 
 bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // advertise integrated laser odometry topic
-  _pubLaserOdometry2 = node.advertise<nav_msgs::Odometry>("/integrated_to_init", 5);
+  _pubLaserOdometry2 = node.advertise<nav_msgs::Odometry>("integrated_to_init", 5);
 
   //Synced scan-to-scan odometry subscriber
-  _subLaserOdom.subscribe(node, "/laser_odom_to_init", 10);
-  _subLaserOdomStatus.subscribe(node, "/laser_odom_optimization_status", 10);
+  _subLaserOdom.subscribe(node, "laser_odom_to_init", 10);
+  _subLaserOdomStatus.subscribe(node, "laser_odom_optimization_status", 10);
   _laserSyncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subLaserOdom, _subLaserOdomStatus));
   _laserSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncLaserOdomHandler, this, _1, _2));
   //Synced scan-to-map odometry subscriber
-  _subMapOdom.subscribe(node, "/aft_mapped_to_init", 10);
-  _subMapOdomStatus.subscribe(node, "/laser_mapping_optimization_status", 10);
+  _subMapOdom.subscribe(node, "aft_mapped_to_init", 10);
+  _subMapOdomStatus.subscribe(node, "laser_mapping_optimization_status", 10);
   _mapSyncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subMapOdom, _subMapOdomStatus));
   _mapSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncMapOdomHandler, this, _1, _2));
   //Combined odometry status publisher
-  _pubOdomStatus = node.advertise<compslam_msgs::OptStatus>("/laser_integrated_status", 5);
+  _pubOdomStatus = node.advertise<compslam_msgs::OptStatus>("laser_integrated_status", 5);
 
   // ARL Coordinate Frame Facilitators
   _laserOdometry2_CORRECTED.header.frame_id = "camera_init_CORRECTED";
@@ -69,15 +69,15 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   _gm_laserTransformStamped2_CORRECTED.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
   _gm_laserTransformStamped2_CORRECTED.child_frame_id = _laserOdometry2_CORRECTED.child_frame_id;
 
-  _pubLaserTransformStamped2_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("/loam_transform_CORRECTED", 5);
-  _pubLaserOdometry2_CORRECTED = node.advertise<nav_msgs::Odometry>("/integrated_to_init_CORRECTED", 5);
+  _pubLaserTransformStamped2_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("loam_transform_CORRECTED", 5);
+  _pubLaserOdometry2_CORRECTED = node.advertise<nav_msgs::Odometry>("integrated_to_init_CORRECTED", 5);
   // END ARL Coordinate Frame Correction
 
   //CUSTOMIZATION
   // Initialize path message and publisher
   _pathMsg.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
   _pathMsg.poses.reserve(20000);  //30 minutes path @ 10Hz
-  _pubPath = node.advertise<nav_msgs::Path>("/laser_integrated_path", 5);
+  _pubPath = node.advertise<nav_msgs::Path>("laser_integrated_path", 5);
   //CUSTOMIZATION
 
   return true;

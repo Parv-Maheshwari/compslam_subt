@@ -21,20 +21,20 @@
   <!-- Laser Multiscan Registration Nodelet -->
   <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
-    <remap from="/multi_scan_points" to="$(arg pointcloud_topic_name)"/>
+    <remap from="multi_scan_points" to="$(arg pointcloud_topic_name)"/>
   </node>
 
   <!-- Laser Odometry Nodelet -->
   <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
-    <remap from="/imu" to="$(arg imu_topic_name)"/>
+    <remap from="imu" to="$(arg imu_topic_name)"/>
   </node>
 
   <!-- Laser Mapping Nodelet -->
   <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
     <param name="saved_submaps_filepath" value="$(find compslam_lio)"/>
-    <remap from="/aft_mapped_to_init_CORRECTED" to="odometry"/>
+    <remap from="aft_mapped_to_init_CORRECTED" to="odometry"/>
   </node> 
 
   <!-- Laser Transform Maintenance Nodelet -->

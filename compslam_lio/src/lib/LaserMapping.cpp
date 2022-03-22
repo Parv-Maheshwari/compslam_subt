@@ -444,49 +444,49 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
 
   // advertise laser mapping topics
-  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_registered", 2);
-  _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("/aft_mapped_to_init", 5);
+  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("velodyne_cloud_registered", 2);
+  _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("aft_mapped_to_init", 5);
 
   // subscribe input Cloud and Odometry topics using ROS exact sync policy in a single callback
-  _subCornerCloud.subscribe(node, "/laser_cloud_corner_last", 2);
-  _subFlatCloud.subscribe(node, "/laser_cloud_surf_last", 2);
-  _subFullCloud.subscribe(node, "/velodyne_cloud_3", 2);
-  _subLaserOdom.subscribe(node, "/laser_odom_to_init", 2);
+  _subCornerCloud.subscribe(node, "laser_cloud_corner_last", 2);
+  _subFlatCloud.subscribe(node, "laser_cloud_surf_last", 2);
+  _subFullCloud.subscribe(node, "velodyne_cloud_3", 2);
+  _subLaserOdom.subscribe(node, "laser_odom_to_init", 2);
   _pclExactSyncPtr.reset(new message_filters::Synchronizer<_pclExactSyncPolicy>(_pclExactSyncPolicy(10), _subCornerCloud, _subFlatCloud, _subFullCloud, _subLaserOdom));
   _pclExactSyncPtr->registerCallback(boost::bind(&LaserMapping::syncInputsHandler, this, _1, _2, _3, _4));
 
   // subscribe to IMU topic
-  _subImu = node.subscribe<sensor_msgs::Imu>("/imu/data", 50, &LaserMapping::imuHandler, this);
+  _subImu = node.subscribe<sensor_msgs::Imu>("imu/data", 50, &LaserMapping::imuHandler, this);
 
   // ARL Coordinate Frame Facilitators
   _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = "camera_init_CORRECTED";
   _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = "aft_mapped_to_init_CORRECTED";
 
-  _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("/aft_mapped_to_init_CORRECTED", 5);
-  _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("/transform_aft_mapped_to_init_CORRECTED", 5);
+  _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("aft_mapped_to_init_CORRECTED", 5);
+  _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("transform_aft_mapped_to_init_CORRECTED", 5);
 
   // Initialize path message and publisher
   _pathMsg.header.frame_id = _gm_aftMappedTransformStamped_CORRECTED.header.frame_id;
   _pathMsg.poses.reserve(20000);  //1 hour path @ 5Hz ~ 18000
-  _pubPath = node.advertise<nav_msgs::Path>("/laser_mapping_path", 5);
+  _pubPath = node.advertise<nav_msgs::Path>("laser_mapping_path", 5);
 
   // Publish optimization status
-  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("/laser_mapping_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
-  _subLaserOdometryStatus = node.subscribe<std_msgs::Header>("/laser_odom_status", 5, &LaserMapping::laserOdometryStatusHandler, this);
-  _srvSaveSubmapsToFile = node.advertiseService("/save_submaps_to_file", &LaserMapping::saveSubMapsToFile, this);
-  _srvShareSubmaps = privateNode.advertiseService("/share_submaps", &LaserMapping::shareSubmaps, this);
-  _srvRequestSubmaps = privateNode.advertiseService("/request_submaps", &LaserMapping::requestSubmaps, this);
-  _pubMap = node.advertise<sensor_msgs::PointCloud2>("/laser_map", 1);
-  _pubSubmap = node.advertise<sensor_msgs::PointCloud2>("/laser_submap", 1);
-  _pubSubMapSearchCloud = node.advertise<sensor_msgs::PointCloud2>("/submap_search_cloud", 1);
+  _subLaserOdometryStatus = node.subscribe<std_msgs::Header>("laser_odom_status", 5, &LaserMapping::laserOdometryStatusHandler, this);
+  _srvSaveSubmapsToFile = privateNode.advertiseService("save_submaps_to_file", &LaserMapping::saveSubMapsToFile, this);
+  _srvShareSubmaps = privateNode.advertiseService("share_submaps", &LaserMapping::shareSubmaps, this);
+  _srvRequestSubmaps = privateNode.advertiseService("request_submaps", &LaserMapping::requestSubmaps, this);
+  _pubMap = node.advertise<sensor_msgs::PointCloud2>("laser_map", 1);
+  _pubSubmap = node.advertise<sensor_msgs::PointCloud2>("laser_submap", 1);
+  _pubSubMapSearchCloud = node.advertise<sensor_msgs::PointCloud2>("submap_search_cloud", 1);
   //DEBUG
-  _pubCurrentCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("/current_corner_submap", 1);
-  _pubCurrentSurfSubmap = node.advertise<sensor_msgs::PointCloud2>("/current_surf_submap", 1);
-  _pubSavedCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("/saved_corner_submap", 1);
-  _pubSavedSurfSubmap = node.advertise<sensor_msgs::PointCloud2>("/saved_surf_submap", 1);
+  _pubCurrentCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("current_corner_submap", 1);
+  _pubCurrentSurfSubmap = node.advertise<sensor_msgs::PointCloud2>("current_surf_submap", 1);
+  _pubSavedCornerSubmap = node.advertise<sensor_msgs::PointCloud2>("saved_corner_submap", 1);
+  _pubSavedSurfSubmap = node.advertise<sensor_msgs::PointCloud2>("saved_surf_submap", 1);
   //DEBUG
 
   //Reset BasicLaserMapping Map parameters and containers

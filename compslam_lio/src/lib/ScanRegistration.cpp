@@ -178,16 +178,16 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
     return false;
 
   // subscribe to IMU topic
-  // _subImu = node.subscribe<sensor_msgs::Imu>("/imu/data", 50, &ScanRegistration::handleIMUMessage, this);
+  // _subImu = node.subscribe<sensor_msgs::Imu>("imu/data", 50, &ScanRegistration::handleIMUMessage, this);
 
   // advertise scan registration topics
-  _pubLaserCloud = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 2);
-  _pubCornerPointsSharp = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 2);
-  _pubCornerPointsLessSharp = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_sharp", 2);
-  _pubSurfPointsFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_flat", 2);
-  _pubSurfPointsLessFlat = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_less_flat", 2);
-  _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("/imu_trans", 5);
-  _pubInvalidFeaturesMarkers = node.advertise<visualization_msgs::MarkerArray>("/invalid_feature_markers", 1); //For Debugging only
+  _pubLaserCloud = node.advertise<sensor_msgs::PointCloud2>("velodyne_cloud_2", 2);
+  _pubCornerPointsSharp = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_sharp", 2);
+  _pubCornerPointsLessSharp = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_less_sharp", 2);
+  _pubSurfPointsFlat = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_flat", 2);
+  _pubSurfPointsLessFlat = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_less_flat", 2);
+  _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("imu_trans", 5);
+  _pubInvalidFeaturesMarkers = node.advertise<visualization_msgs::MarkerArray>("invalid_feature_markers", 1); //For Debugging only
 
   //Publishing frame name
   _cameraFrameId= "camera";

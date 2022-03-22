@@ -402,32 +402,32 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
 
   // advertise laser odometry topics
-  _pubLaserCloudCornerLast = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 2);
-  _pubLaserCloudSurfLast = node.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 2);
-  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_3", 2);
-  _pubLaserOdometry = node.advertise<nav_msgs::Odometry>("/laser_odom_to_init", 5);
+  _pubLaserCloudCornerLast = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_corner_last", 2);
+  _pubLaserCloudSurfLast = node.advertise<sensor_msgs::PointCloud2>("laser_cloud_surf_last", 2);
+  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("velodyne_cloud_3", 2);
+  _pubLaserOdometry = node.advertise<nav_msgs::Odometry>("laser_odom_to_init", 5);
 
   // subscribe input Cloud topics using ROS exact sync policy in a single callback
-  _subSharp.subscribe(node, "/laser_cloud_sharp", 2);
-  _subLessSharp.subscribe(node, "/laser_cloud_less_sharp", 2);
-  _subFlat.subscribe(node, "/laser_cloud_flat", 2);
-  _subLessFlat.subscribe(node, "/laser_cloud_less_flat", 2);
-  _subFull.subscribe(node, "/velodyne_cloud_2", 2);
+  _subSharp.subscribe(node, "laser_cloud_sharp", 2);
+  _subLessSharp.subscribe(node, "laser_cloud_less_sharp", 2);
+  _subFlat.subscribe(node, "laser_cloud_flat", 2);
+  _subLessFlat.subscribe(node, "laser_cloud_less_flat", 2);
+  _subFull.subscribe(node, "velodyne_cloud_2", 2);
   _pclExactSyncPtr.reset(new message_filters::Synchronizer<_pclExactSyncPolicy>(_pclExactSyncPolicy(10), _subSharp, _subLessSharp, _subFlat, _subLessFlat, _subFull));
   _pclExactSyncPtr->registerCallback(boost::bind(&LaserOdometry::syncCloudsHandler, this, _1, _2, _3, _4, _5));
 
   // subscribe to IMU topic
-  _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("/imu_trans", 5, &LaserOdometry::imuTransHandler, this);
-  _subImu = node.subscribe<sensor_msgs::Imu>("/imu", 400, &LaserOdometry::imuCallback, this, ros::TransportHints().tcpNoDelay());
+  _subImuTrans = node.subscribe<sensor_msgs::PointCloud2>("imu_trans", 5, &LaserOdometry::imuTransHandler, this);
+  _subImu = node.subscribe<sensor_msgs::Imu>("imu", 400, &LaserOdometry::imuCallback, this, ros::TransportHints().tcpNoDelay());
 
   // ARL Coordinate Frame Facilitators
-  _pubLaserOdometry_CORRECTED = node.advertise<nav_msgs::Odometry>("/laser_odom_to_init_CORRECTED", 5);
+  _pubLaserOdometry_CORRECTED = node.advertise<nav_msgs::Odometry>("laser_odom_to_init_CORRECTED", 5);
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
-  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("/laser_odom_optimization_status", 5);
-  _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("/laser_odom_status", 5);
-  _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("/laser_odom_imu_bias", 20);
+  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("laser_odom_optimization_status", 5);
+  _pubLaserOdometryStatus = node.advertise<std_msgs::Header>("laser_odom_status", 5);
+  _pubLaserImuBias = node.advertise<sensor_msgs::Imu>("laser_odom_imu_bias", 20);
   //CUSTOMIZATION
   return true;
 }  // namespace loam
