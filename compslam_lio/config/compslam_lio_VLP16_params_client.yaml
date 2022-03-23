@@ -20,7 +20,7 @@ fallbackExtSensorFrame: imu_sensor_frame #Fallback External Prior sensor frame n
 fallbackExtOdomTimeOffset: -0.07         #Timeoffset (seconds) between LiDAR pointcloud and Fallbackexternal source
 
 #MultiScanRegistration
-lidar: VLP-16                            #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
+lidar: VLP-16-ANYbotics                  #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
 useCloudIntensityandRingFields : false   #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
 imuHistorySize: 200                      #IMU Message Buffer Size , default: 200 
 minRange: 0.1                            #Minimum Range of useful points, default: 0.1
@@ -64,8 +64,8 @@ mapPriorNormThresh: 0.4                  #Max translation threshold between two 
 useSavedSubmapsForInitialization: false  #Use saved submap on disc for initialization
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
 waitAndUseExternalSubmapsForInit: true   #Wait for external submaps before initlization. Trigger external submaps through service call
-submapsRequestServiceCall: "/server/laser_mapping/share_submaps" #Name of service call to call to request submaps from other node (xyz/share_submaps)
-useExternalSubmapOriginForInit: false    #Use origin of external submaps as initlization guess for co-localization instead of current external pose (default: false)
+submapsRequestServiceCall: "/server/compslam_lio/laser_mapping_nodelet/share_submaps" #Name of service call to call to request submaps from other node (xyz/share_submaps)
+useExternalSubmapOriginForInit: true     #Use origin of external submaps as initlization guess for co-localization instead of current external pose (default: false)
 forcePathPublishing: true                #Force ROS path message publishing for mapping odometry
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider),  default: 20(0.25 Hz)
 useExtRotationAlignment: true            #Use external fixed & map frame to detemine gravity misalignment, default: true

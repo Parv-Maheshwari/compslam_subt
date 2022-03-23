@@ -452,13 +452,18 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // subscribe to IMU topic
   _subImu = node.subscribe<sensor_msgs::Imu>("imu/data", 50, &LaserMapping::imuHandler, this);
 
+  //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
+  std::string tf_ns = node.getNamespace();
+  if(!tf_ns.empty())
+    tf_ns = tf_ns.erase(0,1) + "/";
+
   // initialize mapping tf messages
-  _aftMappedTrans.frame_id_ = "camera_init";
-  _aftMappedTrans.child_frame_id_ = "aft_mapped";
+  _aftMappedTrans.frame_id_ = tf_ns + "camera_init";
+  _aftMappedTrans.child_frame_id_ = tf_ns + "aft_mapped";
 
   // ARL Coordinate Frame Facilitators
-  _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = "camera_init_CORRECTED";
-  _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = "aft_mapped_to_init_CORRECTED";
+  _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = tf_ns + "camera_init_CORRECTED";
+  _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = tf_ns + "aft_mapped_to_init_CORRECTED";
 
   _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("aft_mapped_to_init_CORRECTED", 5);
   _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("transform_aft_mapped_to_init_CORRECTED", 5);

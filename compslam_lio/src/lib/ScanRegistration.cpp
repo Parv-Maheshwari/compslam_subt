@@ -189,8 +189,13 @@ bool ScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& privateN
   _pubImuTrans = node.advertise<sensor_msgs::PointCloud2>("imu_trans", 5);
   _pubInvalidFeaturesMarkers = node.advertise<visualization_msgs::MarkerArray>("invalid_feature_markers", 1); //For Debugging only
 
+  
+  //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
+  std::string tf_ns = node.getNamespace();
+  if (!tf_ns.empty())
+    tf_ns = tf_ns.erase(0, 1) + "/";
   //Publishing frame name
-  _cameraFrameId= "camera";
+  _cameraFrameId= tf_ns + "camera";
   return true;
 }
 

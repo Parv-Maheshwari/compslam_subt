@@ -53,15 +53,20 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   //Combined odometry status publisher
   _pubOdomStatus = node.advertise<compslam_msgs::OptStatus>("laser_integrated_status", 5);
 
+  //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
+  std::string tf_ns = node.getNamespace();
+  if (!tf_ns.empty())
+    tf_ns = tf_ns.erase(0, 1) + "/";
+
   // initialize odometry and odometry tf messages
-  _laserOdometry2.header.frame_id = "camera_init";
-  _laserOdometry2.child_frame_id = "camera";
+  _laserOdometry2.header.frame_id = tf_ns + "camera_init";
+  _laserOdometry2.child_frame_id = tf_ns + "camera";
   _laserOdometryTrans2.frame_id_ = _laserOdometry2.header.frame_id;
   _laserOdometryTrans2.child_frame_id_ = _laserOdometry2.child_frame_id;
 
   // ARL Coordinate Frame Facilitators
-  _laserOdometry2_CORRECTED.header.frame_id = "camera_init_CORRECTED";
-  _laserOdometry2_CORRECTED.child_frame_id = "camera_CORRECTED";
+  _laserOdometry2_CORRECTED.header.frame_id = tf_ns + "camera_init_CORRECTED";
+  _laserOdometry2_CORRECTED.child_frame_id = tf_ns + "camera_CORRECTED";
 
   _gm_laserTransformStamped2_CORRECTED.header.frame_id = _laserOdometry2_CORRECTED.header.frame_id;
   _gm_laserTransformStamped2_CORRECTED.child_frame_id = _laserOdometry2_CORRECTED.child_frame_id;

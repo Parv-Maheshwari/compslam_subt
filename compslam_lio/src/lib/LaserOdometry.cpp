@@ -389,16 +389,21 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     setVerboseLevel(0);
   //CUSTOMIZATION
 
+  //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
+  std::string tf_ns = node.getNamespace();
+  if (!tf_ns.empty())
+    tf_ns = tf_ns.erase(0, 1) + "/";
+
   // initialize tf messages
-  _laserOdometryTrans.frame_id_ = "camera_init";
-  _laserOdometryTrans.child_frame_id_ = "laser_odom";
+  _laserOdometryTrans.frame_id_ = tf_ns + "camera_init";
+  _laserOdometryTrans.child_frame_id_ = tf_ns + "laser_odom";
   _cameraFrameId = "camera";
-  _laserOdometryTrans_CORRECTED.frame_id_ = "camera_init_CORRECTED";
-  _laserOdometryTrans_CORRECTED.child_frame_id_ = "laser_odom_CORRECTED";
+  _laserOdometryTrans_CORRECTED.frame_id_ = tf_ns + "camera_init_CORRECTED";
+  _laserOdometryTrans_CORRECTED.child_frame_id_ = tf_ns + "laser_odom_CORRECTED";
 
   // initialize gravity aligned tf message
-  _cameraInitGravityAlignedTf.frame_id_ = "camera_init_CORRECTED";
-  _cameraInitGravityAlignedTf.child_frame_id_ = "camera_init_GRAVITY_ALIGNED";
+  _cameraInitGravityAlignedTf.frame_id_ = _laserOdometryTrans_CORRECTED.frame_id_;
+  _cameraInitGravityAlignedTf.child_frame_id_ = tf_ns + "camera_init_GRAVITY_ALIGNED";
   _cameraInitGravityAlignedTf.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
 
   // advertise laser odometry topics

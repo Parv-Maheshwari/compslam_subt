@@ -1,14 +1,18 @@
 <launch>
-
   <!-- If running with data from Bagfile -->
-  <param name="use_sim_time" value="true"/> #be sure to run --clock
+  <param name="use_sim_time" value="true"/> # be sure to run --clock
+  
+  <!-- Run the CompSLAM LIO Nodelets in a specific namespace -->
+  <arg name="ns" default="compslam_lio"/>
 
   <!-- Publish static tf's -->
-  <include file="$(find compslam_lio)/launch/tf.launch"/>
+  <include file="$(find compslam_lio)/launch/tf.launch">
+    <arg name="ns" value="$(arg ns)"/>
+  </include>
 
   <!-- Input topics remap -->
   <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered"/>
-  <arg name="imu_topic_name" default="/sensors/imu"/>
+  <arg name="imu_topic_name"        default="/sensors/imu"/>
 
   <!-- Config params -->
   <arg name="compslam_lio_with_OS0128"    default="false"/>
@@ -16,29 +20,29 @@
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_params.yaml" if="$(arg compslam_lio_with_OS0128)"/>
 
   <!-- CompSLAM LIO Nodelet Manager -->
-  <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true"/>
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true"/>
 
   <!-- Laser Multiscan Registration Nodelet -->
-  <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
     <remap from="multi_scan_points" to="$(arg pointcloud_topic_name)"/>
   </node>
 
   <!-- Laser Odometry Nodelet -->
-  <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet compslam_lio_nodelet_manager" output="screen">
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
     <remap from="imu" to="$(arg imu_topic_name)"/>
   </node>
 
   <!-- Laser Mapping Nodelet -->
-  <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet compslam_lio_nodelet_manager" output="screen">
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_mapping_nodelet" args="load laser_mapping_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
     <param name="saved_submaps_filepath" value="$(find compslam_lio)"/>
     <remap from="aft_mapped_to_init_CORRECTED" to="odometry"/>
   </node> 
 
   <!-- Laser Transform Maintenance Nodelet -->
-  <node ns="compslam_lio" pkg="nodelet" type="nodelet" name="laser_transform_maintenance_nodelet" args="load laser_transform_maintenance_nodelet compslam_lio_nodelet_manager" output="screen">
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_transform_maintenance_nodelet" args="load laser_transform_maintenance_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
   </node>
 
