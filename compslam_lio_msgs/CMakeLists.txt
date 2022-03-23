@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(compslam_msgs)
+project(compslam_lio_msgs)
 
 find_package(catkin REQUIRED COMPONENTS
   std_msgs

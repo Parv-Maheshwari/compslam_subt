@@ -1269,7 +1269,7 @@ pcl::PointCloud<pcl::PointXYZI>& BasicLaserMapping::getSubmapSearchCloud() {
   return *_submapSearchCloud;
 }
 
-bool BasicLaserMapping::getSubmapsAndPose(compslam_msgs::Submaps& submapsMsg) {
+bool BasicLaserMapping::getSubmapsAndPose(compslam_lio_msgs::Submaps& submapsMsg) {
   //Check if submaps are empty
   if (_occupiedCubeInd.size() < 1) {
     ROS_ERROR("*** LaserMapping  - Submap Sharing FAILED - All submaps are empty");
@@ -1318,7 +1318,7 @@ bool BasicLaserMapping::getSubmapsAndPose(compslam_msgs::Submaps& submapsMsg) {
   return true;
 }
 
-bool BasicLaserMapping::setSubmapsAndPose(compslam_msgs::Submaps& submapsMsg){
+bool BasicLaserMapping::setSubmapsAndPose(compslam_lio_msgs::Submaps& submapsMsg){
   //Check if external submap are empty
   if (submapsMsg.sharp_submaps.size() == 0 && submapsMsg.flat_submaps.size()){
     ROS_ERROR("*** LaserMapping  - Setting External Submaps FAILED - All submaps are empty");

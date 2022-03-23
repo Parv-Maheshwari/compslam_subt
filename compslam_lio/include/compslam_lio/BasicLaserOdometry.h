@@ -19,7 +19,7 @@
 #include "CircularBuffer.h"
 #include "GraphManager.hpp"
 #include "ImuManager.hpp"
-#include <compslam_msgs/OptStatus.h>
+#include <compslam_lio_msgs/OptStatus.h>
 //CUSTOMIZATION
 
 namespace loam {
@@ -162,7 +162,7 @@ class BasicLaserOdometry {
   void setUseIMURollPitchForGraphInit(const bool b) { _initGraphRollPicthFromIMU = b; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
-  compslam_msgs::OptStatus _optStatusMsg;
+  compslam_lio_msgs::OptStatus _optStatusMsg;
   //CUTOMIZATION
 
  protected:

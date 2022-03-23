@@ -51,7 +51,7 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   _mapSyncPtr.reset(new message_filters::Synchronizer<_syncPolicy>(_syncPolicy(10), _subMapOdom, _subMapOdomStatus));
   _mapSyncPtr->registerCallback(boost::bind(&TransformMaintenance::syncMapOdomHandler, this, _1, _2));
   //Combined odometry status publisher
-  _pubOdomStatus = node.advertise<compslam_msgs::OptStatus>("laser_integrated_status", 5);
+  _pubOdomStatus = node.advertise<compslam_lio_msgs::OptStatus>("laser_integrated_status", 5);
 
   //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
   std::string tf_ns = node.getNamespace();
@@ -85,7 +85,7 @@ bool TransformMaintenance::setup(ros::NodeHandle& node, ros::NodeHandle& private
   return true;
 }
 
-void TransformMaintenance::syncLaserOdomHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry, const compslam_msgs::OptStatusConstPtr& laserStatus){
+void TransformMaintenance::syncLaserOdomHandler(const nav_msgs::Odometry::ConstPtr& laserOdometry, const compslam_lio_msgs::OptStatusConstPtr& laserStatus){
   double roll, pitch, yaw;
   geometry_msgs::Quaternion geoQuat = laserOdometry->pose.pose.orientation;
   tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);
@@ -142,7 +142,7 @@ void TransformMaintenance::syncLaserOdomHandler(const nav_msgs::Odometry::ConstP
   //CUSTOMIZATION
   // Publish odometry status message based on if scan-to-scan or scan-to-map alignment was degenerate
   if (_pubOdomStatus.getNumSubscribers() > 0) {
-    compslam_msgs::OptStatus optMsg;
+    compslam_lio_msgs::OptStatus optMsg;
     optMsg.header.stamp = laserOdometry->header.stamp;
     //Status degeneracy status
     optMsg.degenerate = (laserStatus->degenerate || _isMappingDegenerate);
@@ -174,7 +174,7 @@ void TransformMaintenance::syncLaserOdomHandler(const nav_msgs::Odometry::ConstP
 
 }
 
-void TransformMaintenance::syncMapOdomHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped, const compslam_msgs::OptStatusConstPtr& mapStatus) {
+void TransformMaintenance::syncMapOdomHandler(const nav_msgs::Odometry::ConstPtr& odomAftMapped, const compslam_lio_msgs::OptStatusConstPtr& mapStatus) {
   double roll, pitch, yaw;
   geometry_msgs::Quaternion geoQuat = odomAftMapped->pose.pose.orientation;
   tf::Matrix3x3(tf::Quaternion(geoQuat.z, -geoQuat.x, -geoQuat.y, geoQuat.w)).getRPY(roll, pitch, yaw);

@@ -34,8 +34,8 @@
 
 #include "CircularBuffer.h"
 #include "Twist.h"
-#include <compslam_msgs/OptStatus.h>
-#include <compslam_msgs/Submaps.h>
+#include <compslam_lio_msgs/OptStatus.h>
+#include <compslam_lio_msgs/Submaps.h>
 #include "math_utils.h"
 #include "time_utils.h"
 
@@ -177,8 +177,8 @@ class BasicLaserMapping {
   // Submaps sharing and co-localization
   void useExternalSubmapsForInit(bool b) { _useExternalSubmapsForInit = b; }
   void useExternalSubmapOriginPoseForInit(bool b) { _useExternalSubmapOriginPoseForInit = b; }
-  bool getSubmapsAndPose(compslam_msgs::Submaps& submapsMsg);
-  bool setSubmapsAndPose(compslam_msgs::Submaps& submapsMsg);
+  bool getSubmapsAndPose(compslam_lio_msgs::Submaps& submapsMsg);
+  bool setSubmapsAndPose(compslam_lio_msgs::Submaps& submapsMsg);
 
   pcl::PointCloud<pcl::PointXYZI>& laserMap();
   pcl::PointCloud<pcl::PointXYZI>& laserSubmap();
@@ -211,7 +211,7 @@ class BasicLaserMapping {
   void forceExternalPriorUseForMapping(bool b) { _forceExternalPriorUseForMapping = b; }
   void setInputPCLRotationStatus(bool b) { _isInputPCLRotated = b; }
   void setLiDARtoInputPCLRotation(const tf::Transform t) { _Rot_inCloudLiDAR = t; }
-  compslam_msgs::OptStatus _optStatusMsg;
+  compslam_lio_msgs::OptStatus _optStatusMsg;
 
   //DEBUG
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }

@@ -45,8 +45,8 @@
 #include <std_srvs/Trigger.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
-#include <compslam_msgs/Submaps.h>
-#include <compslam_msgs/ShareSubmaps.h>
+#include <compslam_lio_msgs/Submaps.h>
+#include <compslam_lio_msgs/ShareSubmaps.h>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -114,7 +114,7 @@ class LaserMapping : public BasicLaserMapping {
   bool saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_srvs::Empty::Response& /*response*/);
 
   /** \brief Service call to share all Corner and Suface submaps*/
-  bool shareSubmaps(compslam_msgs::ShareSubmaps::Request& /*request*/, compslam_msgs::ShareSubmaps::Response& resp);
+  bool shareSubmaps(compslam_lio_msgs::ShareSubmaps::Request& /*request*/, compslam_lio_msgs::ShareSubmaps::Response& resp);
 
   /** \brief Service call to request LOAM to share all Corner and Suface submaps with current pose*/
   bool requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp);

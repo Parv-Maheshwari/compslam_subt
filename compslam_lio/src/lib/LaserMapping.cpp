@@ -474,7 +474,7 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _pubPath = node.advertise<nav_msgs::Path>("laser_mapping_path", 5);
 
   // Publish optimization status
-  _pubOptimizationStatus = node.advertise<compslam_msgs::OptStatus>("laser_mapping_optimization_status", 5);
+  _pubOptimizationStatus = node.advertise<compslam_lio_msgs::OptStatus>("laser_mapping_optimization_status", 5);
   // END ARL Coordinate Frame Facilitators
 
   //CUSTOMIZATION
@@ -554,7 +554,7 @@ bool LaserMapping::saveSubMapsToFile(std_srvs::Empty::Request& /*request*/, std_
   return true;
 }
 
-bool LaserMapping::shareSubmaps(compslam_msgs::ShareSubmaps::Request& /*request*/, compslam_msgs::ShareSubmaps::Response& resp) {
+bool LaserMapping::shareSubmaps(compslam_lio_msgs::ShareSubmaps::Request& /*request*/, compslam_lio_msgs::ShareSubmaps::Response& resp) {
   if (BasicLaserMapping::getSubmapsAndPose(resp.Submaps)) {
     auto& m = resp.Submaps;
     ROS_INFO_STREAM("Shared Sharp/Flat submaps: " << m.sharp_submaps.size()
@@ -569,8 +569,8 @@ bool LaserMapping::shareSubmaps(compslam_msgs::ShareSubmaps::Request& /*request*
 
 bool LaserMapping::requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp) {
   //Call submap share service
-  compslam_msgs::ShareSubmaps srv;
-  if (ros::service::call<compslam_msgs::ShareSubmaps>(_submapsRequestSrvCall, srv)) {
+  compslam_lio_msgs::ShareSubmaps srv;
+  if (ros::service::call<compslam_lio_msgs::ShareSubmaps>(_submapsRequestSrvCall, srv)) {
     //Set submaps in respective cubes
     if (BasicLaserMapping::setSubmapsAndPose(srv.response.Submaps)) {
       auto& m = srv.response.Submaps;

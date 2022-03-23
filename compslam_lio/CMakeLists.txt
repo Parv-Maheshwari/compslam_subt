@@ -20,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   nodelet
   message_filters
-  compslam_msgs
+  compslam_lio_msgs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -48,7 +48,7 @@ include_directories(
 )
 
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions nodelet message_filters sensor_msgs compslam_msgs
+  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions nodelet message_filters sensor_msgs compslam_lio_msgs
   DEPENDS EIGEN3 PCL Boost
   INCLUDE_DIRS include
   LIBRARIES compslam_lio
