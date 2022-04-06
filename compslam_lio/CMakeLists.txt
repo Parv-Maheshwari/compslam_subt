@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -pthread")
 
-find_package(catkin REQUIRED COMPONENTS
+# Catkin Dependencies
+set(CATKIN_PACKAGE_DEPENDENCIES
   geometry_msgs
   nav_msgs
   sensor_msgs
@@ -23,6 +24,18 @@ find_package(catkin REQUIRED COMPONENTS
   compslam_lio_msgs
 )
 
+find_package(catkin REQUIRED COMPONENTS
+  ${CATKIN_PACKAGE_DEPENDENCIES}
+)
+
+catkin_package(
+  CATKIN_DEPENDS ${CATKIN_PACKAGE_DEPENDENCIES}
+  DEPENDS EIGEN3 PCL Boost
+  INCLUDE_DIRS include
+  LIBRARIES compslam_lio
+)
+
+# Other Dependencies
 find_package(Eigen3 REQUIRED)
 message("Eigen Version:" ${EIGEN3_VERSION_STRING})
 message("Eigen Path:" ${Eigen3_DIR})
@@ -41,23 +54,11 @@ message("Boost version: ${Boost_VERSION}")
 include_directories(
   include
 	${catkin_INCLUDE_DIRS}
-	#${EIGEN3_INCLUDE_DIR}
+	${EIGEN3_INCLUDE_DIR}
 	${PCL_INCLUDE_DIRS}
   ${GTSAM_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
 )
-
-catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf pcl_conversions eigen_conversions tf_conversions nodelet message_filters sensor_msgs compslam_lio_msgs
-  DEPENDS EIGEN3 PCL Boost
-  INCLUDE_DIRS include
-  LIBRARIES compslam_lio
-)
-
-## Compile as C++14, supported in ROS Kinetic and newer
-# set_property(TARGET invz_player PROPERTY CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Turn on if needed otherwise makes multiScanRegistration node crash
 # if(NOT CMAKE_CROSSCOMPILING)
