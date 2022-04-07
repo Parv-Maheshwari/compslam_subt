@@ -23,7 +23,7 @@
   <arg name="imu_topic_name"        default="/server/sensors/imu" />
   
   <!-- Config params -->
-  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params_server.yaml" />
+  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params.yaml" />
 
   <group ns="$(arg server_ns)">
     <!-- CompSLAM LIO Nodelet Manager -->
