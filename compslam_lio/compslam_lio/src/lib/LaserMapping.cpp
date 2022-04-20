@@ -567,10 +567,12 @@ bool LaserMapping::shareSubmaps(compslam_lio_msgs::ShareSubmaps::Request& /*requ
     return false;
 }
 
-bool LaserMapping::requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp) {
+bool LaserMapping::requestSubmaps(compslam_lio_msgs::RequestSubmaps::Request& req, compslam_lio_msgs::RequestSubmaps::Response& resp) {
   //Call submap share service
+  std::string submapsRequestSrvcall = req.anymal_prefix + _submapsRequestSrvCall;
+  ROS_INFO_STREAM("LaserMapping - requestSubmaps: Calling service: " + submapsRequestSrvcall);
   compslam_lio_msgs::ShareSubmaps srv;
-  if (ros::service::call<compslam_lio_msgs::ShareSubmaps>(_submapsRequestSrvCall, srv)) {
+  if (ros::service::call<compslam_lio_msgs::ShareSubmaps>(submapsRequestSrvcall, srv)) {
     //Set submaps in respective cubes
     if (BasicLaserMapping::setSubmapsAndPose(srv.response.Submaps)) {
       auto& m = srv.response.Submaps;

@@ -14,8 +14,11 @@ add_message_files(
 )
 
 add_service_files(
-  DIRECTORY srv
-  FILES ShareSubmaps.srv
+  DIRECTORY
+    srv
+  FILES
+    RequestSubmaps.srv
+    ShareSubmaps.srv
 )
 
 generate_messages(
