@@ -438,8 +438,10 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   //CUSTOMIZATION
 
   // advertise laser mapping topics
-  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("velodyne_cloud_registered", 2);
-  _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("aft_mapped_to_init", 5);
+  _pubLaserCloudFullRes = node.advertise<sensor_msgs::PointCloud2>("registered_cloud", 2);
+  _pubOdomAftMapped = node.advertise<nav_msgs::Odometry>("odom_aft_mapped_to_init", 5);
+  _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("odom_aft_mapped_to_init_CORRECTED", 5);
+  _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("transform_aft_mapped_to_init_CORRECTED", 5);
 
   // subscribe input Cloud and Odometry topics using ROS exact sync policy in a single callback
   _subCornerCloud.subscribe(node, "laser_cloud_corner_last", 2);
@@ -454,8 +456,9 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   //Get node namespace for tf and remove leading "/" and add lagging "/" if namespace is not empty
   std::string tf_ns = node.getNamespace();
-  if(!tf_ns.empty())
-    tf_ns = tf_ns.erase(0,1) + "/";
+  if(!tf_ns.empty()) {
+      tf_ns = tf_ns.erase(0, 1) + "/";
+  }
 
   // initialize mapping tf messages
   _aftMappedTrans.frame_id_ = tf_ns + "camera_init";
@@ -464,9 +467,6 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   // ARL Coordinate Frame Facilitators
   _gm_aftMappedTransformStamped_CORRECTED.header.frame_id = tf_ns + "camera_init_CORRECTED";
   _gm_aftMappedTransformStamped_CORRECTED.child_frame_id = tf_ns + "aft_mapped_to_init_CORRECTED";
-
-  _pubOdomAftMapped_CORRECTED = node.advertise<nav_msgs::Odometry>("aft_mapped_to_init_CORRECTED", 5);
-  _pubAftMappedTransformStamped_CORRECTED = node.advertise<geometry_msgs::TransformStamped>("transform_aft_mapped_to_init_CORRECTED", 5);
 
   // Initialize path message and publisher
   _pathMsg.header.frame_id = _gm_aftMappedTransformStamped_CORRECTED.header.frame_id;

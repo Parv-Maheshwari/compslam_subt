@@ -1,14 +1,7 @@
 <launch>
-  <!-- If running with data from Bagfile -->
-  <param name="use_sim_time" value="true"/> # be sure to run --clock
-  
+
   <!-- Run the CompSLAM LIO Nodelets in a specific namespace -->
   <arg name="ns" default="compslam_lio"/>
-
-  <!-- Publish static tf's -->
-  <include file="$(find compslam_lio)/launch/tf.launch">
-    <arg name="ns" value="$(arg ns)"/>
-  </include>
 
   <!-- Input topics remap -->
   <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered"/>
@@ -18,6 +11,11 @@
   <arg name="compslam_lio_with_OS0128"    default="false"/>
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params.yaml" unless="$(arg compslam_lio_with_OS0128)"/>
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_params.yaml" if="$(arg compslam_lio_with_OS0128)"/>
+
+  <!-- Publish static tf's -->
+  <include file="$(find compslam_lio)/launch/tf.launch">
+    <arg name="ns" value="$(arg ns)"/>
+  </include>
 
   <!-- CompSLAM LIO Nodelet Manager -->
   <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true"/>
