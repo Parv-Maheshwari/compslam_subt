@@ -1,7 +1,7 @@
 #Common
 loamVerbosity: 0                         #Debug Output, 0-disable, higher for more verbose output
 scanPeriod: 0.1                          #Expected scan period for input pointcloud in seconds. Used of Distortion correction
-ioRatio: 2                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
+ioRatio: 1                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
 lidarFrame: os_sensor                        #LiDAR frame name - used for LiDAR-to-Sensor transform lookup
 rotateInputCloud: false                  #Flag to rotate input cloud before estimating odometry/map so produced resuts are ROS frame aligned irrespective of LiDAR mounting orientation
 inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDER YPR(radians) #90 deg = 1.5707963268 rad
@@ -27,11 +27,11 @@ minRange: 2.0                            #Minimum Range of useful points, defaul
 maxRange: 60.0                           #Maximum Range of useful points, default: 50
 featureRegions: 12                       #Number of Azimuth Regions Pointcloud is divided, default:6
 curvatureRegion: 5                       #Number of neigboring points on a scan line on each side of a point used for calculating curvature of that point, default 5
-maxCornerSharp: 2                        #Number of Sharp Features per scan line in each curvatureRegion, default:2
+maxCornerSharp: 1                        #Number of Sharp Features per scan line in each curvatureRegion, default:2
 maxCornerLessSharp: 20                   #Number of Less Sharp Features per scan line in each curvatureRegion, default:10*maxCornerLessSharp
-maxSurfaceFlat: 4                        #Number of FlatFeatures per scan line in each curvatureRegion, default:4
+maxSurfaceFlat: 8                        #Number of FlatFeatures per scan line in each curvatureRegion, default:4
 surfaceCurvatureThreshold: 0.1           #Threshold above which feature is categorized Sharp, default 0.1
-lessFlatFilterSize: 0.1                  #Leaf Size for downsampling remaing pointcloud after feature selection, default 0.2
+lessFlatFilterSize: 0.1                  #Leaf Size for down-sampling remaining point cloud after feature selection, default 0.2
 checkInvalidFeatureRegions: false
 publishDebugArrowsToRemovedFeatures: false
 azimuthBoundaries: [1.1,1.5,1.7,2.2] #ANYmal
@@ -52,12 +52,12 @@ mapMinIterations: 1                      #Minimum Number of LM optimization iter
 mapDeltaTAbort: 0.05                     #Translation threshold for optimization convergence, deafult 0.05 (m) 
 mapDeltaRAbort: 0.05                     #Rotation threshold for optimization convergence, deafult 0.05 (deg)
 cornerFilterSize: 0.1                    #Leaf Size for downsampling current CORNER pointcloud before merging in map, default 0.2
-surfaceFilterSize: 0.2                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
+surfaceFilterSize: 0.1                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
 mapVisFilterSize: 0.4                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
 rndSampleMapVisNoOfSamples: 100000       #Number of Samples for random sampling of the visualized map cloud, default 100000
-mapCubeSize: 50.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
-mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
-mapStartLocationInCubes: [50,10,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
+mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
+mapDimensionsInCubes: [21,11,21]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
+mapStartLocationInCubes: [10,5,10]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
 numNeighborSubmapCubes: 4                #Number of Neigboring cubes in +/- direction along each axis to build submap for matching 
 mapDegenEigVal: 80                       #Minimum eignevalue threshold for determining degeneracy of LM optimization, default 30
 mapPriorNormThresh: 0.4                  #Max translation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
