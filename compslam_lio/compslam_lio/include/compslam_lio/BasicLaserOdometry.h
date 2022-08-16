@@ -159,7 +159,7 @@ class BasicLaserOdometry {
   void setImuTimeOffset(const double d) { _imuTimeOffset = d; }
   void setZeroMotionDetection(const bool b) { _zeroMotionDetection = b; }
   void setUseGravityRollPitchFactors(const bool b) { _gravityRollPitchFactors = b; }
-  void setUseIMURollPitchForGraphInit(const bool b) { _initGraphRollPicthFromIMU = b; }
+  void setUseIMURollPitchForGraphInit(const bool b) { _initGraphRollPitchFromIMU = b; }
 
   void setVerboseLevel(int verbose) { _verboseLevel = verbose; }
   compslam_lio_msgs::OptStatus _optStatusMsg;
