@@ -212,23 +212,25 @@ void BasicLaserOdometry::process() {
     _graphMgr.initImuIntegrator(g);
 
     //Initialize Factor Graph with prior factor
-    gtsam::Pose3 init_pose = gtsam::Pose3::identity();
+    gtsam::Pose3 init_T_W_I = gtsam::Pose3::identity();
+    gtsam::Rot3 yawR_W_L = gtsam::Rot3::Yaw(0.0);
+    gtsam::Rot3 yawR_W_I = yawR_W_L * gtsam::Pose3(_T_LB).rotation();
     if (_initGraphRollPitchFromIMU) {
-        init_pose = gtsam::Pose3(gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
+        init_T_W_I = gtsam::Pose3(gtsam::Rot3::Ypr(yawR_W_I.yaw(), imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
                                  gtsam::Point3());
     }
-    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_pose);
+    _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_T_W_I);
 
     //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
-    gtsam::Pose3 initLiDARPose(_T_LB * _graphMgr._state.navState().pose().matrix() * _T_BL);
+    gtsam::Pose3 init_T_W_L(_graphMgr._state.navState().pose().matrix() * _T_BL);
 
     //Initialize pose in LOAM frame from LiDAR pose
-    _transformSum.rot_z = Angle(initLiDARPose.rotation().roll());
-    _transformSum.rot_x = Angle(initLiDARPose.rotation().pitch());
-    std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << initLiDARPose.translation().transpose() << ", RPY(deg): " << initLiDARPose.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
+    _transformSum.rot_z = Angle(init_T_W_L.rotation().roll());
+    _transformSum.rot_x = Angle(init_T_W_L.rotation().pitch());
+    std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << init_T_W_L.translation().transpose() << ", RPY(deg): " << init_T_W_L.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
 
     //Set TF for debug purposes
-    _gravityAttitude.getBasis().setRPY(initLiDARPose.rotation().roll(), initLiDARPose.rotation().pitch(), initLiDARPose.rotation().yaw());
+    _gravityAttitude.getBasis().setRPY(init_T_W_L.rotation().roll(), init_T_W_L.rotation().pitch(), init_T_W_L.rotation().yaw());
     _gravityAttitudeInit = true;
     //CUSTOMIZATION
 

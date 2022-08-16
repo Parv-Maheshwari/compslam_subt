@@ -205,8 +205,8 @@ class ImuManager {
         gravity_magnitude = acc_mean.norm();
         //Set gravity vector direction according to IMU Z-axis orientation (GRAVITY IS ASSUMED TO BE ALONG Z-axis of IMU)
         Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);
-        if (acc_mean.z() < 0)
-          g_unit_vec.z() = -1.0;
+       // if (acc_mean.z() < 0)
+       //   g_unit_vec.z() = -1.0;
         //Normalize gravity vectors to remove the affect of gravity magnitude from place-to-place
         acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
