@@ -76,8 +76,8 @@ imuFrame: imu_link                       #Frame of IMU used in integrator - Used
 imuRate: 400                             #Rate of IMU input (Hz) used for initialization of gravity, initial Roll/Pitch and gyro bias
 imuTimeForInit: 0.5                      #Time interval of IMU measurements used for initialization
 imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
-imuZaxisPointsUp: false                  #Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
-initGraphRollPicthFromIMU: true          #Initialize graph roll/pitch from IMU  
+imuZaxisPointsUp: true                   #Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
+initGraphRollPitchFromIMU: true          #Initialize graph roll/pitch from IMU
 accNoiseDensity:  7.84e-04               #Continuous-time "Covariance" of accelerometer
 accBiasRandomWalk: 1.0e-04               #Continuous-time "Covariance" describing accelerometer bias random walk (biasAccCovariance)
 gyrNoiseDensity:  3.4906585e-5           #Continuous-time "Covariance" of gyroscope measurements

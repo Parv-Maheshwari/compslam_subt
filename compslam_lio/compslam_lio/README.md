@@ -35,6 +35,11 @@ $ echo -e '\n# Link to local GTSAM installation libs' >> ~/.bashrc
 $ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH' >> ~/.bashrc
 ```
 
+Optionally (depending on environment setup this flag might be needed) compile like this:
+```
+$ catkin build compslam_lio -DGTSAM_DIR="<your_installation_path>/lib/cmake/GTSAM"
+```
+
 ### What is this repository for? ###
 
 * Quick summary
