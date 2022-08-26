@@ -8,7 +8,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 
 #External Prior/Transform Input
 forceExtPriorUseMapping : false          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate     
-extPriorAvailable: false                 #Flag to check if 'Primary' external prior is available
+extPriorAvailable: true                 #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
@@ -60,7 +60,7 @@ mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, d
 mapStartLocationInCubes: [50,10,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
 numNeighborSubmapCubes: 4                #Number of Neigboring cubes in +/- direction along each axis to build submap for matching 
 mapDegenEigVal: 40                       #Minimum eignevalue threshold for determining degeneracy of LM optimization, default 30
-mapPriorNormThresh: 0.4                  #Max translation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
+mapPriorNormThresh: 0.6                  #Max translation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
 useSavedSubmapsForInitialization: false  #Use saved submap on disc for initialization
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
 waitAndUseExternalSubmapsForInit: false  #Wait for external submaps before initlization. Trigger external submaps through service call
@@ -77,7 +77,7 @@ imuRate: 400                             #Rate of IMU input (Hz) used for initia
 imuTimeForInit: 0.5                      #Time interval of IMU measurements used for initialization
 imuTimeOffset: 0.0 #seconds              #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
 initGraphRollPitchFromIMU: true          #Initialize graph roll/pitch from IMU
-imuZaxisPointsUp: true                   #Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
+imuZaxisPointsUp: false                   #Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
 accNoiseDensity:  7.84e-04               #Continuous-time "Covariance" of accelerometer
 accBiasRandomWalk: 1.0e-04               #Continuous-time "Covariance" describing accelerometer bias random walk (biasAccCovariance)
 gyrNoiseDensity:  3.4906585e-5           #Continuous-time "Covariance" of gyroscope measurements
