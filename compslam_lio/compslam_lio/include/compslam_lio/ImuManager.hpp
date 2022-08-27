@@ -216,7 +216,7 @@ class ImuManager {
           std::cout << "\033[33mIMU-Manager\033[0m IMU Acceleration (x,y,z): " << acc_mean.transpose()
                     << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m IMU Rate (Hz): " << _imuRate <<", Time Interval (s): "<<_imuTimeForInit<<", num meas used: "<<(_imuRate * _imuTimeForInit) << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Roll/Pitch/Yaw (deg): " << rollPitch_R_W_I.rpy().transpose() * (180.0 / M_PI) << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m World-to-IMU Roll/Pitch/Yaw (deg): " << rollPitch_R_W_I.rpy().transpose() * (180.0 / M_PI) << std::endl;
           std::cout << "\033[33mIMU-Manager\033[0m Gyro bias (x,y,z): " << gyr_mean.transpose() << std::endl;
         }
       } else

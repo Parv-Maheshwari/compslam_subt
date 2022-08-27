@@ -295,8 +295,8 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
     _imuBuffer.setImuTimeForInit(dParam);
   }
-  if (privateNode.getParam("imuZaxisPointsUp", bParam))
-    _graphMgr.setImuZaxisPointsUp(bParam);
+  if (privateNode.getParam("globalZaxisPointsUp", bParam))
+    _graphMgr.setGlobalZaxisPointsUp(bParam);
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))

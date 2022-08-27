@@ -188,19 +188,19 @@ void BasicLaserOdometry::process() {
     }
 
     //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
-    tf::StampedTransform T_LB, T_BL;
+    tf::StampedTransform T_L_I, T_I_L;
     try {
-      _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_LB);
-      _tfListener.lookupTransform(_imuFrame, _lidarFrame, ros::Time(0), T_BL);
+      _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_L_I);
+      _tfListener.lookupTransform(_imuFrame, _lidarFrame, ros::Time(0), T_I_L);
     } catch (tf::TransformException ex) {
       ROS_WARN("%s", ex.what());
     }
     //T_LB
-    Eigen::Vector3d t_LB(T_LB.getOrigin().x(), T_LB.getOrigin().y(), T_LB.getOrigin().z());
-    Eigen::Quaterniond q_LB(T_LB.getRotation().w(), T_LB.getRotation().x(), T_LB.getRotation().y(), T_LB.getRotation().z());
-    q_LB.normalize();
-    _T_L_I.block<3, 1>(0, 3) = t_LB;
-    _T_L_I.block<3, 3>(0, 0) = q_LB.toRotationMatrix();
+    Eigen::Vector3d t_L_I(T_L_I.getOrigin().x(), T_L_I.getOrigin().y(), T_L_I.getOrigin().z());
+    Eigen::Quaterniond q_L_I(T_L_I.getRotation().w(), T_L_I.getRotation().x(), T_L_I.getRotation().y(), T_L_I.getRotation().z());
+    q_L_I.normalize();
+    _T_L_I.block<3, 1>(0, 3) = t_L_I;
+    _T_L_I.block<3, 3>(0, 0) = q_L_I.toRotationMatrix();
     //T_BL
     invertHomogenousMatrix(_T_L_I, _T_I_L);
     std::cout << "\033[35mLASER\033[0m IMU-to-LiDAR Extrinsic Calibration:\n"
@@ -208,27 +208,34 @@ void BasicLaserOdometry::process() {
     std::cout << "\033[35mLASER\033[0m LiDAR-to-IMU Extrinsic Calibration:\n"
               << _T_I_L << std::endl;
 
-    //Initialize IMU Preintegrator and Factor Graph
+    //Initialize IMU Pre-integrator and Factor Graph
     _graphMgr.initImuIntegrator(g);
 
-    //Initialize Factor Graph with prior factor --> assume zero yaw of LiDAR
+    //Initialize Factor Graph with prior factor --> assume zero yaw and position of LiDAR
+    gtsam::Pose3 init_T_W_L = gtsam::Pose3::identity();
     gtsam::Pose3 init_T_W_I = gtsam::Pose3::identity();
-    gtsam::Rot3 yawR_W_L = gtsam::Rot3::Yaw(0.0);
-    gtsam::Rot3 yawR_W_I = yawR_W_L * gtsam::Pose3(_T_L_I).rotation();
     if (_initGraphRollPitchFromIMU) {
-      init_T_W_I = gtsam::Pose3(
-          gtsam::Rot3::Ypr(yawR_W_I.yaw(), rollPitch_R_W_I.pitch(), rollPitch_R_W_I.roll()),  //Set yaw to zero in lidar frame
-          gtsam::Point3());
+      const gtsam::Rot3 yaw_R_W_I = init_T_W_L.rotation() * gtsam::Pose3(_T_L_I).rotation();
+      // Origin at LiDAR
+      const gtsam::Point3 L_t_L_I = gtsam::Point3(_T_L_I.block<3, 1>(0, 3));
+      const gtsam::Rot3 init_R_W_I = gtsam::Rot3::Ypr(yaw_R_W_I.yaw(), rollPitch_R_W_I.pitch(), rollPitch_R_W_I.roll());
+      const gtsam::Point3 init_W_t_L_I = init_R_W_I * gtsam::Rot3(_T_I_L.block<3, 3>(0, 3)) * L_t_L_I;
+      const gtsam::Point3 init_W_t_W_I = init_T_W_L.translation() + init_W_t_L_I;
+      //Set initial yaw and position to zero in lidar frame
+      init_T_W_I = gtsam::Pose3(init_R_W_I, init_W_t_W_I);
+    } else {
+      init_T_W_I = init_T_W_L * gtsam::Pose3(_T_L_I);
     }
     _graphMgr.initPoseVelocityBiasGraph(_currentPCLTime.toSec(), init_T_W_I);
 
-    //Get LiDAR pose in the initial LiDAR frame - FG gives pose in IMU frame
-    gtsam::Pose3 init_T_W_L(_graphMgr._state.navState().pose().matrix() * _T_I_L);
+    //Get LiDAR pose in the initial LiDAR frame - FG gives pose of IMU frame expressed in nav frame
+    init_T_W_L = gtsam::Pose3(_graphMgr._state.navState().pose().matrix() * _T_I_L);
 
     //Initialize pose in LOAM frame from LiDAR pose
     _transformSum.rot_z = Angle(float(init_T_W_L.rotation().roll()));
     _transformSum.rot_x = Angle(float(init_T_W_L.rotation().pitch()));
-    std::cout << "\033[35mLASER\033[0m - INIT t(x,y,z): " << init_T_W_L.translation().transpose() << ", RPY(deg): "
+    _transformSum.rot_y = Angle(float(init_T_W_L.rotation().yaw()));
+    std::cout << "\033[35mLASER\033[0m - INIT t_W_L (x,y,z): " << init_T_W_L.translation().transpose() << ", RPY_W_L (deg): "
               << init_T_W_L.rotation().rpy().transpose() * (180.0 / M_PI) << "\n";
 
     //Set TF for debug purposes
@@ -757,7 +764,7 @@ void BasicLaserOdometry::process() {
     bool success = updateFactorGraph();
 
     //Get new pose
-    gtsam::Pose3 T_W_L(_graphMgr._state.navState().pose().matrix() * _T_I_L); // L_B * Binit_Bnow * B_L = LinitLnow
+    gtsam::Pose3 T_W_L(_graphMgr._state.navState().pose().matrix() * _T_I_L);
     //Update IMU bias message for publishing
     tf::vectorEigenToMsg(_graphMgr._state.imuBias().accelerometer(), _imuBiasMsg.linear_acceleration);  //Accelerometer
     tf::vectorEigenToMsg(_graphMgr._state.imuBias().gyroscope(), _imuBiasMsg.angular_velocity);         //Gyroscope
@@ -769,13 +776,13 @@ void BasicLaserOdometry::process() {
                        _transformSum.rot_y,
                        _transformSum.rot_z,
                        -_transform.rot_x,
-                       -_transform.rot_y.rad() * 1.05,
+                       -_transform.rot_y.rad() * 1.05, // TODO: What is this 1.05?
                        -_transform.rot_z,
                        rx, ry, rz);
 
     Vector3 v(_transform.pos.x() - _imuShiftFromStart.x(),
               _transform.pos.y() - _imuShiftFromStart.y(),
-              _transform.pos.z() * 1.05 - _imuShiftFromStart.z());
+              _transform.pos.z() * 1.05 - _imuShiftFromStart.z()); // TODO: What is this 1.05?
 
     rotateZXY(v, rz, rx,
               ry);  //smk: _transform.pos vector seems to be rotated and then negated??? (negation might be due to deltaX same as equation 20 in JFR 2018 paper)
@@ -911,7 +918,7 @@ bool BasicLaserOdometry::updateFactorGraph() {
   auto new_ts = _currentPCLTime.toSec() + _imuTimeOffset;
   // std::cout << std::fixed << "FACTOR-GRAPH keys: (" << old_key << "/" << new_key << "), ts: (" << old_ts << "/" << new_ts << "), diff:" << new_ts - old_ts << std::endl;
 
-  //Get IMU measurements between pointcloud timestamps and add IMU factor
+  //Get IMU measurements between point cloud timestamps and add IMU factor
   IMUMap imu_meas;
   if (_imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas)) {
     _graphMgr.addPreintegratedImuFactor(old_key, new_key, imu_meas);
@@ -920,7 +927,7 @@ bool BasicLaserOdometry::updateFactorGraph() {
   }
 
   //CREATE LiDAR POSE BETWEEN FACTOR
-  //Pose delta in LiDAR Frame - LOAM calcualtes transformation to be applied on New pointcloud to align with to Old
+  //Pose delta in LiDAR Frame - LOAM calculates transformation to be applied on New point cloud to align with to Old
   //For odometry we require Old->New transformation. Hence, delta rotation and translation is negated to reverse direction.
   Eigen::Matrix4d T_Lold_Lnew = Eigen::Matrix4d::Identity();
   Eigen::Quaterniond q_Lold_Lnew = Eigen::AngleAxisd(-_transform.rot_y.rad(), Eigen::Vector3d::UnitZ()) *
@@ -939,7 +946,7 @@ bool BasicLaserOdometry::updateFactorGraph() {
     //Add Pose between Factor if non-zero motion
     _graphMgr.addPoseBetweenFactor(old_key, new_key, T_Iold_Inew);
   } else if(_gravityRollPitchFactors){
-    //Add IMU attitute prior if Zero Motion
+    //Add IMU attitude prior if Zero Motion
     double g;
     gtsam::Rot3 rollPitch_R_W_I;
     _imuBuffer.estimateAttitudeFromImu(old_ts,

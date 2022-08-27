@@ -58,10 +58,12 @@ bool GraphManager::initPoseVelocityBiasGraph(const double ts, const gtsam::Pose3
 
 bool GraphManager::initImuIntegrator(const double g) {
   //Initialize IMU Preintegrator
-  if (_imuZaxisPointsUp)
+  if (_globalZaxisPointsUp) {
     _imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedU(g);
-  else
+  }
+  else {
     _imuParams = gtsam::PreintegratedCombinedMeasurements::Params::MakeSharedD(g);
+  }
   _imuParams->accelerometerCovariance = gtsam::Matrix33::Identity(3, 3) * _accNoiseDensity;
   _imuParams->biasAccCovariance = gtsam::Matrix33::Identity(3, 3) * _accBiasRandomWalk;
   _imuParams->gyroscopeCovariance = gtsam::Matrix33::Identity(3, 3) * _gyrNoiseDensity;
@@ -69,7 +71,7 @@ bool GraphManager::initImuIntegrator(const double g) {
   _imuParams->integrationCovariance = gtsam::Matrix33::Identity(3, 3) * _integrationCovariance;  // error committed in integrating position from velocities
   _imuParams->biasAccOmegaInt = gtsam::Matrix66::Identity(6, 6) * _biasAccOmegaInt;              // error in the bias used for preintegration
   _imuBiasPrior = std::make_shared<gtsam::imuBias::ConstantBias>(_accBiasPrior, _gyrBiasPrior);
-  std::cout << "IMU Z-axies points Up:" << (_imuZaxisPointsUp ? "TRUE" : "FALSE") << std::endl;
+  std::cout << "IMU Z-axies points Up:" << (_globalZaxisPointsUp ? "TRUE" : "FALSE") << std::endl;
   _imuBiasPrior->print("IMU Bias Priors:");
   _imuPreintegrator = std::make_shared<gtsam::PreintegratedCombinedMeasurements>(_imuParams, *_imuBiasPrior);
   _imuParams->print("IMU Preintegration Parameters:");
@@ -138,8 +140,9 @@ void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new
   _newFactors.resize(0);
 
   //Additional iterations
-  for (size_t itr = 0; itr < _additonalIterations; ++itr)
+  for (size_t itr = 0; itr < _additonalIterations; ++itr) {
     _graph->update();
+  }
 
   //Update State
   auto result = _graph->calculateEstimate();
