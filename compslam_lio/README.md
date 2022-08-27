@@ -1,4 +1,4 @@
-# Complementrary SLAM use with rovio and leg odometry
+# Complementrary SLAM LiDAR-Inertia Odometry
 
 ## GTSAM Installation
 
