@@ -28,7 +28,7 @@ export LIBRARY_PATH=${LIBRARY_PATH}:${LD_LIBRARY_PATH}
 ```
 
 ### Global Install
-Execute the same commands as above, just without `-DCMAKE_INSTALL_PREFIX:PATH=$HOME/.local`.
+Execute the same cmake command as above, just without `-DCMAKE_INSTALL_PREFIX:PATH=$HOME/.local`.
 Furthermore, you have to call
 ```bash
 sudo make install -j$(nproc)
