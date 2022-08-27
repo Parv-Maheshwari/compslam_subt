@@ -1,6 +1,7 @@
 # Complementary SLAM
 
 Main Author: Shehryar Khattak ([skhattak@ethz.ch](mailto:skhattak@ethz.ch))
+
 Contact: Julian Nubert ([nubertj@ethz.ch](mailto:nubertj@ethz.ch))
 
 This repository consists the code for complementary SLAM.
