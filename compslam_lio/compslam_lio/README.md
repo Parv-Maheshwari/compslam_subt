@@ -1,67 +1,41 @@
 # Complementrary SLAM use with rovio and leg odometry
 
-### Set up GTSAM 4.0.3 to work with compslam ###
+## GTSAM Installation
 
-Clone repository:
-```
-$ git clone git@github.com:borglab/gtsam.git -b 4.0.3
-```
-
-There are options for globally or locally installing gtsam on your system, follow either set of steps.
-
-#### Global install ####
-
-Install with required flags:
-```
-$ cd <your_path_to_gtsam>/gtsam
-$ mkdir build && cd build
-$ cmake -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_WITH_TBB=OFF ..
-$ make install
+* Version: [GTSAM 4.1.1](https://github.com/borglab/gtsam/tree/4.1.1)
+* Clone and Checkout:
+```bash
+git clone git@github.com:borglab/gtsam.git
+cd gtsam
+git checkout 4.1.1
+mkdir build && cd build
 ```
 
-#### Local install ####
-
-Install with required flags:
+### Local Install
+* Use CMake with given options:
+```bash
+cmake -DCMAKE_INSTALL_PREFIX:PATH=$HOME/.local -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF ..
 ```
-$ cd <your_path_to_gtsam>/gtsam
-$ mkdir build && cd build
-$ cmake -DCMAKE_INSTALL_PREFIX:PATH=<your_local_installation_path> -DCMAKE_BUILD_TYPE=Release -DGTSAM_POSE3_EXPMAP=ON -DGTSAM_ROT3_EXPMAP=ON -DGTSAM_USE_QUATERNIONS=ON -DGTSAM_USE_SYSTEM_EIGEN=ON -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF -DGTSAM_WITH_TBB=OFF ..
-$ make install
+* Compile and install locally:
+```bash
+make install -j$(nproc)
 ```
-
-Link to locally installed libs:
+* Environment variables (e.g. add to your .bashrc-file):
 ```
-$ echo -e '\n# Link to local GTSAM installation libs' >> ~/.bashrc
-$ echo -e 'export LD_LIBRARY_PATH=<your_installation_path>/lib/:$LD_LIBRARY_PATH' >> ~/.bashrc
-```
-
-Optionally (depending on environment setup this flag might be needed) compile like this:
-```
-$ catkin build compslam_lio -DGTSAM_DIR="<your_installation_path>/lib/cmake/GTSAM"
+export CMAKE_PREFIX_PATH=$HOME/.local/:$CMAKE_PREFIX_PATH
+export LD_LIBRARY_PATH=$HOME/.local/lib/:$LD_LIBRARY_PATH
+export LIBRARY_PATH=${LIBRARY_PATH}:${LD_LIBRARY_PATH}
 ```
 
-### What is this repository for? ###
+### Global Install
+Execute the same commands as above, just without `-DCMAKE_INSTALL_PREFIX:PATH=$HOME/.local`.
+Furthermore, you have to call
+```bash
+sudo make install -j$(nproc)
+```
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
-
-### How do I get set up? ###
-
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
+## Compilation
+After GTSAM is installed correctly, you can simply compile *compslam_lio* using
+```bash
+catkin build compslam_lio -DCMAKE_BUILD_TYPE=ReleaseWithDebInfo
+```
