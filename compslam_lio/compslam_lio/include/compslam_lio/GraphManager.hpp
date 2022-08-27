@@ -81,6 +81,7 @@ class GraphManager {
   //Accessors - Getters
   auto iterations() const { return _additonalIterations; }
   const auto newStateKey() { return ++_state_key; }
+  const bool globalZAxisPointsUp() { return _globalZaxisPointsUp; }
 
   //Objects
   boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> _imuParams;

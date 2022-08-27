@@ -180,9 +180,8 @@ void BasicLaserOdometry::process() {
     if (!_imuBuffer.estimateAttitudeFromImu(_currentPCLTime.toSec(),
                                             _graphMgr._state.imuBias().accelerometer(),
                                             rollPitch_R_W_I,
-                                            g,
-                                            &_graphMgr.setInitGyrBias(),
-                                            true)) {
+                                            g, _graphMgr.globalZAxisPointsUp(),
+                                            &_graphMgr.setInitGyrBias(), true)) {
       ROS_WARN("LaserOdometry Failed to Initialize Attitude from IMU - RETRYING ...");
       return;
     }
@@ -952,7 +951,7 @@ bool BasicLaserOdometry::updateFactorGraph() {
     _imuBuffer.estimateAttitudeFromImu(old_ts,
                                        _graphMgr._state.imuBias().accelerometer(),
                                        rollPitch_R_W_I,
-                                       g);
+                                       g, _graphMgr.globalZAxisPointsUp());
     gtsam::Rot3 R_W_I_est = _graphMgr._state.navState().attitude();
     gtsam::Rot3 R_W_I_meas = gtsam::Rot3::Ypr(R_W_I_est.yaw(),rollPitch_R_W_I.pitch(), rollPitch_R_W_I.roll());
     _graphMgr.addGravityRollPitchFactor(old_key, R_W_I_meas);
