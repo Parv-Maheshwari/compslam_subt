@@ -89,42 +89,30 @@ bool GraphManager::updateImuIntegrator(const IMUMap& imu_meas) {
   auto curr_itr = imu_meas.begin();
   auto prev_itr = curr_itr;
   ++curr_itr;
-
-  //Calculate dt and integrate IMU measurements
-  size_t count = 0;
-  for (; curr_itr != imu_meas.end(); ++curr_itr, ++prev_itr) {
+  for (; curr_itr != imu_meas.end(); ++curr_itr) {
     double dt = curr_itr->first - prev_itr->first;
     _imuPreintegrator->integrateMeasurement(curr_itr->second.head<3>(),  //acc
                                             curr_itr->second.tail<3>(),  //gyro
                                             dt);                         //delta t
-    ++count;
+    prev_itr = curr_itr;
   }
-
-  // //DEBUG
-  // std::cout << std::fixed << "updateImuIntegrator -- # of IMU msgs: " << count
-  //           << ", with Start/End ts: " << imu_meas.begin()->first << "/" << imu_meas.rbegin()->first
-  //           << ", diff: " << imu_meas.rbegin()->first - imu_meas.begin()->first << std::endl;
-  // //DEBUG
-
   return true;
 }
 
-bool GraphManager::addImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas) {
+bool GraphManager::addPreintegratedImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas) {
   //Update IMU preintegrator
-  bool success = updateImuIntegrator(imu_meas);
-  if (!success)
-    return success;
-
-  //Create IMU Factor
-  gtsam::CombinedImuFactor imu_factor(X(old_key), V(old_key),
-                                      X(new_key), V(new_key),
-                                      B(old_key), B(new_key),
-                                      *_imuPreintegrator);
-
-  //Add factor
-  _newFactors.add(imu_factor);
-
-  return success;
+  if (!updateImuIntegrator(imu_meas)) {
+    return false;
+  } else {
+    //Create IMU Factor
+    gtsam::CombinedImuFactor imu_factor(X(old_key), V(old_key),
+                                        X(new_key), V(new_key),
+                                        B(old_key), B(new_key),
+                                        *_imuPreintegrator);
+    //Add factor
+    _newFactors.add(imu_factor);
+    return true;
+  }
 }
 
 void GraphManager::addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose) {
@@ -172,7 +160,7 @@ void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new
   //Debug
 }
 
-bool GraphManager::zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose) {
+bool GraphManager::checkAndAddZeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose) {
   //Check external motion
   if (pose.translation().norm() > _zeroMotionTh) {
     _detectionCount = 0;

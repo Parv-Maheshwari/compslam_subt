@@ -37,7 +37,7 @@ class GraphManager {
   bool updateImuIntegrator(const IMUMap& imu_meas);
 
   //Add IMU factor to graph
-  bool addImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
+  bool addPreintegratedImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
 
   //Add a pose between factor
   void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
@@ -46,7 +46,7 @@ class GraphManager {
   void updateGraphAndState(const double new_ts, const gtsam::Key new_key, const bool debug = false);
 
   //Check if zero motion has occured and add zero pose/velocity factor
-  bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
+  bool checkAndAddZeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
 
   //Add gravity-aligned roll/ptich from IMU when no motion
   bool addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude);
