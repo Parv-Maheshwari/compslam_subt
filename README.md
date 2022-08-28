@@ -6,10 +6,10 @@ Contact: Julian Nubert ([nubertj@ethz.ch](mailto:nubertj@ethz.ch))
 
 This repository contains the complementary SLAM code.
 It consists of the following packages:
-* *compslam*: Meta package that builds the entire codestack and can be used to launch the contained components.
-* *compslam_lio*: LiDAR Odometry package based on LOAM with improved robustness for field missions and the incorporation of IMU.
-* *compslam_vtio*: Visual-thermal odoemetry that builds on top of ROVIO. It also inccludes the possibility to use LiDAR for scale estimation as well as thermal camera support.
-* *compslam_se*: This is factor-graph-based state estimation package that currently lives [here](https://bitbucket.org/leggedrobotics/compslam_se/).
+1. *compslam*: Meta package that builds the entire codestack and can be used to launch the contained components.
+2. *compslam_lio*: LiDAR Odometry package based on LOAM with improved robustness for field missions and the incorporation of IMU.
+3. *compslam_vtio*: Visual-thermal odoemetry that builds on top of ROVIO. It also inccludes the possibility to use LiDAR for scale estimation as well as thermal camera support.
+4. *compslam_se*: This is factor-graph-based state estimation package that currently lives [here](https://bitbucket.org/leggedrobotics/compslam_se/).
 
 ## Compiling
 Note that for your use-case you might only require one specific package, such as compslam_lio or compslam_se.
