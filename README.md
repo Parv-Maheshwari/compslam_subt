@@ -4,7 +4,7 @@ Main Author: Shehryar Khattak ([skhattak@ethz.ch](mailto:skhattak@ethz.ch))
 
 Contact: Julian Nubert ([nubertj@ethz.ch](mailto:nubertj@ethz.ch))
 
-This repository consists the code for complementary SLAM.
+This repository contains the complementary SLAM code.
 It consists of the following packages:
 * *compslam*: Meta package that builds the entire codestack and can be used to launch the contained components.
 * *compslam_lio*: LiDAR Odometry package based on LOAM with improved robustness for field missions and the incorporation of IMU.
