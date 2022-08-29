@@ -64,7 +64,7 @@ mapPriorNormThresh: 0.5                  #Max translation threshold between two 
 useSavedSubmapsForInitialization: false  #Use saved submap on disc for initialization
 submapLocalizationInitGuess: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] #Initialization guess of robot location in submap - ORDER: XYZ(meters) - YPR(radians)
 waitAndUseExternalSubmapsForInit: false  #Wait for external submaps before initlization. Trigger external submaps through service call
-submapsRequestServiceCall: ""            #Name of service call to call to request submaps from other node (xyz/share_submaps)
+submapsRequestServiceCall: ""            #Name of service call to request submaps from other node (xyz/share_submaps)
 useExternalSubmapOriginForInit: false    #Use origin of external submaps as initlization guess for co-localization instead of current external pose (default: false)
 forcePathPublishing: true                #Force ROS path message publishing for mapping odometry
 mapPublishRateDivider: 20                #Publishes full map at 1.0/(scanPeriod * ioRatio * mapPublishRateDivider),  default: 20(0.25 Hz)
