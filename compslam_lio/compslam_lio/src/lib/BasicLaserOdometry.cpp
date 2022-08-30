@@ -189,10 +189,13 @@ void BasicLaserOdometry::process() {
     //Setup IMU-to-LiDAR and LiDAR-to-IMU transforms
     tf::StampedTransform T_L_I, T_I_L;
     try {
+      _tfListener.waitForTransform(_lidarFrame, _imuFrame, ros::Time(0), ros::Duration(2.0));
       _tfListener.lookupTransform(_lidarFrame, _imuFrame, ros::Time(0), T_L_I);
+      _tfListener.waitForTransform(_imuFrame, _lidarFrame, ros::Time(0), ros::Duration(2.0));
       _tfListener.lookupTransform(_imuFrame, _lidarFrame, ros::Time(0), T_I_L);
     } catch (tf::TransformException ex) {
-      ROS_WARN("%s", ex.what());
+      std::cout << "COULD NOT FIND THE TRANSFORMATION BETWEEN LIDAR AND IMU IN THE TF TREE." << std::endl;
+      throw std::runtime_error(ex.what());
     }
     //T_LB
     Eigen::Vector3d t_L_I(T_L_I.getOrigin().x(), T_L_I.getOrigin().y(), T_L_I.getOrigin().z());
