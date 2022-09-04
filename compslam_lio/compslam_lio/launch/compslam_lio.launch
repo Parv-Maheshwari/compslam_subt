@@ -18,7 +18,7 @@
   </include>
 
   <!-- CompSLAM LIO Nodelet Manager -->
-  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true"/>
+  <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="compslam_lio_nodelet_manager" args="manager" output="screen" clear_params="true" launch-prefix=""/> # gdb --args
 
   <!-- Laser Multiscan Registration Nodelet -->
   <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">

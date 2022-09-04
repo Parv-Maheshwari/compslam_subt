@@ -146,12 +146,21 @@ void GraphManager::updateGraphAndState(const double new_ts, const gtsam::Key new
   //Update graph
   std::map<gtsam::Key, double> keyTimestampMap;
   valuesToKeyTimeStampMap(estimate, new_ts, keyTimestampMap);
-  _graph->update(_newFactors, estimate, keyTimestampMap);
+  try {
+    _graph->update(_newFactors, estimate, keyTimestampMap);
+  } catch (gtsam::IndeterminantLinearSystemException) {
+    std::cout << "Optimization of factor graph not successful. Catching Exception." << std::endl;
+  }
   _newFactors.resize(0);
 
   //Additional iterations
-  for (size_t itr = 0; itr < _additonalIterations; ++itr)
-    _graph->update();
+  for (size_t itr = 0; itr < _additonalIterations; ++itr) {
+    try {
+      _graph->update();
+    } catch (gtsam::IndeterminantLinearSystemException) {
+      std::cout << "Optimization of factor graph not successful. Catching Exception." << std::endl;
+    }
+  }
 
   //Update State
   auto result = _graph->calculateEstimate();

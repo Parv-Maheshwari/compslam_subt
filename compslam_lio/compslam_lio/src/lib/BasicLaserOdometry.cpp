@@ -875,11 +875,22 @@ bool BasicLaserOdometry::updateFactorGraph() {
 
   //Get IMU measurements between pointcloud timestamps and add IMU factor
   IMUMap imu_meas;
+//  std::cout << "Key: " << old_key << std::endl;
+//  static int counter = 0;
+//  if (old_key % 2 == 0 && counter >  15 && counter < 30) {
+//    std::cout << "Disturbing at key " << old_key << std::endl;
+//    old_ts += 0.3;
+//    new_ts += 0.3;
+//  }
+//  ++counter;
   bool success = _imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas);
-  if (success)
+  if (success) {
     _graphMgr.addImuFactor(old_key, new_key, imu_meas);
-  else
+  } else {
     ROS_WARN("LaserOdometry - IMU factor not added to graph");
+    ROS_WARN("Skipping adding of other factors due to imminent indeterminand linear system exception.");
+    return false;
+  }
 
   //CREATE LiDAR POSE BETWEEN FACTOR
   //Pose delta in LiDAR Frame - LOAM calcualtes transformation to be applied on New pointcloud to align with to Old

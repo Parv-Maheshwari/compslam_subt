@@ -124,7 +124,7 @@ class ImuManager {
 
     //Check if lookup start time is ahead of buffer start time
     if (s_itr == _IMUBuffer.end()) {
-      std::cout << "\033[33mIMU-Manager\033[0m IMU Lookup start time ahead latest IMU message in the buffer, lookup: " << ts_start
+      std::cout << std::setprecision(std::numeric_limits<double>::digits10 + 1) << "\033[33mIMU-Manager\033[0m IMU Lookup start time ahead latest IMU message in the buffer, lookup: " << ts_start
                 << ", latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
       return false;
     }
@@ -133,12 +133,12 @@ class ImuManager {
     if (e_itr == _IMUBuffer.end()) {
       std::cout << "\033[33mIMU-Manager\033[0m Lookup is past IMU buffer, with lookup Start/End: " << std::fixed << ts_start
                 << "/" << ts_end << " and latest IMU: " << _IMUBuffer.rbegin()->first << std::endl;
-      e_itr = _IMUBuffer.end();
       --e_itr;
+      std::cout << "\033[33mIMU-Manager\033[0m Used interval for pre-integration is now [" << s_itr->first << ", " << e_itr->first << "]." << std::endl;
     }
 
     //Check if two IMU messages are different
-    if (s_itr == e_itr) {
+    if (s_itr == e_itr || s_itr->first > e_itr->first) {
       std::cout << "\033[33mIMU-Manager\033[0m Not Enough IMU values between timestamps , with Start/End: " << std::fixed << ts_start << "/" << ts_end
                 << ", with diff: " << ts_end - ts_start << std::endl;
       return false;
