@@ -37,7 +37,7 @@ class GraphManager {
   bool updateImuIntegrator(const IMUMap& imu_meas);
 
   //Add IMU factor to graph
-  bool addImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
+  bool addPreintegratedImuFactor(const gtsam::Key old_key, const gtsam::Key new_key, const IMUMap& imu_meas);
 
   //Add a pose between factor
   void addPoseBetweenFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3& pose);
@@ -46,7 +46,7 @@ class GraphManager {
   void updateGraphAndState(const double new_ts, const gtsam::Key new_key, const bool debug = false);
 
   //Check if zero motion has occured and add zero pose/velocity factor
-  bool zeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
+  bool checkAndAddZeroMotionFactor(const gtsam::Key old_key, const gtsam::Key new_key, const gtsam::Pose3 pose);
 
   //Add gravity-aligned roll/ptich from IMU when no motion
   bool addGravityRollPitchFactor(const gtsam::Key key, const gtsam::Rot3 imu_attitude);
@@ -58,7 +58,7 @@ class GraphManager {
   }
 
   //Accessors - Setters
-  void setImuZaxisPointsUp(bool val) { _imuZaxisPointsUp = val; }
+  void setGlobalZaxisPointsUp(bool val) { _globalZaxisPointsUp = val; }
   void setAccNoiseDensity(double val) { _accNoiseDensity = val; }
   void setAccBiasRandomWalk(double val) { _accBiasRandomWalk = val; }
   void setGyroNoiseDensity(double val) { _gyrNoiseDensity = val; }
@@ -81,6 +81,7 @@ class GraphManager {
   //Accessors - Getters
   auto iterations() const { return _additonalIterations; }
   const auto newStateKey() { return ++_state_key; }
+  const bool globalZAxisPointsUp() { return _globalZaxisPointsUp; }
 
   //Objects
   boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> _imuParams;
@@ -94,7 +95,7 @@ class GraphManager {
  private:
   //Member variables
   //IMU Preintegration
-  bool _imuZaxisPointsUp = true;                 // Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
+  bool _globalZaxisPointsUp = true;                 // Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
   double _accNoiseDensity;                       // continuous-time "Covariance" of accelerometer
   double _accBiasRandomWalk;                     // continuous-time "Covariance" describing accelerometer bias random walk
   double _gyrNoiseDensity;                       // continuous-time "Covariance" of gyroscope measurements

@@ -4,18 +4,18 @@
 
   <!-- Input topics remap -->
   <arg name="pointcloud_topic_name" default="/ouster_points_self_filtered" />
-  <arg name="imu_topic_name" default="/microstrain_imu_node/microstrain_imu" />
+  <arg name="imu_topic_name"        default="/microstrain_imu_node/microstrain_imu" />
 
   <!-- Config params -->
-  <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_asop_params.yaml"/>
+  <arg name="config_filename"         default="$(find compslam_lio)/config/compslam_lio_OS0128_asop_params.yaml"/>
   <arg name="overlay_config_filename" default="$(arg config_filename)" doc="Configuration overlay file in YAML format. Can be used to overlay/extend parameters specified in 'config_filename'."/>
 
   <!-- Launch compslam_lio -->
   <include file="$(find compslam_lio)/launch/compslam_lio.launch">
-    <arg name="ns" value="$(arg ns)"/>
-    <arg name="pointcloud_topic_name" value="$(arg pointcloud_topic_name)"/>
-    <arg name="imu_topic_name" value="$(arg imu_topic_name)"/>
-    <arg name="config_filename" value="$(arg config_filename)"/>
+    <arg name="ns"                      value="$(arg ns)"/>
+    <arg name="pointcloud_topic_name"   value="$(arg pointcloud_topic_name)"/>
+    <arg name="imu_topic_name"          value="$(arg imu_topic_name)"/>
+    <arg name="config_filename"         value="$(arg config_filename)"/>
     <arg name="overlay_config_filename" value="$(arg overlay_config_filename)"/>
   </include>
 

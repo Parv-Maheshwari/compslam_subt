@@ -43,7 +43,7 @@ class ImuManager {
     _IMUBuffer[ts] = imuMeas;
   }
 
-  //Get IMU measurements with interpolated values at start and end timestamps
+  //Get IMU measurements in between start and end, with interpolated values at start and end timestamps
   bool getInterpolatedImuMeasurements(const double& ts_start, const double& ts_end, IMUMap& interpolatedIMUMap) {
     //clear
     interpolatedIMUMap.clear();
@@ -81,7 +81,7 @@ class ImuManager {
                                                                e_itr->first,
                                                                e_itr->second);
 
-        interpolatedIMUMap[ts_end] = ts_end_meas;
+        interpolatedIMUMap[ts_end] = ts_end_meas; // fine because measurement at e_itr is not inserted
       } else {
         //Add last actual IMU message
         interpolatedIMUMap[e_itr->first] = e_itr->second;  ////std::map insert doesn't insert last iterator so if e_itr->first > ts_end then it means we are at the end of IMU buffer and we need to insert the last IMU message to the return buffer
@@ -176,8 +176,7 @@ class ImuManager {
 
   // Determine initial IMU roll/pitch w.r.t to gravity vector and gyro bias
   bool estimateAttitudeFromImu(const double ts, const Eigen::Vector3d& acc_bias, 
-                               gtsam::Rot3& init_attitude, double& gravity_magnitude, Eigen::Vector3d *gyr_bias = nullptr,
-                               bool output = false) {
+                               gtsam::Rot3& rollPitch_R_W_I, double& gravity_magnitude, const bool globalZAxisPointsUp, Eigen::Vector3d *gyr_bias = nullptr, const bool printOutput=false) {
     //Get timestamp of first message for lookup
     if (_IMUBuffer.size() < (_imuRate * _imuTimeForInit)) {
       std::cout << "\033[33mIMU-Manager\033[0m NOT ENOUGH IMU MESSAGES TO INITIALIZE POSE\n";
@@ -203,21 +202,27 @@ class ImuManager {
           *gyr_bias = gyr_mean;
         //Calculate gravity magnitude
         gravity_magnitude = acc_mean.norm();
-        //Set gravity vector direction according to IMU Z-axis orientation (GRAVITY IS ASSUMED TO BE ALONG Z-axis of IMU)
-        Eigen::Vector3d g_unit_vec(0.0, 0.0, 1.0);
-        if (acc_mean.z() < 0)
-          g_unit_vec.z() = -1.0;
+        //Set gravity vector direction
+        Eigen::Vector3d g_unit_vec;
+        if (globalZAxisPointsUp) {
+          g_unit_vec = Eigen::Vector3d(0.0, 0.0, 1.0);
+        } else {
+          g_unit_vec = Eigen::Vector3d (0.0, 0.0, -1.0);
+        }
+
         //Normalize gravity vectors to remove the affect of gravity magnitude from place-to-place
         acc_mean.normalize();
         //Calculate robot initial orientation using gravity vector.
-        init_attitude = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(acc_mean, g_unit_vec));
-        if (output) {
+        rollPitch_R_W_I = gtsam::Rot3(Eigen::Quaterniond().setFromTwoVectors(acc_mean, g_unit_vec));
+        if (printOutput) {
           std::cout << "\033[33mIMU-Manager\033[0m Gravity Magnitude: " << gravity_magnitude << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m IMU Acceleration(x,y,z): " << acc_mean.transpose()
+          std::cout << "\033[33mIMU-Manager\033[0m IMU Acceleration (x,y,z): " << acc_mean.transpose()
                     << " - Gravity Unit Vector(x,y,z): " << g_unit_vec.transpose() << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m IMU Rate(Hz): " << _imuRate <<", Time Interval(s): "<<_imuTimeForInit<<", num meas used: "<<(_imuRate * _imuTimeForInit) << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Roll/Pitch/Yaw(deg): " << init_attitude.rpy().transpose() * (180.0 / M_PI) << std::endl;
-          std::cout << "\033[33mIMU-Manager\033[0m Gyro bias(x,y,z): " << gyr_mean.transpose() << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m IMU Rate (Hz): " << _imuRate << ", Time Interval (s): " << _imuTimeForInit
+                    << ", num meas used: " << (_imuRate * _imuTimeForInit) << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m World-to-IMU Roll/Pitch/Yaw (deg): "
+                    << rollPitch_R_W_I.rpy().transpose() * (180.0 / M_PI) << std::endl;
+          std::cout << "\033[33mIMU-Manager\033[0m Gyro bias (x,y,z): " << gyr_mean.transpose() << std::endl;
         }
       } else
         return false;
