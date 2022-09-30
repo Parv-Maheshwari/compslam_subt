@@ -82,7 +82,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointRobosense,
                                   (float, y, y)
                                   (float, z, z)
                                   (float, intensity, intensity)
-                                  (std::uint16_t, ring, ring)
+                                  //(std::uint16_t, ring, ring)
 )
 
 ////////////////// ANYbotics VLP-16 Data structure support //////////////////
