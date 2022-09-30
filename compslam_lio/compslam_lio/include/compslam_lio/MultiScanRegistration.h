@@ -69,6 +69,22 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyne,
                                   (float, time, time)
 )
 
+/** Velodyne Point struct */
+struct PointRobosense {
+  PCL_ADD_POINT4D;                 // quad-word XYZ
+  float intensity;                 // laser intensity reading
+  uint16_t ring;                   // laser ring number
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
+} EIGEN_ALIGN16;
+/** Register as pointcloud struct */
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointRobosense,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (std::uint16_t, ring, ring)
+)
+
 ////////////////// ANYbotics VLP-16 Data structure support //////////////////
 /** ANYbotics Velodyne Point struct - difference in ring field type*/
 struct PointVelodyneANYbotics
@@ -156,7 +172,7 @@ class MultiScanMapper {
    * @param angle the vertical point angle (in rad)
    * @return the ring ID
    */
-  int getRingForAngle(const float &angle);
+  int getRingForAngle(const float &angleRad);
 
   /** Multi scan mapper for Velodyne VLP-16 according to data sheet. */
   static inline MultiScanMapper Velodyne_VLP_16() { return MultiScanMapper(-15, 15, 16); };
@@ -175,6 +191,9 @@ class MultiScanMapper {
 
   /** Multi scan mapper for RS-Bperl according to data sheet. */
   static inline MultiScanMapper RS_Bperl_32() { return MultiScanMapper(2.3125f, 89.5f, 32); };
+
+  /** Multi scan mapper for RS-Helios according to data sheet. */
+  static inline MultiScanMapper RS_Helios_32() { return MultiScanMapper(-55.0f, 15.0f, 32); };
   
   /** Multi scan mapper for Ouster O0-64 according to data sheet. */
   static inline MultiScanMapper Ouster_O0_64() { return MultiScanMapper(-45.3f, 45.3f, 64); };
@@ -228,12 +247,15 @@ private:
   int _systemDelay = 20;       ///< system startup delay counter
   MultiScanMapper _scanMapper; ///< mapper for mapping vertical point angles to scan ring IDs
   std::vector<pcl::PointCloud<pcl::PointXYZI>> _laserCloudScans;
+  std::map<float, pcl::PointCloud<pcl::PointXYZI>> _ringAngleScans;
   ros::Subscriber _subLaserCloud; ///< input cloud message subscriber
 
   //CUSTOMIZATION - Trasformation option if LiDAR is not mounted flat w.r.t robot body frame
   bool _rotateInputCloud = false;                         //Flag to rotate input cloud before estimating odometry/map so produced resuts are ROS frame aligned irrespective of LiDAR mounting orientation
   Eigen::Affine3d _affine = Eigen::Affine3d::Identity();  //Rotation applied to input cloud - ORDER YPR(radians)
   bool _useCloudIntensityandRingFields = false;           //Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ
+  bool _uniformLidarRingDistance = true;                  //Flag that say whether LiDAR rings are uniformly distribued (elevation)
+  float _ringAngleTolerance = 0.5f;                            //Tolerance up to which angle rays are considered to belong to same ring
   float _minRange = 0.1, _maxRange = 80.0;                //Min/Max Range of useful points
   //CUSTOMIZATION
 };

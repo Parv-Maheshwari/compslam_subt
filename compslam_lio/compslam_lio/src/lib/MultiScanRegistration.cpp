@@ -56,8 +56,8 @@ void MultiScanMapper::set(const float& lowerBound,
   _factor = (nScanRings - 1) / (upperBound - lowerBound);
 }
 
-int MultiScanMapper::getRingForAngle(const float& angle) {
-  return int(((angle * 180 / M_PI) - _lowerBound) * _factor + 0.5);
+int MultiScanMapper::getRingForAngle(const float& angleRad) {
+  return int(((angleRad * 180 / M_PI) - _lowerBound) * _factor + 0.5);
 }
 
 MultiScanRegistration::MultiScanRegistration(const MultiScanMapper& scanMapper)
@@ -92,6 +92,8 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       _scanMapper = MultiScanMapper::Ouster_O1_16();
     } else if (lidarName == "Bperl-32") {
       _scanMapper = MultiScanMapper::RS_Bperl_32();
+    } else if (lidarName == "Helios-32") {
+      _scanMapper = MultiScanMapper::RS_Helios_32();
     } else if (lidarName == "O0-64") {
       _scanMapper = MultiScanMapper::Ouster_O0_64();
     } else if (lidarName == "O0-128") {
@@ -155,10 +157,18 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
     }
   }
 
-  //Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ
-  if (privateNode.getParam("useCloudIntensityandRingFields", _useCloudIntensityandRingFields))
-    ROS_INFO_STREAM("MultiScanRegistration - Using Input Clouds Intensity and Ring Fields: " << (_useCloudIntensityandRingFields ? "True" : "False"));
+  if (privateNode.getParam("uniformLidarRingDistance", _uniformLidarRingDistance)) {
+    ROS_INFO_STREAM("MultiScanRegistration - UniformLidarRingDistance: " << (_uniformLidarRingDistance ? "True" : "False"));
+  }
 
+  if (!_uniformLidarRingDistance && privateNode.getParam("ringAngleTolerance", _ringAngleTolerance)) {
+    ROS_INFO_STREAM("MultiScanRegistration - RingAngleTolerance: " << _ringAngleTolerance);
+  }
+
+  //Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ
+  if (privateNode.getParam("useCloudIntensityandRingFields", _useCloudIntensityandRingFields)) {
+    ROS_INFO_STREAM("MultiScanRegistration - Using Input Clouds Intensity and Ring Fields: " << (_useCloudIntensityandRingFields ? "True" : "False"));
+  }
 
   //Get Min/Max useful range for coin
   privateNode.getParam("minRange", _minRange);
@@ -196,7 +206,13 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
     pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyneANYbotics);
     // process
     process(pclPointVelodyneANYbotics, fromROSTime(laserCloudMsg->header.stamp));
-  } else {  //TODO - Currently treating all other inputs in Velodyne format
+  } else if (_scanMapper.getLiDARName() == "Helios-32") {
+    pcl::PointCloud<PointRobosense> pclPointHelios;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointHelios);
+    // process
+    process(pclPointHelios, fromROSTime(laserCloudMsg->header.stamp));
+  }
+  else {  //TODO - Currently treating all other inputs in Velodyne format
     // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
     pcl::PointCloud<PointVelodyne> pclPointVelodyne;
     pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyne);
@@ -243,6 +259,7 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
   bool halfPassed = false;
   pcl::PointXYZI point;
   _laserCloudScans.resize(_scanMapper.getNumberOfScanRings());
+  _ringAngleScans.clear();
   // clear all scanline points
   std::for_each(_laserCloudScans.begin(), _laserCloudScans.end(), [](auto&& v) { v.clear(); });
 
@@ -265,12 +282,13 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
     //Use ring number or calculate elevation angle to determine scanID
     int scanID;
+    float angleRad;
     if (_scanMapper.getLiDARName() == "O0-128-Div2" || _scanMapper.getLiDARName() == "O0-128" ||
-        _scanMapper.getLiDARName() == "O0-64" || _scanMapper.getLiDARName() == "O1-64")
+        _scanMapper.getLiDARName() == "O0-64" || _scanMapper.getLiDARName() == "O1-64") {
       scanID = static_cast<int>(laserCloudIn[i].ring);
-    else {
-      float angle = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z));  //TODO: Check Formula
-      scanID = _scanMapper.getRingForAngle(angle);
+    } else {
+      angleRad = std::atan(point.y / std::sqrt(point.x * point.x + point.z * point.z));  //TODO: Check Formula
+      scanID = _scanMapper.getRingForAngle(angleRad);
     }
 
     //Skip rings option incase of OS0-128 LiDAR
@@ -310,7 +328,40 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
     projectPointToStartOfSweep(point, relTime);  //smk: this corrects point locations according to intermediate imu locations to make the pcl more consistent.
 
-    _laserCloudScans[scanID].push_back(point);
+    // Write to container ---------------------------
+    // Uniform --> normal case
+    if (_uniformLidarRingDistance) {
+      _laserCloudScans[scanID].push_back(point);
+    } 
+    // Non-uniform --> e.g. Helios
+    else {
+      float angleDeg = 180.0 / M_PI * angleRad;
+      if (!_ringAngleScans.empty()) {
+        auto beforeIterator = _ringAngleScans.lower_bound(angleDeg);
+        auto aboveIterator = beforeIterator--;
+        // Above iterator correct ring
+        if (aboveIterator != _ringAngleScans.end() && std::abs(aboveIterator->first - angleDeg) < _ringAngleTolerance) {
+          aboveIterator->second.push_back(point);
+          // Before Iterator correct
+        } else if (aboveIterator != _ringAngleScans.begin() && std::abs(beforeIterator->first - angleDeg) < _ringAngleTolerance) { // before iterator correct
+          beforeIterator->second.push_back(point);
+        } else { // all too far away --> introduce new ring
+          _ringAngleScans[angleDeg].push_back(point);
+        }
+      }
+      else { // Still empty
+        _ringAngleScans[angleDeg].push_back(point);
+      }
+    }
+  }
+  // Potentially move everything to standard vector
+  if (!_uniformLidarRingDistance) {
+    //std::cout << "Number of created clusters in map: " << _ringAngleScans.size() << std::endl;
+    _laserCloudScans.reserve(_laserCloudScans.size() + _ringAngleScans.size());
+    for (auto iterator : _ringAngleScans) {
+      _laserCloudScans.push_back(std::move(iterator.second));
+    }
+    _ringAngleScans.clear();
   }
 
   processScanlines(scanTime, _laserCloudScans);  //smk: scanTime = (laserCloudMsg->header.stamp)

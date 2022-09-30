@@ -416,10 +416,7 @@ bool BasicScanRegistration::checkBounds(const float angle, const float lowerBoun
   if (lowerBound < upperBound) {
     if (angle > lowerBound && angle < upperBound)
       return true;
-  } else {
-    if (angle < lowerBound && angle > upperBound)
-      return true;
-  }
+  } 
   return false;
 }
 // CUSTOMIZATION
