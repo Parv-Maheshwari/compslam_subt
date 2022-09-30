@@ -323,7 +323,6 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
     // calculate relative scan time based on point orientation
     float relTime = config().scanPeriod * (ori - startOri) / (endOri - startOri);  //smk: given the orientation of the current point and knowning the starting,ending orientations and total scan time we can find the relative time at which this point was scanned when the lidar was doing its sweep or scan.
-    point.intensity = scanID + relTime;
     //std::cout << "point.intensity: " << point.intensity << ", scanID: " << scanID << ", relTime:" << relTime << std::endl; //smk:never greater the 0-15 and 0.1
 
     projectPointToStartOfSweep(point, relTime);  //smk: this corrects point locations according to intermediate imu locations to make the pcl more consistent.
@@ -331,10 +330,14 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
     // Write to container ---------------------------
     // Uniform --> normal case
     if (_uniformLidarRingDistance) {
+      point.intensity = scanID + relTime;
       _laserCloudScans[scanID].push_back(point);
     } 
     // Non-uniform --> e.g. Helios
     else {
+      // Intensity CAN'T BE KNOWN at this point, as order of rings might change --> needs to be performed below
+      // Here: just write relTime into the field
+      point.intensity = relTime;
       float angleDeg = 180.0 / M_PI * angleRad;
       if (!_ringAngleScans.empty()) {
         auto beforeIterator = _ringAngleScans.lower_bound(angleDeg);
@@ -355,11 +358,20 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
     }
   }
   // Potentially move everything to standard vector
+  // TODO: Not necessary to iterate through entire cloud here, if the whole system is designed more cleverly
   if (!_uniformLidarRingDistance) {
     //std::cout << "Number of created clusters in map: " << _ringAngleScans.size() << std::endl;
     _laserCloudScans.reserve(_laserCloudScans.size() + _ringAngleScans.size());
-    for (auto iterator : _ringAngleScans) {
-      _laserCloudScans.push_back(std::move(iterator.second));
+    int ringIndex = 0;
+    for (auto ringIterator : _ringAngleScans) {
+      for (int pointIndex = 0; pointIndex < ringIterator.second.size(); ++pointIndex) {
+        // Writing ring value to intensity field
+        // TODO: += ringIndex
+        ringIterator.second[pointIndex].intensity = ringIndex; // In this mode only relTime was written into the field
+      }
+      // Moving over to std::vector
+      _laserCloudScans.push_back(std::move(ringIterator.second));
+      ++ringIndex;
     }
     _ringAngleScans.clear();
   }
