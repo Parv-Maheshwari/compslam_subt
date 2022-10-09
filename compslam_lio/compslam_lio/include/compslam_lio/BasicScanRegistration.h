@@ -68,7 +68,7 @@ class RegistrationParams {
   /** Perform invalid sharp feature check*/
   bool checkInvalidFeatureRegions = false;
   
-  /** The aziuth boundary vector of the Invalid Feature regions, each tuple is (lowerBound, upperBound) */
+  /** The azimuth boundary vector of the Invalid Feature regions, each tuple is (lowerBound, upperBound) */
   std::vector<double> noFeatureAzimuthBoundaries;
   std::vector<double> noFeaturePolarBoundaries;
 

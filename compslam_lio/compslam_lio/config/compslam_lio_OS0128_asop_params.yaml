@@ -22,6 +22,8 @@ fallbackExtOdomTimeOffset: 0.0 #seconds  #Timeoffset between LiDAR pointcloud an
 #MultiScanRegistration
 lidar: O0-128                       #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32 O0-128-Div2 O0-128
 useCloudIntensityandRingFields: false    #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
+uniformLidarRingDistance: true           # Whether the LiDAR rings are uniformly distributed in elevation, does not hold for e.g. Helios
+ringAngleTolerance: 0.5                  # [deg], Tolerance up to which angle rays are considered to belong to same ring, only impact if argument before is false
 imuHistorySize: 200                      #IMU Message Buffer Size , default: 200 
 minRange: 2.0                            #Minimum Range of useful points, default: 0.5
 maxRange: 40.0                           #Maximum Range of useful points, default: 50
