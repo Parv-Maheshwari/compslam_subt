@@ -45,7 +45,6 @@ message("PCL Version:" ${PCL_VERSION})
 message("PCL Path:" ${PCL_DIR})
 
 find_package(GTSAM REQUIRED)
-find_package(GTSAM_UNSTABLE REQUIRED)
 message("GTSAM version: ${GTSAM_VERSION}")
 message("GTSAM path: ${GTSAM_DIR}")
 
