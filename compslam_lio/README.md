@@ -2,12 +2,13 @@
 
 ## GTSAM Installation
 
-* Version: [GTSAM 4.1.1](https://github.com/borglab/gtsam/tree/4.1.1)
-* Clone and Checkout:
+* Version: [GTSAM on branch develop_rsl](https://github.com/leggedrobotics/gtsam_fork/tree/develop_rsl).
+* This version has already the latest bug fixes of the CombinedImuFactor. For more information we refer to this [issue](https://github.com/borglab/gtsam/commit/587678e0b761188e33db376cd552c417650c96ee#diff-278a5de28881129d36f253ed7fa64129312e5e1d9a042aa850424c2a93392e1f).
+* Clone and checkout at an arbitrary location.
 ```bash
-git clone git@github.com:borglab/gtsam.git
-cd gtsam
-git checkout 4.1.1
+git clone https://github.com/leggedrobotics/gtsam_fork
+cd gtsam_fork
+git checkout develop_rsl
 mkdir build && cd build
 ```
 
