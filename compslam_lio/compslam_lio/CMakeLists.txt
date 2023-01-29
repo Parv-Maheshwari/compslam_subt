@@ -91,6 +91,11 @@ install(TARGETS multiScanRegistration
 )
 
 ## Mark cpp header files for installation
-install(DIRECTORY launch
+install(DIRECTORY launch config
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(
+  FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
