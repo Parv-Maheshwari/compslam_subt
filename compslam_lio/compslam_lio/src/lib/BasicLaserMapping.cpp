@@ -203,9 +203,15 @@ void BasicLaserMapping::transformAssociateToMap() {
   }
 
   //DEBUG
-  if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy)
-    ROS_WARN("*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2], -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
-  //DEBUG
+  if ((_extPriorAvailable || _fallbackExtPriorAvailable) && !_isExternalPriorHealthy) {
+    if (translation_prior.norm() >= _mapPriorNormThresh) {
+      ROS_WARN("*** LaserMapping  - External Priors failed(x,y,z): [%f %f %f] - Motion Norm(>%f):%f ***", -translation_prior[2],
+               -translation_prior[0], -translation_prior[1], _mapPriorNormThresh, translation_prior.norm());
+    } else {
+      ROS_WARN_STREAM("Could not obtain prior.");
+    }
+  }
+    //DEBUG
 
   //Use Available HEALTHY Prior
   if (_isExternalPriorHealthy) {
