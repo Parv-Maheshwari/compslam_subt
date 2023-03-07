@@ -203,8 +203,11 @@ class MultiScanMapper {
   
   /** Multi scan mapper for Ouster O0-128-Div2 according to data sheet. */
   static inline MultiScanMapper Ouster_O0_128_Div2() { return MultiScanMapper(-46.2f, 46.2f, 128); };
-  
-private:
+
+  /** Multi scan mapper for Hesai Pandar QT64 according to data sheet. */
+  static inline MultiScanMapper Hesai_QT64() { return MultiScanMapper(-52.1f, 52.1f, 64); };
+
+ private:
   std::string _lidarName; ///< CUSTOMIZATION LiDAR Name
   float _lowerBound;      ///< the vertical angle of the first scan ring
   float _upperBound;      ///< the vertical angle of the last scan ring

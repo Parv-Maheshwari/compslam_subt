@@ -100,6 +100,8 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       _scanMapper = MultiScanMapper::Ouster_O0_128();
     } else if (lidarName == "O0-128-Div2") {
       _scanMapper = MultiScanMapper::Ouster_O0_128_Div2();
+    } else if (lidarName == "QT64") {
+      _scanMapper = MultiScanMapper::Hesai_QT64();
     } else {
       ROS_ERROR("Invalid lidar parameter: model %s is not supported)", lidarName.c_str());
       return false;
