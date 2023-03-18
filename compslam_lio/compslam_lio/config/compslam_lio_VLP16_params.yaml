@@ -22,7 +22,7 @@ fallbackExtOdomTimeOffset: -0.07         #Timeoffset (seconds) between LiDAR poi
 #MultiScanRegistration
 lidar: VLP-16-ANYbotics                  #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
 useCloudIntensityandRingFields : false   #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
-imuHistorySize: 200                      #IMU Message Buffer Size , default: 200 
+imuHistorySize: 800                      #IMU Message Buffer Size , default: 200 
 minRange: 0.1                            #Minimum Range of useful points, default: 0.1
 maxRange: 80.0                           #Maximum Range of useful points, default: 80
 featureRegions: 6                        #Number of Azimuth Regions Pointcloud is divided, default:6
