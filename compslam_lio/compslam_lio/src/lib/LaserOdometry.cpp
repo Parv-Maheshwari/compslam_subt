@@ -329,19 +329,19 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   if (privateNode.getParam("gyrBiasReLinTh", dParam))
     _graphMgr.setGyrBiasReLinTh(dParam);
   if (privateNode.getParam("relinearizeSkip", iParam))
-    _graphMgr._params.setRelinearizeSkip(iParam);
+    _graphMgr._params.relinearizeSkip = iParam;
   if (privateNode.getParam("enableRelinearization", bParam))
-    _graphMgr._params.setEnableRelinearization(bParam);
+    _graphMgr._params.enableRelinearization = bParam;
   if (privateNode.getParam("evaluateNonlinearError", bParam))
-    _graphMgr._params.setEvaluateNonlinearError(bParam);
+    _graphMgr._params.evaluateNonlinearError = bParam;
   if (privateNode.getParam("cacheLinearizedFactors", bParam))
-    _graphMgr._params.setCacheLinearizedFactors(bParam);
+    _graphMgr._params.cacheLinearizedFactors = bParam;
   if (privateNode.getParam("findUnusedFactorSlots", bParam))
     _graphMgr._params.findUnusedFactorSlots = bParam;
   if (privateNode.getParam("enablePartialRelinearizationCheck", bParam))
-    _graphMgr._params.setEnablePartialRelinearizationCheck(bParam);
+    _graphMgr._params.enablePartialRelinearizationCheck = bParam;
   if (privateNode.getParam("enableDetailedResults", bParam))
-    _graphMgr._params.setEnableDetailedResults(bParam);
+    _graphMgr._params.enableDetailedResults = bParam;
   //Pose between factor noise
   if (privateNode.getParam("poseBetweenNoise", dvParam))
     _graphMgr.setPoseNoise(dvParam);

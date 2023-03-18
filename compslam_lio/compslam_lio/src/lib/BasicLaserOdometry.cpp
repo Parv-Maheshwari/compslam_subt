@@ -212,7 +212,7 @@ void BasicLaserOdometry::process() {
     _graphMgr.initImuIntegrator(g);
 
     //Initialize Factor Graph with prior factor
-    gtsam::Pose3 init_pose = gtsam::Pose3::identity();
+    gtsam::Pose3 init_pose = gtsam::Pose3::Identity();
     if (_initGraphRollPitchFromIMU) {
         init_pose = gtsam::Pose3(gtsam::Rot3::Ypr(0.0, imu_attitude.pitch(), imu_attitude.roll()),  //Set yaw to zero
                                  gtsam::Point3());
