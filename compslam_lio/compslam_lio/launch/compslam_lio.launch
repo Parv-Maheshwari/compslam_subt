@@ -12,6 +12,7 @@
   <arg name="compslam_lio_with_OS0128"    default="false"/>
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_VLP16_params.yaml" unless="$(arg compslam_lio_with_OS0128)"/>
   <arg name="config_filename" default="$(find compslam_lio)/config/compslam_lio_OS0128_params.yaml" if="$(arg compslam_lio_with_OS0128)"/>
+  <arg name="overlay_config_filename" default="$(arg config_filename)" doc="Configuration overlay file in YAML format. Can be used to overlay/extend parameters specified in 'config_filename'."/>
 
   <!-- Publish static tf's -->
   <include file="$(find compslam_lio)/launch/tf.launch">
@@ -24,12 +25,14 @@
   <!-- Laser Multiscan Registration Nodelet -->
   <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_multiscan_registration_nodelet" args="load laser_multiscan_registration_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
+    <rosparam file="$(arg overlay_config_filename)" command="load"/> <!-- Overlay params should be the last ones to be loaded, so settings from caller are latest ones to be applied -->
     <remap from="multi_scan_points" to="$(arg pointcloud_topic_name)"/>
   </node>
 
   <!-- Laser Odometry Nodelet -->
   <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_odometry_nodelet" args="load laser_odometry_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
+    <rosparam file="$(arg overlay_config_filename)" command="load"/> <!-- Overlay params should be the last ones to be loaded, so settings from caller are latest ones to be applied -->
     <remap from="imu" to="$(arg imu_topic_name)"/>
   </node>
 
@@ -38,11 +41,13 @@
     <rosparam file="$(arg config_filename)" command="load"/>
     <param name="saved_submaps_filepath" value="$(find compslam_lio)"/>
     <remap from="aft_mapped_to_init_CORRECTED" to="odometry"/>
-  </node> 
+    <rosparam file="$(arg overlay_config_filename)" command="load"/> <!-- Overlay params should be the last ones to be loaded, so settings from caller are latest ones to be applied -->
+  </node>
 
   <!-- Laser Transform Maintenance Nodelet -->
   <node ns="$(arg ns)" pkg="nodelet" type="nodelet" name="laser_transform_maintenance_nodelet" args="load laser_transform_maintenance_nodelet compslam_lio_nodelet_manager" output="screen">
     <rosparam file="$(arg config_filename)" command="load"/>
+    <rosparam file="$(arg overlay_config_filename)" command="load"/> <!-- Overlay params should be the last ones to be loaded, so settings from caller are latest ones to be applied -->
   </node>
 
 </launch>

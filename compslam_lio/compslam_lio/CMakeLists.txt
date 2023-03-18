@@ -45,7 +45,6 @@ message("PCL Version:" ${PCL_VERSION})
 message("PCL Path:" ${PCL_DIR})
 
 find_package(GTSAM REQUIRED)
-#find_package(GTSAM_UNSTABLE REQUIRED)
 message("GTSAM version: ${GTSAM_VERSION}")
 message("GTSAM path: ${GTSAM_DIR}")
 
@@ -92,6 +91,11 @@ install(TARGETS multiScanRegistration
 )
 
 ## Mark cpp header files for installation
-install(DIRECTORY launch
+install(DIRECTORY launch config
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(
+  FILES nodelet_plugins.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

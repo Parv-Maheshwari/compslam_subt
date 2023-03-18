@@ -22,6 +22,8 @@ fallbackExtOdomTimeOffset: 0.0 #seconds  #Timeoffset between LiDAR pointcloud an
 #MultiScanRegistration
 lidar: O0-128                       #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32 O0-128-Div2 O0-128
 useCloudIntensityandRingFields: false    #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
+uniformLidarRingDistance: true           # Whether the LiDAR rings are uniformly distributed in elevation, does not hold for e.g. Helios
+ringAngleTolerance: 0.5                  # [deg], Tolerance up to which angle rays are considered to belong to same ring, only impact if argument before is false
 imuHistorySize: 200                      #IMU Message Buffer Size , default: 200 
 minRange: 2.0                            #Minimum Range of useful points, default: 0.5
 maxRange: 40.0                           #Maximum Range of useful points, default: 50
@@ -76,8 +78,8 @@ imuFrame: imu_box_link                   #Frame of IMU used in integrator - Used
 imuRate: 100                             #Rate of IMU input (Hz) used for initialization of gravity, initial Roll/Pitch and gyro bias
 imuTimeForInit: 0.5                      #Time interval of IMU measurements used for initialization
 imuTimeOffset: 0.00 #seconds             #Offset between IMU and LiDAR Measurements - Depending on LiDAR timestamp first(+0.05) or last(-0.05)
-initGraphRollPitchFromIMU: false          #Initialize graph roll/pitch from IMU
-imuZaxisPointsUp: false                   #Z-axis of IMU is pointing up and Gravity vector points down along negative Z-aixs of IMU
+initGraphRollPitchFromIMU: true          #Initialize graph roll/pitch from IMU
+globalZaxisPointsUp: true                #Z-axis of global coordinate system pointing up
 accNoiseDensity: 1.3e-04                 #Continuous-time "Covariance" of accelerometer
 accBiasRandomWalk: 1.0e-05               #Continuous-time "Covariance" describing accelerometer bias random walk
 gyrNoiseDensity: 5.398e-06               #Continuous-time "Covariance" of gyroscope measurements

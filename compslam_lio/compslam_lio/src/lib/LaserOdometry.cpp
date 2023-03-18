@@ -295,8 +295,8 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
     ROS_INFO_STREAM("LaserOdometry - IMU time used for preintegrator initilization: " << dParam);
     _imuBuffer.setImuTimeForInit(dParam);
   }
-  if (privateNode.getParam("imuZaxisPointsUp", bParam))
-    _graphMgr.setImuZaxisPointsUp(bParam);
+  if (privateNode.getParam("globalZaxisPointsUp", bParam))
+    _graphMgr.setGlobalZaxisPointsUp(bParam);
   if (privateNode.getParam("accNoiseDensity", dParam))
     _graphMgr.setAccNoiseDensity(dParam);
   if (privateNode.getParam("accBiasRandomWalk", dParam))
@@ -417,7 +417,7 @@ bool LaserOdometry::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
   _subLessSharp.subscribe(node, "laser_cloud_less_sharp", 2);
   _subFlat.subscribe(node, "laser_cloud_flat", 2);
   _subLessFlat.subscribe(node, "laser_cloud_less_flat", 2);
-  _subFull.subscribe(node, "velodyne_cloud_2", 2);
+  _subFull.subscribe(node, "laser_cloud_all", 2);
   _pclExactSyncPtr.reset(new message_filters::Synchronizer<_pclExactSyncPolicy>(_pclExactSyncPolicy(10), _subSharp, _subLessSharp, _subFlat, _subLessFlat, _subFull));
   _pclExactSyncPtr->registerCallback(boost::bind(&LaserOdometry::syncCloudsHandler, this, _1, _2, _3, _4, _5));
 
