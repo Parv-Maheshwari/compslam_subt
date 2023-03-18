@@ -193,7 +193,7 @@ bool GraphManager::checkAndAddZeroMotionFactor(const gtsam::Key old_key, const g
   //Add Zero Pose Factor
   _newFactors.add(gtsam::BetweenFactor<gtsam::Pose3>(X(old_key), 
                                                      X(new_key), 
-                                                     gtsam::Pose3::Identity(), 
+                                                     gtsam::Pose3::Identity(),
                                                      gtsam::noiseModel::Isotropic::Sigma(6, 1e-3)));
   //Add Zero Velocity Factor
   _newFactors.add(gtsam::PriorFactor<gtsam::Vector3>(V(old_key),

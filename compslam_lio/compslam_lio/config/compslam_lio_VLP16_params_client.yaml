@@ -1,5 +1,5 @@
 #Common
-loamVerbosity: 5                         #Debug Output, 0-disable, higher for more verbose output
+loamVerbosity: 0                         #Debug Output, 0-disable, higher for more verbose output
 scanPeriod: 0.1                          #Expected scan period for input pointcloud in seconds. Used of Distortion correction
 ioRatio: 2                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
 lidarFrame: lidar                        #LiDAR frame name - used for LiDAR-to-Sensor transform lookup
