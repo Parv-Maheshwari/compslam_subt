@@ -45,6 +45,7 @@
 #include <std_srvs/Trigger.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
+#include <compslam_lio_msgs/RequestSubmaps.h>
 #include <compslam_lio_msgs/Submaps.h>
 #include <compslam_lio_msgs/ShareSubmaps.h>
 
@@ -117,7 +118,7 @@ class LaserMapping : public BasicLaserMapping {
   bool shareSubmaps(compslam_lio_msgs::ShareSubmaps::Request& /*request*/, compslam_lio_msgs::ShareSubmaps::Response& resp);
 
   /** \brief Service call to request LOAM to share all Corner and Suface submaps with current pose*/
-  bool requestSubmaps(std_srvs::Trigger::Request& /*request*/, std_srvs::Trigger::Response& resp);
+  bool requestSubmaps(compslam_lio_msgs::RequestSubmaps::Request& req, compslam_lio_msgs::RequestSubmaps::Response& resp);
 
   /** \brief Sync Callback Handler for all input clouds and odometry
    * @param pclCorner Sharp Corner Points
