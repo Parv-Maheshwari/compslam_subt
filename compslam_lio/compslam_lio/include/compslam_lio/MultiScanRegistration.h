@@ -266,8 +266,8 @@ class MultiScanRegistration : virtual public ScanRegistration {
 private:
   int _systemDelay = 20;       ///< system startup delay counter
   MultiScanMapper _scanMapper; ///< mapper for mapping vertical point angles to scan ring IDs
-  std::vector<pcl::PointCloud<pcl::PointXYZI>> _laserCloudScans;
-  std::map<float, pcl::PointCloud<pcl::PointXYZI>> _ringAngleScans;
+  std::vector<pcl::PointCloud<pcl::PointXYZI>> _ringScansPerRingIndex;
+  std::map<float, pcl::PointCloud<pcl::PointXYZI>> _ringScansPerRingFloatIndex;
   ros::Subscriber _subLaserCloud; ///< input cloud message subscriber
 
   //CUSTOMIZATION - Trasformation option if LiDAR is not mounted flat w.r.t robot body frame
@@ -275,7 +275,7 @@ private:
   Eigen::Affine3d _affine = Eigen::Affine3d::Identity();  //Rotation applied to input cloud - ORDER YPR(radians)
   bool _useCloudIntensityandRingFields = false;           //Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ
   bool _uniformLidarRingDistance = true;                  //Flag that say whether LiDAR rings are uniformly distribued (elevation)
-  float _ringAngleTolerance = 0.5f;                            //Tolerance up to which angle rays are considered to belong to same ring
+  float _ringAngleTolerance = 0.5f;                       //Tolerance up to which angle rays are considered to belong to same ring
   float _minRange = 0.1, _maxRange = 80.0;                //Min/Max Range of useful points
   //CUSTOMIZATION
 };

@@ -264,10 +264,10 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
 
   bool halfPassed = false;
   pcl::PointXYZI point;
-  _laserCloudScans.resize(_scanMapper.getNumberOfScanRings());
-  _ringAngleScans.clear();
+  _ringScansPerRingIndex.resize(_scanMapper.getNumberOfScanRings());
+  _ringScansPerRingFloatIndex.clear();
   // clear all scanline points
-  std::for_each(_laserCloudScans.begin(), _laserCloudScans.end(), [](auto&& v) { v.clear(); });
+  std::for_each(_ringScansPerRingIndex.begin(), _ringScansPerRingIndex.end(), [](auto&& v) { v.clear(); });
 
   // extract valid points from input cloud
   for (int i = 0; i < cloudSize; i++) {
@@ -337,7 +337,7 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
     // Uniform --> normal case
     if (_uniformLidarRingDistance) {
       point.intensity = scanID + relTime;
-      _laserCloudScans[scanID].push_back(point);
+      _ringScansPerRingIndex[scanID].push_back(point);
     } 
     // Non-uniform --> e.g. Helios
     else {
@@ -345,44 +345,45 @@ void MultiScanRegistration::process(const pcl::PointCloud<pointType>& laserCloud
       // Here: just write relTime into the field
       point.intensity = relTime;
       float angleDeg = 180.0 / M_PI * angleRad;
-      if (!_ringAngleScans.empty()) {
-        auto beforeIterator = _ringAngleScans.lower_bound(angleDeg);
-        auto aboveIterator = beforeIterator--;
+      if (!_ringScansPerRingFloatIndex.empty()) {
+        auto smallerRingIterator = _ringScansPerRingFloatIndex.lower_bound(angleDeg);
+        auto largerRingIterator = smallerRingIterator--;
         // Above iterator correct ring
-        if (aboveIterator != _ringAngleScans.end() && std::abs(aboveIterator->first - angleDeg) < _ringAngleTolerance) {
-          aboveIterator->second.push_back(point);
+        if (largerRingIterator != _ringScansPerRingFloatIndex.end() && std::abs(largerRingIterator->first - angleDeg) < _ringAngleTolerance) {
+          largerRingIterator->second.push_back(point);
           // Before Iterator correct
-        } else if (aboveIterator != _ringAngleScans.begin() && std::abs(beforeIterator->first - angleDeg) < _ringAngleTolerance) { // before iterator correct
-          beforeIterator->second.push_back(point);
+        } else if (largerRingIterator != _ringScansPerRingFloatIndex.begin() && std::abs(smallerRingIterator->first - angleDeg) < _ringAngleTolerance) { // before iterator correct
+          smallerRingIterator->second.push_back(point);
         } else { // all too far away --> introduce new ring
-          _ringAngleScans[angleDeg].push_back(point);
+          _ringScansPerRingFloatIndex[angleDeg].push_back(point);
         }
       }
       else { // Still empty
-        _ringAngleScans[angleDeg].push_back(point);
+        _ringScansPerRingFloatIndex[angleDeg].push_back(point);
       }
     }
   }
+
   // Potentially move everything to standard vector
   // TODO: Not necessary to iterate through entire cloud here, if the whole system is designed more cleverly
   if (!_uniformLidarRingDistance) {
     //std::cout << "Number of created clusters in map: " << _ringAngleScans.size() << std::endl;
-    _laserCloudScans.reserve(_laserCloudScans.size() + _ringAngleScans.size());
+    _ringScansPerRingIndex.reserve(_ringScansPerRingFloatIndex.size());
     int ringIndex = 0;
-    for (auto ringIterator : _ringAngleScans) {
+    for (auto ringIterator : _ringScansPerRingFloatIndex) {
       for (int pointIndex = 0; pointIndex < ringIterator.second.size(); ++pointIndex) {
         // Writing ring value to intensity field
         // TODO: += ringIndex
         ringIterator.second[pointIndex].intensity = ringIndex; // In this mode only relTime was written into the field
       }
       // Moving over to std::vector
-      _laserCloudScans.push_back(std::move(ringIterator.second));
+      _ringScansPerRingIndex[ringIndex] = std::move(ringIterator.second);
       ++ringIndex;
     }
-    _ringAngleScans.clear();
+    _ringScansPerRingFloatIndex.clear();
   }
 
-  processScanlines(scanTime, _laserCloudScans);  //smk: scanTime = (laserCloudMsg->header.stamp)
+  processScanlines(scanTime, _ringScansPerRingIndex);  //smk: scanTime = (laserCloudMsg->header.stamp)
   publishResult();
 }
 
