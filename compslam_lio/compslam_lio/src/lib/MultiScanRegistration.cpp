@@ -213,8 +213,12 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
     pcl::fromROSMsg(*laserCloudMsg, pclPointHelios);
     // process
     process(pclPointHelios, fromROSTime(laserCloudMsg->header.stamp));
-  }
-  else {  //TODO - Currently treating all other inputs in Velodyne format
+  } else if (_scanMapper.getLiDARName() == "QT64"){
+    pcl::PointCloud<PointPandar> pclPointPandar;
+    pcl::fromROSMsg(*laserCloudMsg, pclPointPandar);
+    // process
+    process(pclPointPandar, fromROSTime(laserCloudMsg->header.stamp));
+  } else {  //TODO - Currently treating all other inputs in Velodyne format
     // Convert ROS Pointcloud2 into PCL Pointcloud<PointVelodyne>
     pcl::PointCloud<PointVelodyne> pclPointVelodyne;
     pcl::fromROSMsg(*laserCloudMsg, pclPointVelodyne);
