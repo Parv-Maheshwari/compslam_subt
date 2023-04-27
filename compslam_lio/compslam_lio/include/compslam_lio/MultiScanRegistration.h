@@ -129,7 +129,24 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(PointOuster,
                                   (std::uint16_t, ambient, ambient)
                                   (std::uint32_t, range, range)
 )
-////////////////// OS0-128 Data structure support //////////////////
+////////////////// Hesai Pandar QT64 Data structure support //////////////////
+struct EIGEN_ALIGN16 PointPandar {
+  PCL_ADD_POINT4D;
+  float intensity;
+  double timestamp;
+  uint16_t ring;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+/** Register as pointcloud struct for using */
+POINT_CLOUD_REGISTER_POINT_STRUCT(PointPandar,
+                                  (float, x, x)
+                                  (float, y, y)
+                                  (float, z, z)
+                                  (float, intensity, intensity)
+                                  (double, timestamp, timestamp)
+                                  (std::uint16_t, ring, ring)
+)
+
 
 namespace loam{
 /** \brief Class realizing a linear mapping from vertical point angle to the corresponding scan ring.
@@ -203,8 +220,11 @@ class MultiScanMapper {
   
   /** Multi scan mapper for Ouster O0-128-Div2 according to data sheet. */
   static inline MultiScanMapper Ouster_O0_128_Div2() { return MultiScanMapper(-46.2f, 46.2f, 128); };
-  
-private:
+
+  /** Multi scan mapper for Hesai Pandar QT64 according to data sheet. */
+  static inline MultiScanMapper Hesai_QT64() { return MultiScanMapper(-52.1f, 52.1f, 64); };
+
+ private:
   std::string _lidarName; ///< CUSTOMIZATION LiDAR Name
   float _lowerBound;      ///< the vertical angle of the first scan ring
   float _upperBound;      ///< the vertical angle of the last scan ring
