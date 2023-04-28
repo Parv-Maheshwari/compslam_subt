@@ -925,7 +925,8 @@ bool BasicLaserOdometry::updateFactorGraph() {
   if (_imuBuffer.getInterpolatedImuMeasurements(old_ts, new_ts, imu_meas)) {
     _graphMgr.addPreintegratedImuFactor(old_key, new_key, imu_meas);
   } else {
-    ROS_WARN("LaserOdometry - IMU factor not added to graph");
+    ROS_WARN("LaserOdometry - IMU factor not added to graph.");
+    return false;
   }
 
   //CREATE LiDAR POSE BETWEEN FACTOR

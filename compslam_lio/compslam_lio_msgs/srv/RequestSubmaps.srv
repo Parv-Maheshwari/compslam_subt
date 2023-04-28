@@ -1,0 +1,4 @@
+string anymal_prefix # call share submaps with this prefix
+---
+bool success   # indicate successful run of triggered service
+string message # informational, e.g. for error messages
