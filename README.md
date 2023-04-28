@@ -15,5 +15,5 @@ It consists of the following packages:
 Note that for your use-case you might only require one specific package, such as compslam_lio or graph_msf_dev.
 To build the entire stack, execute:
 ```bash
-catkin build compslam -DYMAKE_BUILD_TYPE=ReleaseWithDebInfo
+catkin build compslam -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```
