@@ -1,7 +1,7 @@
 #Common
 loamVerbosity: 0                         #Debug Output, 0-disable, higher for more verbose output
 scanPeriod: 0.1                          #Expected scan period for input pointcloud in seconds. Used of Distortion correction
-ioRatio: 1                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
+ioRatio: 2                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
 lidarFrame: lidar                        #LiDAR frame name - used for LiDAR-to-Sensor transform lookup
 rotateInputCloud: false                  #Flag to rotate input cloud before estimating odometry/map so produced resuts are ROS frame aligned irrespective of LiDAR mounting orientation
 inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDER YPR(radians) #90 deg = 1.5707963268 rad
@@ -10,7 +10,7 @@ inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDE
 forceExtPriorUseMapping : true          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
 extPriorAvailable: true                 #Flag to check if 'Primary' external prior is available
 extOdomFrame: imu_link                   #External Prior odometry frame name
-extFixedFrame: odom_graph_msf                      #External Prior fixed frame name
+extFixedFrame: odom                     #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
 extOdomTimeOffset : 0.0                  #Timeoffset (seconds) between LiDAR pointcloud and external source
 fallbackExtPriorAvailable: false         #Flag to check if 'Fallback ' external prior is available
@@ -20,7 +20,7 @@ fallbackExtSensorFrame: imu_sensor_frame #Fallback External Prior sensor frame n
 fallbackExtOdomTimeOffset: 0.00         #Timeoffset (seconds) between LiDAR pointcloud and Fallbackexternal source
 
 #MultiScanRegistration
-lidar: VLP-16-ANYbotics                  #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
+lidar: VLP-16                  #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
 useCloudIntensityandRingFields : false   #Flag to use input pointcloud intensity or ring fields. Converts to custom PointXYZIR instead of PointXYZ. True for Bpearl
 uniformLidarRingDistance: true           # Whether the LiDAR rings are uniformly distributed in elevation, does not hold for e.g. Helios
 ringAngleTolerance: 0.5                  # [deg], Tolerance up to which angle rays are considered to belong to same ring, only impact if argument before is false
