@@ -1,10 +1,42 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.16)
 project(compslam_lio)
 
-## Compile as C++14, supported in ROS Kinetic and newer
-set(CMAKE_CXX_STANDARD 14)
+## Compile as C++17, supported in ROS Noetic and newer
+add_compile_options(-std=c++17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -pthread")
+
+# Find dependencies ------------------------------------------------------------
+#find_package(GTSAM REQUIRED)
+#message("GTSAM version: ${GTSAM_VERSION}")
+#message("GTSAM path: ${GTSAM_DIR}")
+
+find_package(Eigen3 REQUIRED)
+message("Eigen Version:" ${EIGEN3_VERSION_STRING})
+message("Eigen Path:" ${Eigen3_DIR})
+
+find_package(PCL REQUIRED)
+message("PCL Version:" ${PCL_VERSION})
+message("PCL Path:" ${PCL_DIR})
+
+find_package(Boost REQUIRED COMPONENTS timer)
+message("Boost version: ${Boost_VERSION}")
+
+# Color
+if(NOT WIN32)
+    string(ASCII 27 Esc)
+    set(ColourReset "${Esc}[m")
+    set(BoldMagenta "${Esc}[1;35m")
+    set(Magenta     "${Esc}[35m")
+endif()
+
+# March native check
+#include(CheckCXXCompilerFlag)
+#CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+#if(COMPILER_SUPPORTS_MARCH_NATIVE)
+#    add_compile_options("-march=native")
+#    message("${BoldMagenta}INFO: Using -march=native${ColourReset}")
+#endif()
 
 # Catkin Dependencies --------------------------------------------------------------------------------------------------
 set(CATKIN_PACKAGE_DEPENDENCIES
@@ -35,22 +67,6 @@ catkin_package(
         INCLUDE_DIRS include
         LIBRARIES compslam_lio
 )
-
-# Other Dependencies ---------------------------------------------------------------------------------------------------
-find_package(Eigen3 REQUIRED)
-message("Eigen Version:" ${EIGEN3_VERSION_STRING})
-message("Eigen Path:" ${Eigen3_DIR})
-
-find_package(PCL REQUIRED)
-message("PCL Version:" ${PCL_VERSION})
-message("PCL Path:" ${PCL_DIR})
-
-#find_package(GTSAM REQUIRED)
-#message("GTSAM version: ${GTSAM_VERSION}")
-#message("GTSAM path: ${GTSAM_DIR}")
-
-find_package(Boost REQUIRED COMPONENTS timer)
-message("Boost version: ${Boost_VERSION}")
 
 # Include Directories --------------------------------------------------------------------------------------------------
 include_directories(
