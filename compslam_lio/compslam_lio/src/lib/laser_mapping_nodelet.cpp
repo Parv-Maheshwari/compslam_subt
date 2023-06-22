@@ -17,7 +17,7 @@ class LaserMappingNodelet : public nodelet::Nodelet {
     pnh_ = getPrivateNodeHandle();
 
     //Create Instance & Initialize
-    laserMapping_ = std::make_unique<loam::LaserMapping>(0.1);
+    laserMapping_ = std::make_unique<loam::LaserMapping>(0.1, 10, 100);
     if (laserMapping_->setup(nh_, pnh_))
       NODELET_WARN("--- Laser Mapping Nodelet Initialized ---");
   }
