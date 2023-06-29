@@ -30,9 +30,20 @@ export LIBRARY_PATH=${LIBRARY_PATH}:${LD_LIBRARY_PATH}
 
 ### Global Install
 Execute the same cmake command as above, just without `-DCMAKE_INSTALL_PREFIX:PATH=$HOME/.local`.
-Furthermore, you have to call
+It is advisable to use `checkinstall` to create a debian first before installing files to the system. That way, it is easier to remove it again or upgrade the version. Install `checkinstall` from apt first and then run:
+
 ```bash
-sudo make install -j$(nproc)
+sudo apt-get update && sudo apt-get install checkinstall
+```
+
+```bash
+make -j$(nproc) && sudo checkinstall
+```
+
+Some users have reported that compslam cannot find the GTSAM libraries when they are installed globally. To fix that, add the following line to your .bashrc
+
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 ```
 
 ## Compilation
