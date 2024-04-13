@@ -44,7 +44,7 @@ odomMaxIterations: 25                    #Maximum Number of LO optimization iter
 odomMinIterations: 1                     #Minimum Number of LO optimization iterations, default 4, (set 0 to perform only first iteration at minimum) 
 odomDeltaTAbort: 0.05                    #Translation threshold for optimization convergence, deafult 0.1 (m) 
 odomDeltaRAbort: 0.05                    #Rotation threshold for optimization convergence, deafult 0.1 (deg)
-odomDegenEigVal: 30                      #Minimum eignevalue threshold for determining degeneracy of LO optimization, default 30
+odomDegenEigTh: 30                      #Minimum eignevalue threshold for determining degeneracy of LO optimization, default 30
 odomRelativeTranslationMax: 0.8          #Max translation threshold between two pointclouds for external odometry to be considered valid input. Determined w.r.t set max robot movement speed
 odomRelativeRotationMax: 0.1             #Max rotation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
   
