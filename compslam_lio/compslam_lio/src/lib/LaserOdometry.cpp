@@ -280,7 +280,7 @@ namespace loam {
 /** Graph Parameters **/
 
 //Verbose Ouput
-        setVerboseLevel(tryGetParam<int>("loamVerbosity", privateNode)
+        setVerboseLevel(tryGetParam<int>("compslamLioVerbosity", privateNode)
         );
 //CUSTOMIZATION
 
