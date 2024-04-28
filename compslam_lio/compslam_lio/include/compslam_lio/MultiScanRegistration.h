@@ -69,20 +69,22 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointVelodyne,
                                   (float, time, time)
 )
 
-/** Velodyne Point struct */
-struct PointRobosense {
+////////////////// Robosense Helios 32 Data structure support //////////////////
+struct PointHelios {
   PCL_ADD_POINT4D;                 // quad-word XYZ
   float intensity;                 // laser intensity reading
-  uint16_t ring;                   // laser ring number
+  std::uint16_t ring;              // laser ring number
+  double timestamp;                // laser time reading
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
 } EIGEN_ALIGN16;
 /** Register as pointcloud struct */
-POINT_CLOUD_REGISTER_POINT_STRUCT (PointRobosense,
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointHelios,
                                   (float, x, x)
                                   (float, y, y)
                                   (float, z, z)
-                                  (float, intensity, intensity)
-                                  //(std::uint16_t, ring, ring)
+                                  (std::uint8_t, intensity, intensity)
+                                  (std::uint16_t, ring, ring)
+                                  (double, timestamp, timestamp)
 )
 
 ////////////////// ANYbotics VLP-16 Data structure support //////////////////
@@ -223,6 +225,9 @@ class MultiScanMapper {
 
   /** Multi scan mapper for Hesai Pandar QT64 according to data sheet. */
   static inline MultiScanMapper Hesai_QT64() { return MultiScanMapper(-52.1f, 52.1f, 64); };
+
+  /** Multi scan mapper for Hesai Pandar XT32 according to data sheet. */
+  static inline MultiScanMapper Hesai_XT32() { return MultiScanMapper(-16.0f, 15.0f, 32); };
 
  private:
   std::string _lidarName; ///< CUSTOMIZATION LiDAR Name

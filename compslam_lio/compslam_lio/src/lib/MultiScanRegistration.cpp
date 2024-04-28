@@ -102,6 +102,8 @@ bool MultiScanRegistration::setupROS(ros::NodeHandle& node, ros::NodeHandle& pri
       _scanMapper = MultiScanMapper::Ouster_O0_128_Div2();
     } else if (lidarName == "QT64") {
       _scanMapper = MultiScanMapper::Hesai_QT64();
+    } else if (lidarName == "XT32") {
+      _scanMapper = MultiScanMapper::Hesai_XT32();
     } else {
       ROS_ERROR("Invalid lidar parameter: model %s is not supported)", lidarName.c_str());
       return false;
@@ -209,11 +211,11 @@ void MultiScanRegistration::handleCloudMessage(const sensor_msgs::PointCloud2Con
     // process
     process(pclPointVelodyneANYbotics, fromROSTime(laserCloudMsg->header.stamp));
   } else if (_scanMapper.getLiDARName() == "Helios-32") {
-    pcl::PointCloud<PointRobosense> pclPointHelios;
+    pcl::PointCloud<PointHelios> pclPointHelios;
     pcl::fromROSMsg(*laserCloudMsg, pclPointHelios);
     // process
     process(pclPointHelios, fromROSTime(laserCloudMsg->header.stamp));
-  } else if (_scanMapper.getLiDARName() == "QT64"){
+  } else if (_scanMapper.getLiDARName() == "QT64" || _scanMapper.getLiDARName() == "XT32"){
     pcl::PointCloud<PointPandar> pclPointPandar;
     pcl::fromROSMsg(*laserCloudMsg, pclPointPandar);
     // process

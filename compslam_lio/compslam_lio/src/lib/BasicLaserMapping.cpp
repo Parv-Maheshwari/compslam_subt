@@ -47,7 +47,7 @@ using std::fabs;
 using std::pow;
 using std::sqrt;
 
-BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxIterations)
+BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxIterations, const float& mapDegenEigVal)
     : _scanPeriod(scanPeriod),
       _stackFrameNum(1),
       _mapFrameNum(5),
@@ -57,7 +57,7 @@ BasicLaserMapping::BasicLaserMapping(const float& scanPeriod, const size_t& maxI
       _minIterations(1),
       _deltaTAbort(0.05),
       _deltaRAbort(0.05),
-      _mapDegenEigVal(100),
+      _mapDegenEigVal(mapDegenEigVal),
       _mapPriorNormThresh(0.3),
       _laserCloudCenWidth(10),
       _laserCloudCenHeight(5),

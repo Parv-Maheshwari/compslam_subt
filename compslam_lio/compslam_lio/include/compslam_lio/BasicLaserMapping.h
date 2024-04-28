@@ -91,7 +91,7 @@ typedef struct IMUState2 {
 
 class BasicLaserMapping {
  public:
-  explicit BasicLaserMapping(const float& scanPeriod = 0.1, const size_t& maxIterations = 10);
+  explicit BasicLaserMapping(const float& scanPeriod = 0.1, const size_t& maxIterations = 10, const float& mapDegenEigVal = 100);
 
   /** \brief Try to process buffered data. */
   bool process(Time const& laserOdometryTime);
