@@ -23,20 +23,12 @@ find_package(Boost REQUIRED COMPONENTS timer)
 message("Boost version: ${Boost_VERSION}")
 
 # Color
-if(NOT WIN32)
+if (NOT WIN32)
     string(ASCII 27 Esc)
     set(ColourReset "${Esc}[m")
     set(BoldMagenta "${Esc}[1;35m")
-    set(Magenta     "${Esc}[35m")
-endif()
-
-# March native check
-#include(CheckCXXCompilerFlag)
-#CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
-#if(COMPILER_SUPPORTS_MARCH_NATIVE)
-#    add_compile_options("-march=native")
-#    message("${BoldMagenta}INFO: Using -march=native${ColourReset}")
-#endif()
+    set(Magenta "${Esc}[35m")
+endif ()
 
 # Catkin Dependencies --------------------------------------------------------------------------------------------------
 set(CATKIN_PACKAGE_DEPENDENCIES
@@ -55,11 +47,11 @@ set(CATKIN_PACKAGE_DEPENDENCIES
         nodelet
         message_filters
         compslam_lio_msgs
-        )
+)
 
 find_package(catkin REQUIRED COMPONENTS
         ${CATKIN_PACKAGE_DEPENDENCIES}
-        )
+)
 
 catkin_package(
         CATKIN_DEPENDS ${CATKIN_PACKAGE_DEPENDENCIES}
@@ -74,7 +66,6 @@ include_directories(
         ${catkin_INCLUDE_DIRS}
         ${EIGEN3_INCLUDE_DIR}
         ${PCL_INCLUDE_DIRS}
-#        ${GTSAM_INCLUDE_DIR}
         ${Boost_INCLUDE_DIRS}
 )
 
@@ -101,7 +92,7 @@ install(TARGETS compslam_lio
         ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-        )
+)
 
 # Nodes ---------------------------------------------------------------------------------------------------------------
 add_executable(multiScanRegistration src/multi_scan_registration_node.cpp)
@@ -125,12 +116,12 @@ install(TARGETS multiScanRegistration
         ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-        )
+)
 
 ## Mark cpp header files for installation
 install(DIRECTORY launch config
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-        )
+)
 
 install(
         FILES nodelet_plugins.xml
