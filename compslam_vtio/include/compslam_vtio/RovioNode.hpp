@@ -311,6 +311,7 @@ class RovioNode {
     lidar_frame_name_ = "/lidar";
     nh_private_.param("camera_frame_name", camera_frame_name_, camera_frame_name_);
     nh_private_.param("lidar_frame_name", lidar_frame_name_, lidar_frame_name_);
+    imgUpdateMeas_.template get<mtImgMeas::_aux>().setWorldFrame(world_frame_);
     //CUSTOMIZATION
 
     // Initialize messages

@@ -27,9 +27,9 @@
   <arg name="cam0_offset"                          default="0.0018"/>  <!-- From KALIBR: timeshift[s](t_imu = t_cam + shift) -->
 
   <!-- Use LiDAR Depth for Feature Depth Initialization -->
-  <arg name="lidar_input_topic"                    default="/lidar/point_cloud_IGNORE_FOR_NOW"/> <!-- This only has effect if subscribing to provided lidar topic -->
-  <arg name="lidar_input_frame_name"               default="/velodyne_IGNORE_FOR_NOW"/>
-  <arg name="camera_input_frame_name"              default="/cam0_IGNORE_FOR_NOW"/>
+  <arg name="lidar_input_topic"                    default="/point_cloud_filter/lidar/point_cloud_filtered"/> <!-- This only has effect if subscribing to provided lidar topic -->
+  <arg name="lidar_input_frame_name"               default="/lidar"/>
+  <arg name="camera_input_frame_name"              default="/cam0_sensor_frame"/>
 
   <!-- CLAHE - Histogram Equalization for Dark Environments -->
   <arg name="histogram_equalize_8bit_images"       default="false"/>
@@ -58,7 +58,7 @@
 
 
   <!-- Optional uncompression of input topic -->
-  <!-- <node name="republish" type="republish" pkg="image_transport" output="screen"
-      args="compressed in:=/alphasense_driver_ros/cam0 raw out:=/alphasense_driver_ros/cam0" /> -->
+  <node name="republish" type="republish" pkg="image_transport" output="screen"
+      args="compressed in:=/alphasense_driver_ros/cam0 raw out:=/alphasense_driver_ros/cam0" />
 
 </launch>

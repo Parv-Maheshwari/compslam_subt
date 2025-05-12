@@ -4,7 +4,7 @@
   <arg name="ns" default="compslam_lio"/>
   
   <!-- Input topics remap -->
-  <arg name="pointcloud_topic_name" default="/lidar/point_cloud"/>
+  <arg name="pointcloud_topic_name" default="/point_cloud_filter/lidar/point_cloud_filtered"/>
   <arg name="imu_topic_name"        default="/sensors/imu"/>
 
   <!-- Config params -->
