@@ -1,7 +1,7 @@
 <launch>
 
   <!-- Visualize in RViz -->
-  <arg name="show_rviz" default="false"/>
+  <arg name="show_rviz" default="true"/>
   <arg name="rviz_config_file" default="$(find compslam_lio)/rviz/compslam_lio.rviz" />
 
   <!-- Run the CompSLAM LIO Nodelets in a specific namespace -->
@@ -53,6 +53,7 @@
     <rosparam file="$(arg overlay_config_filename)" command="load"/> <!-- Overlay params should be the last ones to be loaded, so settings from caller are latest ones to be applied -->
   </node>
 
+  <!-- RViz -->
   <node pkg="rviz" type="rviz" name="rviz_compslam_lio" args="-d $(arg rviz_config_file)" output="screen" if="$(arg show_rviz)" />
 
 </launch>

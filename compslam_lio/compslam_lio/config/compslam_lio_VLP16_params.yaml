@@ -27,13 +27,13 @@ ringAngleTolerance: 0.5                  # [deg], Tolerance up to which angle ra
 imuHistorySize: 800                      #IMU Message Buffer Size , default: 200 
 minRange: 0.1                            #Minimum Range of useful points, default: 0.1
 maxRange: 80.0                           #Maximum Range of useful points, default: 80
-featureRegions: 6                        #Number of Azimuth Regions Pointcloud is divided, default:6
+featureRegions: 8                        #Number of Azimuth Regions Pointcloud is divided, default:6
 curvatureRegion: 5                       #Number of neigboring points on a scan line on each side of a point used for calculating curvature of that point, default 5
-maxCornerSharp: 2                        #Number of Sharp Features per scan line in each curvatureRegion, default:2
-maxCornerLessSharp: 20                   #Number of Less Sharp Features per scan line in each curvatureRegion, default:10*maxCornerLessSharp
-maxSurfaceFlat: 4                        #Number of FlatFeatures per scan line in each curvatureRegion, default:4
+maxCornerSharp: 4                        #Number of Sharp Features per scan line in each curvatureRegion, default:2
+maxCornerLessSharp: 8                    #Number of Less Sharp Features per scan line in each curvatureRegion, default:10*maxCornerLessSharp
+maxSurfaceFlat: 8                        #Number of FlatFeatures per scan line in each curvatureRegion, default:4
 surfaceCurvatureThreshold: 0.1           #Threshold above which feature is categorized Sharp, default 0.1
-lessFlatFilterSize: 0.2                  #Leaf Size for downsampling remaing pointcloud after feature selection, default 0.2
+lessFlatFilterSize: 0.1                  #Leaf Size for downsampling remaing pointcloud after feature selection, default 0.2
 checkInvalidFeatureRegions: false
 publishDebugArrowsToRemovedFeatures: false
 azimuthBoundaries: [1.1,1.5,1.7,2.2]     #ANYmal
@@ -54,12 +54,12 @@ mapMinIterations: 1                      #Minimum Number of LM optimization iter
 mapDeltaTAbort: 0.05                     #Translation threshold for optimization convergence, deafult 0.05 (m) 
 mapDeltaRAbort: 0.05                     #Rotation threshold for optimization convergence, deafult 0.05 (deg)
 cornerFilterSize: 0.2                    #Leaf Size for downsampling current CORNER pointcloud before merging in map, default 0.2
-surfaceFilterSize: 0.2                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
-mapVisFilterSize: 0.4                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
-rndSampleMapVisNoOfSamples: 100000       #Number of Samples for random sampling of the visualized map cloud, default 100000
+surfaceFilterSize: 0.1                   #Leaf Size for downsampling current FLAT/SURFACE pointcloud before merging in map, default 0.2
+mapVisFilterSize: 0.2                    #Leaf Size for downsampling current visualization Map pointcloud, default 0.5
+rndSampleMapVisNoOfSamples: 500000       #Number of Samples for random sampling of the visualized map cloud, default 100000
 mapCubeSize: 10.0                        #Size of Cube/Voxel used for saving internal map (meters), default 50
-mapDimensionsInCubes: [101,21,101]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
-mapStartLocationInCubes: [50,10,50]      #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
+mapDimensionsInCubes: [201,41,201]       #WxHxD of internal map in CUBE UNITS, default:[21,11,21] #Width,Height,Depth
+mapStartLocationInCubes: [100,20,100]    #Robot start position in internal map in CUBE UNITS, default:[10,5,10] #Width,Height,Depth
 numNeighborSubmapCubes: 4                #Number of Neigboring cubes in +/- direction along each axis to build submap for matching 
 mapDegenEigVal: 40                       #Minimum eignevalue threshold for determining degeneracy of LM optimization, default 30
 mapPriorNormThresh: 0.5                  #Max translation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
