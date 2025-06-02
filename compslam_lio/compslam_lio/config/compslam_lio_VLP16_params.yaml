@@ -1,5 +1,5 @@
 #Common
-compslamLioVerbosity: 0                         #Debug Output, 0-disable, higher for more verbose output
+compslamLioVerbosity: 0                  #Debug Output, 0-disable, higher for more verbose output
 scanPeriod: 0.1                          #Expected scan period for input pointcloud in seconds. Used of Distortion correction
 ioRatio: 2                               #Ratio of publish rate of LaserOdometry w.r.t input PCL rate. LO is calculated for each PCL but published at slower rate to Mapping, default 2
 lidarFrame: lidar                        #LiDAR frame name - used for LiDAR-to-Sensor transform lookup
@@ -7,13 +7,8 @@ rotateInputCloud: false                  #Flag to rotate input cloud before esti
 inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDER YPR(radians) #90 deg = 1.5707963268 rad
 
 #External Prior/Transform Input
-<<<<<<< Updated upstream
-forceExtPriorUseMapping : true          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
-extPriorAvailable: true                 #Flag to check if 'Primary' external prior is available
-=======
 forceExtPriorUseMapping: false           #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
 extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
->>>>>>> Stashed changes
 extOdomFrame: imu_link                   #External Prior odometry frame name
 extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
@@ -41,7 +36,7 @@ surfaceCurvatureThreshold: 0.1           #Threshold above which feature is categ
 lessFlatFilterSize: 0.2                  #Leaf Size for downsampling remaing pointcloud after feature selection, default 0.2
 checkInvalidFeatureRegions: false
 publishDebugArrowsToRemovedFeatures: false
-azimuthBoundaries: [1.1,1.5,1.7,2.2] #ANYmal
+azimuthBoundaries: [1.1,1.5,1.7,2.2]     #ANYmal
 
 #LaserOdometry
 undistortInputCloud: false               #If true External Prior or Motion Model will be used for LiDAR Ego Motion Compensation of input cloud
