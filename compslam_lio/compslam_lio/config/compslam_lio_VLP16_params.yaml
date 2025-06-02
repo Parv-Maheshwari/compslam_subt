@@ -7,17 +7,22 @@ rotateInputCloud: false                  #Flag to rotate input cloud before esti
 inputCloudRotation: [0.0, 0.0, 0.0]      #Rotation applied to input cloud - ORDER YPR(radians) #90 deg = 1.5707963268 rad
 
 #External Prior/Transform Input
+<<<<<<< Updated upstream
 forceExtPriorUseMapping : true          #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
 extPriorAvailable: true                 #Flag to check if 'Primary' external prior is available
+=======
+forceExtPriorUseMapping: false           #Flag to force use of FULL external prior instead of LaserOdometry TRANSLATION Only Estimate
+extPriorAvailable: true                  #Flag to check if 'Primary' external prior is available
+>>>>>>> Stashed changes
 extOdomFrame: imu_link                   #External Prior odometry frame name
-extFixedFrame: odom                     #External Prior fixed frame name
+extFixedFrame: odom                      #External Prior fixed frame name
 extSensorFrame: imu_link                 #External Prior sensor frame name
 extOdomTimeOffset : 0.0                  #Timeoffset (seconds) between LiDAR pointcloud and external source
 fallbackExtPriorAvailable: false         #Flag to check if 'Fallback ' external prior is available
 fallbackExtOdomFrame: vio_imu            #Fallback External Prior odometry frame name
 fallbackExtFixedFrame: vio_imu_init      #Fallback External Prior fixed frame name
-fallbackExtSensorFrame: imu_sensor_frame #Fallback External Prior sensor frame name
-fallbackExtOdomTimeOffset: 0.00         #Timeoffset (seconds) between LiDAR pointcloud and Fallbackexternal source
+fallbackExtSensorFrame: vio_imu          #Fallback External Prior sensor frame name
+fallbackExtOdomTimeOffset: -0.3          #Timeoffset (seconds) between LiDAR pointcloud and Fallbackexternal source
 
 #MultiScanRegistration
 lidar: VLP-16-ANYbotics                  #Choose LiDAR type - options: VLP-16  HDL-32  HDL-64E  O1-16 O1-64 Bperl-32
@@ -44,7 +49,7 @@ odomMaxIterations: 25                    #Maximum Number of LO optimization iter
 odomMinIterations: 1                     #Minimum Number of LO optimization iterations, default 4, (set 0 to perform only first iteration at minimum) 
 odomDeltaTAbort: 0.05                    #Translation threshold for optimization convergence, deafult 0.1 (m) 
 odomDeltaRAbort: 0.05                    #Rotation threshold for optimization convergence, deafult 0.1 (deg)
-odomDegenEigTh: 30                      #Minimum eignevalue threshold for determining degeneracy of LO optimization, default 30
+odomDegenEigTh: 30                       #Minimum eignevalue threshold for determining degeneracy of LO optimization, default 30
 odomRelativeTranslationMax: 0.8          #Max translation threshold between two pointclouds for external odometry to be considered valid input. Determined w.r.t set max robot movement speed
 odomRelativeRotationMax: 0.1             #Max rotation threshold between two pointclouds from external odometry to be considered valid input. Determined w.r.t set max robot movement speed
   
