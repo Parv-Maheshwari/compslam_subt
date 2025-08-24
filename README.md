@@ -35,7 +35,7 @@ The framework is still under development and will be updated, extended, and more
 future.
 
 <p align="center">
-  <img src="docs_src/img/hf_illustration.png" width="100%" height="60%">
+  <img width="60%" height="60%" alt="dataset_overview_scale" src="https://github.com/user-attachments/assets/59768ed1-e9e8-4aba-b51a-b53371c98b1d" />
 </p>
 
 ## Instructions
