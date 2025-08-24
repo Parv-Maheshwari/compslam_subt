@@ -35,7 +35,7 @@ The framework is still under development and will be updated, extended, and more
 future.
 
 <p align="center">
-  <img width="60%" height="60%" alt="dataset_overview_scale" src="https://github.com/user-attachments/assets/59768ed1-e9e8-4aba-b51a-b53371c98b1d" />
+  <img width="100%" height="100%" alt="dataset_overview_scale" src="https://github.com/user-attachments/assets/59768ed1-e9e8-4aba-b51a-b53371c98b1d" />
 </p>
 
 ## Instructions
@@ -87,7 +87,7 @@ If you want to run the same without `VTIO`, disable the flag `run_compslam_vtio`
 
 The expected output should roughly look like this:
 
-<p align="center">
+<p align="left">
   <img width="50%" height="50%" alt="image" src="https://github.com/user-attachments/assets/06aa92fb-e02a-4c25-8f4c-e62f37618f6c" />
 </p>
 
