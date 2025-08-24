@@ -2,7 +2,7 @@
   <img width="60%" height="60%" alt="logo_cropped" src="https://github.com/user-attachments/assets/07426f2d-bcd1-43b9-8bc1-5c4388233586" />
 </p>
 
-# Complementary SLAM
+# CompSLAM: Complementary Hierarchical Multi-Modal Localization and Mapping for Robot Autonomy in Underground Environments
 
 **Authors:**
 [Shehryar Khattak](https://www.linkedin.com/in/shehryar-khattak/), 
