@@ -86,7 +86,10 @@ rosbag play subt_finals_loop_dataset.bag --clock
 If you want to run the same without `VTIO`, disable the flag `run_compslam_vtio` inside [./compslam/launch/compslam.launch](./compslam/launch/compslam.launch).
 
 The expected output should roughly look like this:
-<img width="50%" height="50%" alt="image" src="https://github.com/user-attachments/assets/06aa92fb-e02a-4c25-8f4c-e62f37618f6c" />
+
+<p align="center">
+  <img width="50%" height="50%" alt="image" src="https://github.com/user-attachments/assets/06aa92fb-e02a-4c25-8f4c-e62f37618f6c" />
+</p>
 
 ## Paper
 
