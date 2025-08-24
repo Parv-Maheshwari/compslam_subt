@@ -7,11 +7,11 @@
 **Authors:**
 [Shehryar Khattak](https://www.linkedin.com/in/shehryar-khattak/), 
 [Timon Homberger], 
-[Lukas Bernreiter], 
+[Lukas Bernreiter](https://www.linkedin.com/in/lukas-bernreiter/), 
 [Julian Nubert](https://www.linkedin.com/in/juliannubert/), 
-[Olov Andersson], 
-[Roland Siegwart], 
-[Kostas Alexis], 
+[Olov Andersson](https://www.linkedin.com/in/olov-andersson-88ab477/), 
+[Roland Siegwart](https://www.linkedin.com/in/roland-siegwart-85466912/), 
+[Kostas Alexis](https://www.linkedin.com/in/kostas-alexis-67713918/), 
 [Marco Hutter](https://www.linkedin.com/in/marco-hutter/)
 
 <h4>
