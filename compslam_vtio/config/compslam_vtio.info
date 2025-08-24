@@ -8,15 +8,16 @@ Common
 }
 Camera0
 {
-  CalibrationFile;
-  qCM_x  0.0012364909778;                               X-entry of IMU to Camera quaterion (Hamilton)
-  qCM_y  -0.70784508435;                               Y-entry of IMU to Camera quaterion (Hamilton)
-  qCM_z  0.706355873189;                               Z-entry of IMU to Camera quaterion (Hamilton)
-  qCM_w  0.00389718646104;                               W-entry of IMU to Camera quaterion (Hamilton)
-  MrMC_x 0.0447126991;                               X-entry of IMU to Camera vector (expressed in IMU CF) [m]
-  MrMC_y -0.0790575535;                               Y-entry of IMU to Camera vector (expressed in IMU CF) [m]
-  MrMC_z 0.0277485595;                               Z-entry of IMU to Camera vector (expressed in IMU CF) [m]
+ CalibrationFile;
+ qCM_x  0.000370028483724225;                           X-entry of IMU to Camera quaterion (Hamilton)
+ qCM_y  -0.708175572888301;                              Y-entry of IMU to Camera quaterion (Hamilton)
+ qCM_z  0.706004748415729;                               Z-entry of IMU to Camera quaterion (Hamilton)
+ qCM_w  0.00667205048629346;                           W-entry of IMU to Camera quaterion (Hamilton)
+ MrMC_x 0.0435590656;                               X-entry of IMU to Camera vector (expressed in IMU CF) [m]
+ MrMC_y -0.0788327899;                               Y-entry of IMU to Camera vector (expressed in IMU CF) [m]
+ MrMC_z 0.0254174943;                               Z-entry of IMU to Camera vector (expressed in IMU CF) [m]
 }
+
 Camera1
 {
   CalibrationFile;            
@@ -86,7 +87,7 @@ ImgUpdate
 	updateVecNormTermination 1e-4;
 	maxNumIteration 20;
     doPatchWarping true;										Should the patches be warped
-    doFrameVisualisation false;									Should the frames be visualized
+    doFrameVisualisation true;									Should the frames be visualized
     visualizePatches false;										Should the patches be visualized
     useDirectMethod true;										Should the EKF-innovation be based on direct intensity error (o.w. reprojection error)
     startLevel 3;												Highest patch level which is being employed (must be smaller than the hardcoded template parameter)
@@ -135,10 +136,10 @@ ImgUpdate
     discriminativeSamplingGain 1.1;								Gain for threshold above which the samples must lie (if <= 1.0 the patchRejectionTh is used).
     maxAllowedFeatureDistance 30.0;                             Max allowed estimated feature distance after performing update, remove features with very far away estimated depth and clustered features during backward motion.
     minTimeBeforeFeaDistCheck 1.0;                              Min time allowed in secd before maxAllowedFeatureDistance check is applied. Typically 1.0 second for camera at 20 Hz i.e. 20 updates have been applied
-    useDepthFromLiDAR false;                                     Enable or Disable usage of LiDAR direct depth for features
-    lidarDepthCalcMode_ 1;                                      Use Patch(0) or Line(1) for Depth Calculation
-    depthSearchWindowWidth 15; 23;                              Horizontal size of direct depth search window
-    depthSearchWindowHeight 7; 47;                              Vertical size of direct depth search window
+    useDepthFromLiDAR true;                                     Enable or Disable usage of LiDAR direct depth for features
+    lidarDepthCalcMode_ 0;                                      Use Patch(0) or Line(1) for Depth Calculation
+    depthSearchWindowWidth 23; 15;                              Horizontal size of direct depth search window
+    depthSearchWindowHeight 47; 7;                              Vertical size of direct depth search window
     directDepInitCovScaleFactor 1e-3;                           Factor to scale depth initialization covaraince in case of direct depth initialization
     MotionDetection
     {

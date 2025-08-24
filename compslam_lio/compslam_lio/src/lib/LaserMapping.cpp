@@ -430,9 +430,9 @@ bool LaserMapping::setup(ros::NodeHandle& node, ros::NodeHandle& privateNode) {
 
   //Verbose Ouput
   iParam = 0;
-  if (privateNode.getParam("loamVerbosity", iParam)) {
+  if (privateNode.getParam("compslamLioVerbosity", iParam)) {
     setVerboseLevel(iParam);
-    ROS_INFO("Set loamVerbosity: %d", iParam);
+    ROS_INFO("Set compslamLioVerbosity: %d", iParam);
   } else
     setVerboseLevel(0);
   //CUSTOMIZATION

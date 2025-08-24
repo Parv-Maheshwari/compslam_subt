@@ -47,6 +47,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Header.h>
 #include <tf/tf.h>
+#include <tf/transform_listener.h>
 //CUSTOMIZATION
 
 namespace rovio {
@@ -98,11 +99,13 @@ class ImgUpdateMeasAuxiliary : public LWF::AuxiliaryBase<ImgUpdateMeasAuxiliary<
   double imgTime_;
 
   //CUSTOMIZATION
-  std_msgs::Header imgheader_, pclHeader_;
+  std_msgs::Header imgHeader_, pclHeader_;
   tf::Transform pcl2imgTF_;
   pcl::PointCloud<pcl::PointXYZI> pclCloud_;
-  void setImgHeader(const std_msgs::Header& h) { imgheader_ = h; }
+  std::string worldFrame_;
+  void setImgHeader(const std_msgs::Header& h) { imgHeader_ = h; }
   void setCloudHeader(const std_msgs::Header& h) { pclHeader_ = h; }
+  void setWorldFrame(const std::string& wf) { worldFrame_ = wf; }
   void setLidarCameraCalibration(const tf::Transform& lidar2cam) {
     pcl2imgTF_ = lidar2cam;
     std::cout << "--- ROVIO: PCL_to_Image transform, t(x,y,z):" << pcl2imgTF_.getOrigin().x() << "," << pcl2imgTF_.getOrigin().y() << "," << pcl2imgTF_.getOrigin().z()
@@ -269,6 +272,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
   int depthSearchWindowWidth_;             /**<CUSTOMIZATION: Horizontal size of direct depth search window*/
   int depthSearchWindowHeight_;            /**<CUSTOMIZATION: Vertical size of direct depth search window*/
   double directDepInitCovScaleFactor_;     /**<CUSTOMIZATION: Factor to scale depth initialization covaraince in case of direct depth initialization*/
+  tf::TransformListener lidar2CamListener_;/**<CUSTOMIZATION: TF transform listener to get transform at the time when projecting lidar to image frame*/
 
   // Temporary
   mutable PixelOutputCT pixelOutputCT_;
@@ -673,7 +677,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
       for (int camID = 0; camID < mtState::nCam_; ++camID) {
         projectedDepthImgs_[camID] = cv::Mat::zeros(meas.aux().pyr_[camID].imgs_[0].rows, meas.aux().pyr_[camID].imgs_[0].cols, CV_32FC1);
         std::clock_t projectPCLtoCameraFrame_t = std::clock();
-        projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, projectedDepthImgs_[camID]);
+        projectPCLtoImgFrame(meas.aux().pclCloud_, meas.aux().pcl2imgTF_, camID, projectedDepthImgs_[camID], meas.aux().imgHeader_, meas.aux().pclHeader_, meas.aux().worldFrame_);
         if (verbose_) std::cout << " Timing - projectPCLtoImgFrame: " << double(std::clock() - projectPCLtoCameraFrame_t) / CLOCKS_PER_SEC * 1000.0
                                 << " ms - for CamID:" << camID
                                 << " NonZero DepthImg pts: " << cv::countNonZero(projectedDepthImgs_[camID]) << std::endl;
@@ -1225,9 +1229,9 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
           //Get Feature
           auto& f = filterState.fsm_.features_[ID];
           //Check 1.Feature is Valid AND 2.Either new depth initialization OR update depth after min time
-          if (filterState.fsm_.isValid_[ID] &&
-              (!f.mpCoordinates_->directDepthInit_ ||
-               (filterState.t_ - f.mpStatistics_->lastDepthUpdate_) > minTimeBeforeFeaDistCheck_)) {
+          if (f.mpCoordinates_->isInFront() &&
+              filterState.fsm_.isValid_[ID] &&
+              !f.mpCoordinates_->directDepthInit_) {
             //Get Feature Depth
             float directDepth = getFeatureDirectDepth(f.mpCoordinates_->get_c(), projectedDepthImgs_[camID], ID);
             if (directDepth > 0) {
@@ -1347,12 +1351,22 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
    *  @param camID - ID of the camera, in which image the LiDAR points should be projected.
    *  @param dImg - Depth Image created by projecting valid LiDAR points into camera frame
    */
-  void projectPCLtoImgFrame(const pcl::PointCloud<pcl::PointXYZI>& cloud, const tf::Transform& lidar2cameraTF, const int& camID, cv::Mat& dImg) {
+void projectPCLtoImgFrame(const pcl::PointCloud<pcl::PointXYZI>& cloud, const tf::Transform& lidar2cameraTF, const int& camID, cv::Mat& dImg, 
+                           const std_msgs::Header& imgHeader, const std_msgs::Header& pclHeader, const std::string& worldFrame) {
     //If point cloud is empty return an empty Mat
     if (cloud.points.size() == 0) {
       dImg = cv::Mat();
       return;
     }
+
+    // Fresh lookup for lidar to camera transform
+    tf::StampedTransform pcl2imgTF;
+    bool lookup_success = lookupLidar2CameraTransformation(pclHeader, imgHeader, pcl2imgTF, worldFrame);
+    tf::Transform lidar2camTransform;
+    if (lookup_success) {
+      lidar2camTransform = pcl2imgTF;
+    }
+    else lidar2camTransform = lidar2cameraTF;
 
     //Loop through LiDAR points
     float* matPtr = (float*)dImg.data;
@@ -1366,7 +1380,7 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         continue;
 
       //Transform point from LiDAR frame to Camera frame and remove points behind camera
-      tf::Vector3 pt_cam = lidar2cameraTF * tf::Vector3(pt.x, pt.y, pt.z);
+      tf::Vector3 pt_cam = lidar2camTransform * tf::Vector3(pt.x, pt.y, pt.z);
 
       //Check if point is behind camera (ideally zero but 10cm to avoid noisy points)
       if (pt_cam.getZ() < 0.1)
@@ -1397,6 +1411,24 @@ class ImgUpdate : public LWF::Update<ImgInnovation<typename FILTERSTATE::mtState
         }
       }
     }
+  }
+
+  /** \brief Get latest lidar to camera transform for usage within projectPCLtoImgFrame
+   *
+   *  @param imgHeader  - Header of the image message
+   *  @param pclHeader  - Header of the pcl message
+   *  @param pcl2imgTF  - Transform to be populated
+   *  @param worldFrame - Fixed world frame for TF lookup
+   */
+  bool lookupLidar2CameraTransformation(const std_msgs::Header& imgHeader, const std_msgs::Header& pclHeader, tf::StampedTransform& pcl2imgTF, const std::string& worldFrame) {
+    try {
+      lidar2CamListener_.waitForTransform(pclHeader.frame_id, imgHeader.frame_id, ros::Time(0), ros::Duration(0.1));
+      lidar2CamListener_.lookupTransform(pclHeader.frame_id, pclHeader.stamp, imgHeader.frame_id, imgHeader.stamp, worldFrame, pcl2imgTF);
+    } catch (tf::TransformException& ex) {
+      ROS_WARN("%s", ex.what());
+      return false;
+    }
+    return true;
   }
 
   /** \brief Get LiDAR depth surrounding a camera feature from the depth image created by projectPCLtoImgFrame

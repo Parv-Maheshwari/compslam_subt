@@ -2,7 +2,7 @@
 
   <!-- Module options -->
   <arg name="run_compslam_lio"             default="true"/>
-  <arg name="run_compslam_vtio"            default="true"/>
+  <arg name="run_compslam_vtio"            default="false"/>
   <arg name="run_compslam_se"              default="false"/>
 
   <!-- Lidar options for compslam_lio -->
@@ -15,7 +15,5 @@
 
   <!-- CompSLAM VTIO -->
   <include file="$(find compslam_vtio)/launch/compslam_vtio.launch" if="$(arg run_compslam_vtio)"/>
-
-  <!-- CompSLAM SE -->
 
 </launch>

@@ -6,8 +6,9 @@
   <!-- Frame Connectors -->
   <!-- Standalone CompSLAM LIO Node Frame Connectors -->
   <group if="$(eval server_ns == '' and client_ns == '')">
-<!--    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_map_corrected" respawn="true" args="0 0 0 0 0 0 map $(arg ns)/camera_init_CORRECTED"/>-->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_map_corrected" respawn="true" args="0 0 0 0 0 0 map $(arg ns)/camera_init_CORRECTED"/>
     <node pkg="tf2_ros" type="static_transform_publisher" name="tf_corrected_init" respawn="true" args="0 0 0 1.570796327 0 1.570796327 $(arg ns)/camera_init_CORRECTED $(arg ns)/camera_init"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_vio_map" respawn="true" args="0 0 0 0 0 0 odom vio_map"/>
   </group>
 
   <!-- Server CompSLAM LIO Node Frame Connectors -->
