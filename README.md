@@ -1,3 +1,7 @@
+<p align="center">
+<img width="60%" height="60%" alt="logo" src="https://github.com/user-attachments/assets/bfcb81e3-4357-46a7-9b0f-e6fbb2d0b56f" />
+</p>
+
 # Complementary SLAM
 
 Main Author: Shehryar Khattak ([skhattak@ethz.ch](mailto:skhattak@ethz.ch))
