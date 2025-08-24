@@ -17,3 +17,17 @@ To build the entire stack, execute:
 ```bash
 catkin build compslam -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ```
+
+## Paper
+
+If you find this code useful or use it in your work, please consider citing:
+
+```
+@inproceedings{khattak2025compslam,
+  title={CompSLAM: Complementary Hierarchical Multi-Modal Localization and Mapping for Robot Autonomy in Underground Environments},
+  author={Shehryar Khattak, Timon Homberger, Lukas Bernreiter, Julian Nubert, Olov Andersson, Roland Siegwart, Kostas Alexis, Marco Hutter},
+  booktitle={IEEE ICRA Workshop Robots in the Wild},
+  year={2025},
+  organization={IEEE}
+}
+```
