@@ -1,0 +1,9 @@
+repositories:
+  compslam_subt:
+    type: git
+    url: git@github.com:leggedrobotics/compslam_subt.git
+    version: main
+  gtsam_catkin:
+    type: git
+    url: git@github.com:leggedrobotics/gtsam_catkin.git
+    version: main
