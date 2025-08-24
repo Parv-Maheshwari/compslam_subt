@@ -6,7 +6,7 @@
 
 **Authors:**
 [Shehryar Khattak](https://www.linkedin.com/in/shehryar-khattak/), 
-[Timon Homberger], 
+[Timon Homberger](https://www.kth.se/profile/timonh?l=en), 
 [Lukas Bernreiter](https://www.linkedin.com/in/lukas-bernreiter/), 
 [Julian Nubert](https://www.linkedin.com/in/juliannubert/), 
 [Olov Andersson](https://www.linkedin.com/in/olov-andersson-88ab477/), 
