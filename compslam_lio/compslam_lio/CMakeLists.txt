@@ -15,6 +15,7 @@ find_package(Eigen3 REQUIRED)
 message("Eigen Version:" ${EIGEN3_VERSION_STRING})
 message("Eigen Path:" ${Eigen3_DIR})
 
+set(PCL_DIR "/usr/lib/x86_64-linux-gnu/cmake/pcl") #FORCE SYSTEM VERSION
 find_package(PCL REQUIRED)
 message("PCL Version:" ${PCL_VERSION})
 message("PCL Path:" ${PCL_DIR})

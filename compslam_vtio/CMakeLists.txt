@@ -31,6 +31,7 @@ find_package(OpenCV REQUIRED COMPONENTS core highgui imgproc features2d)
 message("OpenCV version: ${OpenCV_VERSION}")
 message("OpenCV path: ${OpenCV_DIR}$")
 
+set(PCL_DIR "/usr/lib/x86_64-linux-gnu/cmake/pcl") #FORCE SYSTEM VERSION
 find_package(PCL REQUIRED)
 message("PCL version: ${PCL_VERSION}")
 message("PCL path: ${PCL_DIR}$")
