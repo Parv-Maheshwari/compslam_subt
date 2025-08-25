@@ -214,8 +214,8 @@ void BasicLaserOdometry::process() {
     _graphMgr.initImuIntegrator(g);
 
     //Initialize Factor Graph with prior factor --> assume zero yaw and position of LiDAR
-    gtsam::Pose3 init_T_W_L = gtsam::Pose3::Identity();
-    gtsam::Pose3 init_T_W_I = gtsam::Pose3::Identity();
+    gtsam::Pose3 init_T_W_L = gtsam::Pose3::identity();
+    gtsam::Pose3 init_T_W_I = gtsam::Pose3::identity();
     if (_initGraphRollPitchFromIMU) {
       const gtsam::Rot3 yaw_R_W_I = init_T_W_L.rotation() * gtsam::Pose3(_T_L_I).rotation();
       // Origin at LiDAR
