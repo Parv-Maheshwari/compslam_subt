@@ -7,3 +7,7 @@ repositories:
     type: git
     url: git@github.com:leggedrobotics/gtsam_catkin.git
     version: main
+  kindr:
+    type: git
+    url: git@github.com:ethz-asl/kindr.git
+    version: main
