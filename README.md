@@ -49,12 +49,14 @@ cd compslam_ws
 mkdir src
 catkin init
 catkin config -DCMAKE_BUILD_TYPE=Release
+cd src
 ```
 
 Then pull the required repositories:
 ```bash
 git clone https://github.com/leggedrobotics/compslam_subt.git
 vcs import < compslam_subt/repos.vcs
+cd compslam_subt && git submodule_update --init
 ```
 
 ### Installation
