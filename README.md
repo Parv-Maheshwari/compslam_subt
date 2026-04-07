@@ -56,7 +56,7 @@ Then pull the required repositories:
 ```bash
 git clone https://github.com/leggedrobotics/compslam_subt.git
 vcs import < compslam_subt/repos.vcs
-cd compslam_subt && git submodule_update --init
+cd compslam_subt && git submodule update --init
 ```
 
 ### Installation
