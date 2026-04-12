@@ -1,0 +1,13 @@
+repositories:
+  compslam_subt:
+    type: git
+    url: https://github.com/leggedrobotics/compslam_subt.git
+    version: main
+  gtsam_catkin:
+    type: git
+    url: https://github.com/leggedrobotics/gtsam_catkin.git
+    version: main
+  kindr:
+    type: git
+    url: https://github.com/ANYbotics/kindr.git
+    version: master
