@@ -1,0 +1,13 @@
+image_width: 640
+image_height: 512
+camera_name: thermal_left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [410.5856507396294, 0.0, 317.4390770968569, 0.0, 410.89755943306716, 255.58631939456106,
+    0.0, 0.0, 1.0]
+distortion_model: equidistant
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.04532477715391437, -0.10767837549465316, 0.09990196411363018, -0.042007074109360255]

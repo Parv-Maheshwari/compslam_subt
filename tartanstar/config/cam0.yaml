@@ -1,0 +1,13 @@
+image_width: 960
+image_height: 600
+camera_name: rgb_left
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [369.925479135, 0.0, 483.852274195, 0.0, 369.85702104, 325.872972605, 0.0,
+    0.0, 1.0]
+distortion_model: equidistant
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [0.32870279, 0.12255267, -0.15396151, 0.10293776]

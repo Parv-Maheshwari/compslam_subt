@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- TartanStar, RGB (cam0) + thermal (cam1) + GQ7 IMU; needs the NCAM=2 build.
+       Upstream launch/compslam_vtio.launch with: our topics and calibration,
+       camN_offset 0 (stamps are already corrected capture times on the IMU
+       clock), frame names without a leading "/", LiDAR topic remapped to an
+       unpublished name (useDepthFromLiDAR is false), no compressed republish. -->
+  <node ns="compslam_vtio" pkg="compslam_vtio" type="compslam_vtio_node" name="compslam_vtio"
+        output="screen" clear_params="true">
+    <param name="world_frame" value="vio_map"/>
+    <param name="imu_frame" value="vio_imu"/>
+    <param name="camera_frame" value="vio_camera"/>
+    <param name="filter_config" value="$(dirname)/../config/compslam_vtio_dual.info"/>
+    <param name="camera0_config" value="$(dirname)/../config/cam0.yaml"/>
+    <remap from="cam0/image_raw" to="/cam0/image_raw"/>
+    <param name="cam0_offset" value="0.0"/>
+    <param name="camera1_config" value="$(dirname)/../config/cam1.yaml"/>
+    <remap from="cam1/image_raw" to="/cam1/image_raw"/>
+    <param name="cam1_offset" value="0.0"/>
+    <remap from="imu0" to="/imu"/>
+    <param name="resize_input_image" value="false"/>
+    <param name="resize_factor" value="1.0"/>
+    <remap from="lidar/pcl" to="/compslam_vtio/lidar_unused"/>
+    <param name="lidar_frame_name" value="lidar"/>
+    <param name="camera_frame_name" value="rgb_left"/>
+    <param name="histogram_equalize_8bit_images" value="false"/>
+  </node>
+</launch>
