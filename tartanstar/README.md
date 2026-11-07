@@ -17,10 +17,10 @@ tolerance we are missing, or a different input arrangement you used?
 
 ## TartanStar
 
-TartanStar is a multi-modal robot dataset (CMU AirLab) with RGB, thermal,
-LiDAR and inertial data recorded on a hand-held / vehicle-mounted rig in
-indoor, outdoor, off-road and night conditions, with LiDAR-based reference
-trajectories, for benchmarking visual, thermal and multi-modal odometry. The
+TartanStar is a multi-modal dataset (CMU AirLab) with synchronized RGB,
+thermal, LiDAR and inertial data recorded in indoor, outdoor, off-road and
+night conditions, with LiDAR-based reference trajectories, used to benchmark
+visual, thermal and multi-modal odometry. The
 clip here is the first 60 s of the indoor trace `2026-05-25-12-20-25`, which
 starts static.
 
