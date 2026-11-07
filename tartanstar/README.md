@@ -48,7 +48,7 @@ starts static.
 
 Bag: `tartanstar_2026-05-25-12-20-25_first60s.bag` (ROS1, lz4, 1.7 GB,
 1,770 + 1,743 images, 6,001 IMU messages), md5
-`eef9bc7d82e5d182f4303ee28730786f`. Download: `<DRIVE_LINK>`.
+`eef9bc7d82e5d182f4303ee28730786f`. Download: https://drive.google.com/drive/folders/1r0F40ePA_pI6IMWrDj875T-F30Vc2efi (folder with the bag, its `.md5` and `CONTENTS.md`).
 
 ## Steps
 
