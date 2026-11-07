@@ -79,7 +79,54 @@ NCAM=2 tartanstar/docker.sh tartanstar/run.sh dual $BAG tartanstar/runs/dual
 
 ## Expected output
 
-@VERIFICATION@
+Observed on a fresh clone of this branch (AMD Ryzen 9 5950X, Docker 20.04
+image as above, 2026-11-07):
+
+**(b) mono**, `tartanstar/runs/mono/summary.txt`:
+
+```
+mode: mono
+bag: /bags/tartanstar_2026-05-25-12-20-25_first60s.bag
+poses: 1767
+first_last_stamp: 1779726026.150845289 1779726085.021454811
+last_position_xyz: 7.878790 -44.693939 0.948581
+path_length_m: 86.1
+filter_initialized: 1
+failed_synchronization_lines: 0
+```
+
+One pose per RGB image (1,770 in the bag), 58.9 s covered, no divergence.
+For reference, against our LiDAR-based ground truth for this clip (68.5 m
+path; evaluated outside this repo, evo `--align_origin`): ATE RMSE 6.6 m
+(9.6% of the path), RPE over 10 m 15.5%. On the full 8 min trace the same mono
+setup gives ATE 1.6% of 544 m and RPE over 10 m 12.3%.
+
+**(c) dual**, `tartanstar/runs/dual/summary.txt`:
+
+```
+mode: dual
+bag: /bags/tartanstar_2026-05-25-12-20-25_first60s.bag
+poses: 0
+filter_initialized: 1
+failed_synchronization_lines: 3512
+```
+
+and `node.log`:
+
+```
+-- Filter: Initialized at t = 1779726025.15
+    Failed Synchronization of Camera Frames, t = 1779726026.12
+    Failed Synchronization of Camera Frames, t = 1779726026.15
+    Failed Synchronization of Camera Frames, t = 1779726026.15
+    ...
+```
+
+3,512 `Failed Synchronization` lines for 3,513 images (1,770 RGB + 1,743
+thermal): every image except the first resets the image set, so no image
+update runs and no pose is published (`odometry.tum` is empty). No errors, no
+crash. (Consecutive lines show the same `t` because it is printed with 12
+significant digits; the RGB and thermal stamps differ by ~0.3 ms.) Our full
+8 min trace behaves the same: 28,587 lines for 28,588 images, 0 poses.
 
 ## Where it happens in the code (85f1870)
 
